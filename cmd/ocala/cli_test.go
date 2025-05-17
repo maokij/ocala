@@ -22,11 +22,11 @@ func TestRun(t *testing.T) {
 			expected int
 			args     []string
 		}{
-			{0, []string{"-o", "/dev/null", b + "z80/testdata/empty.oc"}},
-			{0, []string{"-o", "/dev/null", "-I", b + "z80/testdata", b + "z80/testdata/empty.oc"}},
-			{0, []string{"-t", "z80", "-o", "/dev/null", b + "z80/testdata/empty.oc"}},
-			{0, []string{"-t", "6502", "-o", "/dev/null", b + "mos6502/testdata/empty.oc"}},
-			{0, []string{"-t", "z80", "-o", "/dev/null", "-l", "-L", "/dev/null", b + "z80/testdata/empty.oc"}},
+			{0, []string{"-o", b + "output.bin", b + "z80/testdata/empty.oc"}},
+			{0, []string{"-I", b + "z80/testdata", b + "z80/testdata/empty.oc"}},
+			{0, []string{"-t", "z80", b + "z80/testdata/empty.oc"}},
+			{0, []string{"-t", "6502", b + "mos6502/testdata/empty.oc"}},
+			{0, []string{"-t", "z80", "-l", "-L", b + "output.lst", b + "z80/testdata/empty.oc"}},
 			{0, []string{"-D", "CONST", b + "z80/testdata/empty.oc"}},
 			{0, []string{"-V"}},
 			{0, []string{"-h"}},
@@ -53,7 +53,7 @@ func TestRun(t *testing.T) {
 		cli := setupTestCLI()
 		cli.executable, _ = filepath.Abs("../cmd")
 		appRoot = ""
-		actual := cli.Run([]string{"cmd", "-o", "/dev/null", b + "z80/testdata/empty.oc"})
+		actual := cli.Run([]string{"cmd", b + "z80/testdata/empty.oc"})
 		tt.Eq(t, 0, actual)
 	})
 
@@ -61,7 +61,7 @@ func TestRun(t *testing.T) {
 		cli := setupTestCLI()
 		cli.executable, _ = filepath.Abs("./cmd")
 		appRoot = ""
-		actual := cli.Run([]string{"cmd", "-o", "/dev/null", b + "z80/testdata/empty.oc"})
+		actual := cli.Run([]string{"cmd", b + "z80/testdata/empty.oc"})
 		tt.Eq(t, 1, actual)
 		tt.Eq(t, "invalid installation\n", tt.FlushString(cli.errWriter))
 	})
