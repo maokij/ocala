@@ -28,7 +28,7 @@ func regularizePath(s, dir string, paths []string) (string, error) {
 		paths = []string{dir}
 	}
 	for _, dir := range paths {
-		candidate := filepath.Join(dir, path)
+		candidate := filepath.ToSlash(filepath.Join(dir, path))
 		if i, err := os.Stat(candidate); err == nil && !i.IsDir() {
 			return candidate, nil
 		}

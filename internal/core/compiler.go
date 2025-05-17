@@ -400,7 +400,7 @@ func (cc *Compiler) CompileIncluded(path string, text []byte) Value {
 
 func (cc *Compiler) Parse(path string, text []byte) *Vec {
 	cc.InPath = path
-	p := &Parser{Scanner: Scanner{Path: path, Text: text, cc: cc}, contexts: []byte{'{'}}
+	p := &Parser{Scanner: Scanner{Path: path, Text: AdjustEol(text), cc: cc}, contexts: []byte{'{'}}
 	res, _ := p._parse()
 	return res.(*Vec)
 }

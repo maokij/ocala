@@ -92,7 +92,7 @@ func (g *Generator) SetCompilerFromSource(text []byte) {
 }
 
 func (g *Generator) findArchDirective(text []byte) string {
-	p := &Parser{Scanner: Scanner{Text: text}}
+	p := &Parser{Scanner: Scanner{Text: AdjustEol(text)}}
 
 	p.seekToNextToken(false)
 	if !p.Scan(reIdentifier) || p.Matched[1] != "" || p.Matched[2] != "arch" {
