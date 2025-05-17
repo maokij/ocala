@@ -1,0 +1,980 @@
+// -*- mode: ocala; -*-
+include "z80.oc"
+
+module msx {
+    pragma list-constants 0 "msx system constants omitted"
+
+    // main memory addresses
+    const PAGE0_ADDR = 0x0000
+    const PAGE1_ADDR = 0x4000
+    const PAGE2_ADDR = 0x8000
+    const PAGE3_ADDR = 0xC000
+    const STACK_ADDR = 0xF380
+
+    // VDP addresses
+    //   TXT SCREEN 0
+    //   T32 SCREEN 1
+    //   GRP SCREEN 2
+    //   MLT SCREEN 3
+    const TXTNAM/INI = 0x0000
+    const TXTCGP/INI = 0x0800
+
+    const T32CGP/INI = 0x0000
+    const T32NAM/INI = 0x1800
+    const T32COL/INI = 0x2000
+    const T32ATR/INI = 0x1B00
+    const T32PAT/INI = 0x3800
+
+    const GRPCGP/INI = 0x0000
+    const GRPNAM/INI = 0x1800
+    const GRPCOL/INI = 0x2000
+    const GRPATR/INI = 0x1B00
+    const GRPPAT/INI = 0x3800
+
+    const MLTCGP/INI = 0x0000
+    const MLTNAM/INI = 0x0800
+    const MLTATR/INI = 0x1B00
+    const MLTPAT/INI = 0x3800
+
+    // Hardware
+    // from: cbios-0.29a/src/hardware.asm
+    const DBG_CTRL = 0x2E
+    const DBG_DATA = 0x2F
+    const PRN_STAT = 0x90
+    const PRN_DATA = 0x91
+    const VDP_DATA = 0x98
+    const VDP_ADDR = 0x99
+    const VDP_STAT = 0x99
+    const VDP_PALT = 0x9A
+    const VDP_REGS = 0x9B
+    const PSG_REGS = 0xA0
+    const PSG_DATA = 0xA1
+    const PSG_STAT = 0xA2
+    const PSL_STAT = 0xA8
+    const KBD_STAT = 0xA9
+    const GIO_REGS = 0xAA
+    const PPI_REGS = 0xAB
+    const RTC_ADDR = 0xB4
+    const RTC_DATA = 0xB5
+    const SYSFLAGS = 0xF4
+    const MAP_REG1 = 0xFC
+    const MAP_REG2 = 0xFD
+    const MAP_REG3 = 0xFE
+    const MAP_REG4 = 0xFF
+    const SSL_REGS = 0xFFFF
+
+    // BIOS
+    // from: cbios-0.29a/src/main.asm
+    const CHKRAM = 0x0000
+    const SYNCHR = 0x0008
+    const RDSLT  = 0x000C
+    const CHRGTR = 0x0010
+    const WRSLT  = 0x0014
+    const OUTDO  = 0x0018
+    const CALSLT = 0x001C
+    const DCOMPR = 0x0020
+    const ENASLT = 0x0024
+    const GETYPR = 0x0028
+    const CALLF  = 0x0030
+    const KEYINT = 0x0038
+    const INITIO = 0x003B
+    const INIFNK = 0x003E
+    const DISSCR = 0x0041
+    const ENASCR = 0x0044
+    const WRTVDP = 0x0047
+    const RDVRM  = 0x004A
+    const WRTVRM = 0x004D
+    const SETRD  = 0x0050
+    const SETWRT = 0x0053
+    const FILVRM = 0x0056
+    const LDIRMV = 0x0059
+    const LDIRVM = 0x005C
+    const CHGMOD = 0x005F
+    const CHGCLR = 0x0062
+    const NMI    = 0x0066
+    const CLRSPR = 0x0069
+    const INITXT = 0x006C
+    const INIT32 = 0x006F
+    const INIGRP = 0x0072
+    const INIMLT = 0x0075
+    const SETTXT = 0x0078
+    const SETT32 = 0x007B
+    const SETGRP = 0x007E
+    const SETMLT = 0x0081
+    const CALPAT = 0x0084
+    const CALATR = 0x0087
+    const GSPSIZ = 0x008A
+    const GRPPRT = 0x008D
+    const GICINI = 0x0090
+    const WRTPSG = 0x0093
+    const RDPSG  = 0x0096
+    const STRTMS = 0x0099
+    const CHSNS  = 0x009C
+    const CHGET  = 0x009F
+    const CHPUT  = 0x00A2
+    const LPTOUT = 0x00A5
+    const LPTSTT = 0x00A8
+    const CNVCHR = 0x00AB
+    const PINLIN = 0x00AE
+    const INLIN  = 0x00B1
+    const QINLIN = 0x00B4
+    const BREAKX = 0x00B7
+    const ISCNTC = 0x00BA
+    const CKCNTC = 0x00BD
+    const BEEP   = 0x00C0
+    const CLS    = 0x00C3
+    const POSIT  = 0x00C6
+    const FNKSB  = 0x00C9
+    const ERAFNK = 0x00CC
+    const DSPFNK = 0x00CF
+    const TOTEXT = 0x00D2
+    const GTSTCK = 0x00D5
+    const GTTRIG = 0x00D8
+    const GTPAD  = 0x00DB
+    const GTPDL  = 0x00DE
+    const TAPION = 0x00E1
+    const TAPIN  = 0x00E4
+    const TAPIOF = 0x00E7
+    const TAPOON = 0x00EA
+    const TAPOUT = 0x00ED
+    const TAPOOF = 0x00F0
+    const STMOTR = 0x00F3
+    const LFTQ   = 0x00F6
+    const PUTQ   = 0x00F9
+    const RIGHTC = 0x00FC
+    const LEFTC  = 0x00FF
+    const UPC    = 0x0102
+    const TUPC   = 0x0105
+    const DOWNC  = 0x0108
+    const TDOWNC = 0x010B
+    const SCALXY = 0x010E
+    const MAPXY  = 0x0111
+    const FETCHC = 0x0114
+    const STOREC = 0x0117
+    const SETATR = 0x011A
+    const READC  = 0x011D
+    const SETC   = 0x0120
+    const NSETCX = 0x0123
+    const GTASPC = 0x0126
+    const PNTINI = 0x0129
+    const SCANR  = 0x012C
+    const SCANL  = 0x012F
+    const CHGCAP = 0x0132
+    const CHGSND = 0x0135
+    const RSLREG = 0x0138
+    const WSLREG = 0x013B
+    const RDVDP  = 0x013E
+    const SNSMAT = 0x0141
+    const PHYDIO = 0x0144
+    const FORMAT = 0x0147
+    const ISFLIO = 0x014A
+    const OUTDLP = 0x014D
+    const GETVCP = 0x0150
+    const GETVC2 = 0x0153
+    const KILBUF = 0x0156
+    const CALBAS = 0x0159
+    const SUBROM = 0x015C
+    const EXTROM = 0x015F
+    const CHKSLZ = 0x0162
+    const CHKNEW = 0x0165
+    const EOL    = 0x0168
+    const BIGFIL = 0x016B
+    const NSETRD = 0x016E
+    const NSTWRT = 0x0171
+    const NRDVRM = 0x0174
+    const NWRVRM = 0x0177
+    const RDRES  = 0x017A
+    const WRRES  = 0x017D
+
+    // System variables
+    // from: cbios-0.29a/src/systemvars.asm
+    const USRTAB = 0xF39A
+    const LINL40 = 0xF3AE
+    const LINL32 = 0xF3AF
+    const LINLEN = 0xF3B0
+    const CRTCNT = 0xF3B1
+    const CLMLST = 0xF3B2
+    const TXTNAM = 0xF3B3
+    const TXTCOL = 0xF3B5
+    const TXTCGP = 0xF3B7
+    const TXTATR = 0xF3B9
+    const TXTPAT = 0xF3BB
+    const T32NAM = 0xF3BD
+    const T32COL = 0xF3BF
+    const T32CGP = 0xF3C1
+    const T32ATR = 0xF3C3
+    const T32PAT = 0xF3C5
+    const GRPNAM = 0xF3C7
+    const GRPCOL = 0xF3C9
+    const GRPCGP = 0xF3CB
+    const GRPATR = 0xF3CD
+    const GRPPAT = 0xF3CF
+    const MLTNAM = 0xF3D1
+    const MLTCOL = 0xF3D3
+    const MLTCGP = 0xF3D5
+    const MLTATR = 0xF3D7
+    const MLTPAT = 0xF3D9
+    const CLIKSW = 0xF3DB
+    const CSRY   = 0xF3DC
+    const CSRX   = 0xF3DD
+    const CNSDFG = 0xF3DE
+    const RG0SAV = 0xF3DF
+    const RG1SAV = 0xF3E0
+    const RG2SAV = 0xF3E1
+    const RG3SAV = 0xF3E2
+    const RG4SAV = 0xF3E3
+    const RG5SAV = 0xF3E4
+    const RG6SAV = 0xF3E5
+    const RG7SAV = 0xF3E6
+    const STATFL = 0xF3E7
+    const TRGFLG = 0xF3E8
+    const FORCLR = 0xF3E9
+    const BAKCLR = 0xF3EA
+    const BDRCLR = 0xF3EB
+    const MAXUPD = 0xF3EC
+    const MINUPD = 0xF3EF
+    const ATRBYT = 0xF3F2
+    const QUEUES = 0xF3F3
+    const FRCNEW = 0xF3F5
+    const SCNCNT = 0xF3F6
+    const REPCNT = 0xF3F7
+    const PUTPNT = 0xF3F8
+    const GETPNT = 0xF3FA
+    const CS120  = 0xF3FC
+    const CS240  = 0xF401
+    const LOW_   = 0xF406
+    const HIGH_  = 0xF408
+    const HEADER = 0xF40A
+    const ASPCT1 = 0xF40B
+    const ASPCT2 = 0xF40D
+    const ENDPRG = 0xF40F
+    const ERRFLG = 0xF414
+    const LPTPOS = 0xF415
+    const PRTFLG = 0xF416
+    const NTMSXP = 0xF417
+    const RAWPRT = 0xF418
+    const VLZADR = 0xF419
+    const VLZDAT = 0xF41B
+    const CURLIN = 0xF41C
+    const KBFMIN = 0xF41E
+    const KBUF   = 0xF41F
+    const BUFMIN = 0xF55D
+    const BUF    = 0xF55E
+    const SX     = 0xF562
+    const SY     = 0xF564
+    const DX     = 0xF566
+    const DY     = 0xF568
+    const NX     = 0xF56A
+    const NY     = 0xF56C
+    const CDUMMY = 0xF56E
+    const ARG_   = 0xF56F
+    const L_OP   = 0xF570
+    const ENDBUF = 0xF660
+    const TTYPOS = 0xF661
+    const DIMFLG = 0xF662
+    const VALTYP = 0xF663
+    const DORES  = 0xF664
+    const DONUM  = 0xF665
+    const CONTXT = 0xF666
+    const CONSAV = 0xF668
+    const CONTYP = 0xF669
+    const CONLO  = 0xF66A
+    const MEMSIZ = 0xF672
+    const STKTOP = 0xF674
+    const TXTTAB = 0xF676
+    const TEMPPT = 0xF678
+    const TEMPST = 0xF67A
+    const DSCTMP = 0xF698
+    const FRETOP = 0xF69B
+    const TEMP3  = 0xF69D
+    const TEMP8  = 0xF69F
+    const ENDFOR = 0xF6A1
+    const DATLIN = 0xF6A3
+    const SUBFLG = 0xF6A5
+    const FLKINP = 0xF6A6
+    const TEMP   = 0xF6A7
+    const PTRFLG = 0xF6A9
+    const AUTFLG = 0xF6AA
+    const AUTLIN = 0xF6AB
+    const AUTINC = 0xF6AD
+    const SAVTXT = 0xF6AF
+    const SAVSTK = 0xF6B1
+    const ERRLIN = 0xF6B3
+    const DOT    = 0xF6B5
+    const ERRTXT = 0xF6B7
+    const ONELIN = 0xF6B9
+    const ONEFLG = 0xF6BB
+    const TEMP2  = 0xF6BC
+    const OLDLIN = 0xF6BE
+    const OLDTXT = 0xF6C0
+    const VARTAB = 0xF6C2
+    const ARYTAB = 0xF6C4
+    const STREND = 0xF6C6
+    const DATPTR = 0xF6C8
+    const DEFTBL = 0xF6CA
+    const PRMSTK = 0xF6E4
+    const PRMLEN = 0xF6E6
+    const PARM1  = 0xF6E8
+    const PRMDRV = 0xF74C
+    const PRMLN2 = 0xF74E
+    const PARM2  = 0xF750
+    const PRMFLG = 0xF7B4
+    const ARYTA2 = 0xF7B5
+    const NOFUNS = 0xF7B7
+    const TEMP9  = 0xF7B8
+    const FUNACT = 0xF7BA
+    const SWPTMP = 0xF7BC
+    const TRCFLG = 0xF7C4
+    const FBUFFR = 0xF7C5
+    const DECTMP = 0xF7F0
+    const DECTM2 = 0xF7F2
+    const DECCNT = 0xF7F4
+    const DAC    = 0xF7F6
+    const HOLD8  = 0xF806
+    const HOLD2  = 0xF836
+    const HOLD   = 0xF83E
+    const ARG    = 0xF847
+    const RNDX   = 0xF857
+    const MAXFIL = 0xF85F
+    const FILTAB = 0xF860
+    const NULBUF = 0xF862
+    const PTRFIL = 0xF864
+    const RUNFLG = 0xF866
+    const FILNAM = 0xF866
+    const FILNM2 = 0xF871
+    const NLONLY = 0xF87C
+    const SAVEND = 0xF87D
+    const FNKSTR = 0xF87F
+    const CGPNT  = 0xF91F
+    const NAMBAS = 0xF922
+    const CGPBAS = 0xF924
+    const PATBAS = 0xF926
+    const ATRBAS = 0xF928
+    const CLOC   = 0xF92A
+    const CMASK  = 0xF92C
+    const MINDEL = 0xF92D
+    const MAXDEL = 0xF92F
+    const ASPECT = 0xF931
+    const CENCNT = 0xF933
+    const CLINEF = 0xF935
+    const CNPNTS = 0xF936
+    const CPLOTF = 0xF938
+    const CPCNT  = 0xF939
+    const CPCNT8 = 0xF93B
+    const CRCSUM = 0xF93D
+    const CSTCNT = 0xF93F
+    const CSCLXY = 0xF941
+    const CSAVEA = 0xF942
+    const CSAVEM = 0xF944
+    const CXOFF  = 0xF945
+    const CYOFF  = 0xF947
+    const LOHMSK = 0xF949
+    const LOHDIR = 0xF94A
+    const LOHADR = 0xF94B
+    const LOHCNT = 0xF94D
+    const SKPCNT = 0xF94F
+    const MOVCNT = 0xF951
+    const PDIREC = 0xF953
+    const LFPROG = 0xF954
+    const RTPROG = 0xF955
+    const MCLTAB = 0xF956
+    const MCLFLG = 0xF958
+    const QUETAB = 0xF959
+    const QUEBAK = 0xF971
+    const VOICAQ = 0xF975
+    const VOICBQ = 0xF9F5
+    const VOICCQ = 0xFA75
+    const RS2IQ  = 0xFAF5
+    const DPPAGE = 0xFAF5
+    const ACPAGE = 0xFAF6
+    const AVCSAV = 0xFAF7
+    const EXBRSA = 0xFAF8
+    const CHRCNT = 0xFAF9
+    const ROMA   = 0xFAFA
+    const MODE   = 0xFAFC
+    const XSAVE  = 0xFAFE
+    const YSAVE  = 0xFB00
+    const LOGOPR = 0xFB02
+    const DRVINF = 0xFB21
+    const PRSCNT = 0xFB35
+    const SAVSP  = 0xFB36
+    const VOICEN = 0xFB38
+    const SAVVOL = 0xFB39
+    const MCLLEN = 0xFB3B
+    const MCLPTR = 0xFB3C
+    const QUEUEN = 0xFB3E
+    const MUSICF = 0xFB3F
+    const PLYCNT = 0xFB40
+    const VCBA   = 0xFB41
+    const VCBB   = 0xFB66
+    const VCBC   = 0xFB8B
+    const METREX = 0
+    const VCXLEN = 2
+    const VCXPTR = 3
+    const VCXSTP = 5
+    const QLENGX = 7
+    const NTICSX = 8
+    const TONPRX = 10
+    const AMPLTX = 12
+    const ENVPRX = 13
+    const OCTAVX = 15
+    const NOTELX = 16
+    const TEMPOX = 17
+    const VOLUMX = 18
+    const ENVLPX = 19
+    const MCLSTX = 33
+    const MCLSEX = 36
+    const ENSTOP = 0xFBB0
+    const BASROM = 0xFBB1
+    const LINTTB = 0xFBB2
+    const FSTPOS = 0xFBCA
+    const CURSAV = 0xFBCC
+    const FNKSWI = 0xFBCD
+    const FNKFLG = 0xFBCE
+    const ONGSBF = 0xFBD8
+    const CLIKFL = 0xFBD9
+    const OLDKEY = 0xFBDA
+    const NEWKEY = 0xFBE5
+    const KEYBUF = 0xFBF0
+    const LIMPNT = 0xFC17
+    const LINWRK = 0xFC18
+    const PATWRK = 0xFC40
+    const BOTTOM = 0xFC48
+    const HIMEM  = 0xFC4A
+    const TRPTBL = 0xFC4C
+    const RTYCNT = 0xFC9A
+    const INTFLG = 0xFC9B
+    const PADY   = 0xFC9C
+    const PADX   = 0xFC9D
+    const JIFFY  = 0xFC9E
+    const INTVAL = 0xFCA0
+    const INTCNT = 0xFCA2
+    const LOWLIM = 0xFCA4
+    const WINWID = 0xFCA5
+    const GRPHED = 0xFCA6
+    const ESCCNT = 0xFCA7
+    const INSFLG = 0xFCA8
+    const CSRSW  = 0xFCA9
+    const CSTYLE = 0xFCAA
+    const CAPST  = 0xFCAB
+    const KANAST = 0xFCAC
+    const KANAMD = 0xFCAD
+    const FLBMEM = 0xFCAE
+    const SCRMOD = 0xFCAF
+    const OLDSCR = 0xFCB0
+    const CASPRV = 0xFCB1
+    const BRDATR = 0xFCB2
+    const GXPOS  = 0xFCB3
+    const GYPOS  = 0xFCB5
+    const GRPACX = 0xFCB7
+    const GRPACY = 0xFCB9
+    const DRWFLG = 0xFCBB
+    const DRWANG = 0xFCBD
+    const RUNBNF = 0xFCBE
+    const SAVENT = 0xFCBF
+    const EXPTBL = 0xFCC1
+    const SLTTBL = 0xFCC5
+    const SLTATR = 0xFCC9
+    const SLTWRK = 0xFD09
+    const PROCNM = 0xFD89
+    const DEVICE = 0xFD99
+    const RG8SAV = 0xFFE7
+    const RG25SAV = 0xFFFA
+
+    // Hooks
+    // from: cbios-0.29a/src/hooks.asm
+    const H_KEYI = 0xFD9A
+    const H_TIMI = 0xFD9F
+    const H_CHPU = 0xFDA4
+    const H_DSPC = 0xFDA9
+    const H_ERAC = 0xFDAE
+    const H_DSPF = 0xFDB3
+    const H_ERAF = 0xFDB8
+    const H_TOTE = 0xFDBD
+    const H_CHGE = 0xFDC2
+    const H_INIP = 0xFDC7
+    const H_KEYC = 0xFDCC
+    const H_KYEA = 0xFDD1
+    const H_NMI  = 0xFDD6
+    const H_PINL = 0xFDDB
+    const H_QINL = 0xFDE0
+    const H_INLI = 0xFDE5
+    const H_ONGO = 0xFDEA
+    const H_DSKO = 0xFDEF
+    const H_SETS = 0xFDF4
+    const H_NAME = 0xFDF9
+    const H_KILL = 0xFDFE
+    const H_IPL  = 0xFE03
+    const H_COPY = 0xFE08
+    const H_CMD  = 0xFE0D
+    const H_DSKF = 0xFE12
+    const H_DSKI = 0xFE17
+    const H_ATTR = 0xFE1C
+    const H_LSET = 0xFE21
+    const H_RSET = 0xFE26
+    const H_FIEL = 0xFE2B
+    const H_MKIS = 0xFE30
+    const H_MKSS = 0xFE35
+    const H_MKDS = 0xFE3A
+    const H_CVI  = 0xFE3F
+    const H_CVS  = 0xFE44
+    const H_CVD  = 0xFE49
+    const H_GETP = 0xFE4E
+    const H_SETF = 0xFE53
+    const H_NOFO = 0xFE58
+    const H_NULO = 0xFE5D
+    const H_NTFL = 0xFE62
+    const H_MERG = 0xFE67
+    const H_SAVE = 0xFE6C
+    const H_BINS = 0xFE71
+    const H_BINL = 0xFE76
+    const H_FILE = 0xFE7B
+    const H_DGET = 0xFE80
+    const H_FILO = 0xFE85
+    const H_INDS = 0xFE8A
+    const H_RSLF = 0xFE8F
+    const H_SAVD = 0xFE94
+    const H_LOC  = 0xFE99
+    const G_LOF  = 0xFE9E
+    const H_EOF  = 0xFEA3
+    const H_FPOS = 0xFEA8
+    const H_BAKU = 0xFEAD
+    const H_PARD = 0xFEB2
+    const H_NODE = 0xFEB7
+    const H_POSD = 0xFEBC
+    const H_DEVN = 0xFEC1
+    const H_GEND = 0xFEC6
+    const H_RUNC = 0xFECB
+    const H_CLEA = 0xFED0
+    const H_LOPD = 0xFED5
+    const H_STKE = 0xFEDA
+    const H_ISFL = 0xFEDF
+    const H_OUTD = 0xFEE4
+    const H_CRDO = 0xFEE9
+    const H_DSKC = 0xFEEE
+    const H_PRGE = 0xFEF8
+    const H_ERRP = 0xFEFD
+    const H_ERRF = 0xFF02
+    const H_READ = 0xFF07
+    const H_MAIN = 0xFF0C
+    const H_DIRD = 0xFF11
+    const H_FINI = 0xFF16
+    const H_FINE = 0xFF1B
+    const H_CRUN = 0xFF20
+    const H_CRUS = 0xFF25
+    const H_ISRE = 0xFF2A
+    const H_NTFN = 0xFF2F
+    const H_NOTR = 0xFF34
+    const H_SNGF = 0xFF39
+    const H_NEWS = 0xFF3E
+    const H_GONE = 0xFF43
+    const H_CHRG = 0xFF48
+    const H_RETU = 0xFF4D
+    const H_PRTF = 0xFF52
+    const H_COMP = 0xFF57
+    const H_FINP = 0xFF5C
+    const H_TRMN = 0xFF61
+    const H_FRME = 0xFF66
+    const H_NTPL = 0xFF6B
+    const H_EVAL = 0xFF70
+    const H_OKNO = 0xFF75
+    const H_FING = 0xFF7A
+    const H_ISMI = 0xFF7F
+    const H_WIDT = 0xFF84
+    const H_LIST = 0xFF89
+    const H_BUFL = 0xFF8E
+    const H_FRQI = 0xFF93
+    const H_SCNE = 0xFF98
+    const H_FRET = 0xFF9D
+    const H_PTRG = 0xFFA2
+    const H_PHYD = 0xFFA7
+    const H_FORM = 0xFFAC
+    const H_ERRO = 0xFFB1
+    const H_LPTO = 0xFFB6
+    const H_LPTS = 0xFFBB
+    const H_SCRE = 0xFFC0
+    const H_PLAY = 0xFFC5
+    const H_BEXT = 0xFFCA
+
+    // VDP commands
+    const VDP/POINT = 0b0100_0000
+    const VDP/PSET  = 0b0101_0000
+    const VDP/SRCH  = 0b0110_0000
+    const VDP/LINE  = 0b0111_0000
+    const VDP/LMMV  = 0b1000_0000
+    const VDP/LMMM  = 0b1001_0000
+    const VDP/LMCM  = 0b1010_0000
+    const VDP/LMMC  = 0b1011_0000
+    const VDP/HMMV  = 0b1100_0000
+    const VDP/HMMM  = 0b1101_0000
+    const VDP/YMMM  = 0b1110_0000
+    const VDP/HMMC  = 0b1111_0000
+
+    pragma list-constants 1
+
+    // BIOS wrapper inline procedures
+    macro _bios(addr) { CALL %=addr; RET }
+    proc chkram(-* !) { _bios CHKRAM } // 0x0000
+    proc synchr(-* HL => A HL) { _bios SYNCHR } // 0x0008 !
+    proc rdslt(-* A HL => A ! C DE) { _bios RDSLT } // 0x000C
+    proc chrgtr(-* HL => A HL) { _bios CHRGTR } // 0x0010
+    proc wrslt(-* A HL E => ! BC D) { _bios WRSLT } // 0x0014
+    proc outdo(-* A =>) { _bios OUTDO } // 0x0018
+    proc calslt(-* IY IX => !) { _bios CALSLT } // 0x001C !
+    proc dcompr(-* HL DE =>) { _bios DCOMPR } // 0x0020 !
+    proc enaslt(-* A HL => !) { _bios ENASLT } // 0x0024 !
+    proc getypr(-*) { _bios GETYPR } // 0x0028
+    proc callf(-* !) { _bios CALLF } // 0x0030 !
+    proc initio(-* !) { _bios INITIO } // 0x003B
+    proc inifnk(-* !) { _bios INIFNK } // 0x003E
+    proc disscr(-* ! BC) { _bios DISSCR } // 0x0041
+    proc enascr(-* ! BC) { _bios ENASCR } // 0x0044
+    proc wrtvdp(-* C B ! BC) { _bios WRTVDP } // 0x0047 !
+    proc rdvrm(-* HL => A) { _bios RDVRM } // 0x004A
+    proc wrtvrm(-* HL A =>) { _bios WRTVRM } // 0x004D
+    proc setrd(-* HL =>) { _bios SETRD } // 0x0050
+    proc setwrt(-* HL =>) { _bios SETWRT } // 0x0053
+    proc filvrm(-* A BC HL => ! BC) { _bios FILVRM } // 0x0056
+    proc ldirmv(-* BC DE HL => !) { _bios LDIRMV } // 0x0059 !
+    proc ldirvm(-* BC DE HL => !) { _bios LDIRVM } // 0x005C
+    proc chgmod(-* A => !) { _bios CHGMOD } // 0x005F
+    proc chgclr(-* A => !) { _bios CHGCLR } // 0x0062
+    proc nmi(-*) { _bios NMI } // 0x0066
+    proc clrspr(-* !) { _bios CLRSPR } // 0x0069
+    proc initxt(-* !) { _bios INITXT } // 0x006C
+    proc init32(-* !) { _bios INIT32 } // 0x006F
+    proc inigrp(-* !) { _bios INIGRP } // 0x0072
+    proc inimlt(-* !) { _bios INIMLT } // 0x0075
+    proc settxt(-* !) { _bios SETTXT } // 0x0078
+    proc sett32(-* !) { _bios SETT32 } // 0x007B
+    proc setgrp(-* !) { _bios SETGRP } // 0x007E
+    proc setmlt(-* !) { _bios SETMLT } // 0x0081
+    proc calpat(-* A => HL ! DE) { _bios CALPAT } // 0x0084
+    proc calatr(-* A => HL ! DE) { _bios CALATR } // 0x0087
+    proc gspsiz(-* => A) { _bios GSPSIZ } // 0x008A
+    proc grpprt(-* A =>) { _bios GRPPRT } // 0x008D !
+    proc gicini(-* !) { _bios GICINI } // 0x0090
+    proc wrtpsg(-* A E =>) { _bios WRTPSG } // 0x0093
+    proc rdpsg(-* A => A) { _bios RDPSG } // 0x0096
+    proc strtms(-* !) { _bios STRTMS } // 0x0099
+    proc chsns(-*) { _bios CHSNS } // 0x009C
+    proc chget(-* => A) { _bios CHGET } // 0x009F
+    proc chput(-* A =>) { _bios CHPUT } // 0x00A2
+    proc lptout(-* A =>) { _bios LPTOUT } // 0x00A5
+    proc lptstt(-* => A) { _bios LPTSTT } // 0x00A8
+    proc cnvchr(-* A =>) { _bios CNVCHR } // 0x00AB
+    proc pinlin(-* => HL !) { _bios PINLIN } // 0x00AE
+    proc inlin(-* => HL !) { _bios INLIN } // 0x00B1
+    proc qinlin(-* => HL !) { _bios QINLIN } // 0x00B4
+    proc breakx(-*) { _bios BREAKX } // 0x00B7
+    proc iscntc(-*) { _bios ISCNTC } // 0x00BA
+    proc ckcntc(-*) { _bios CKCNTC } // 0x00BD
+    proc beep(-* !) { _bios BEEP } // 0x00C0
+    proc cls(-* ! BC DE) { _bios CLS } // 0x00C3
+    proc posit(-* H L =>) { _bios POSIT } // 0x00C6
+    proc fnksb(-* !) { _bios FNKSB } // 0x00C9
+    proc erafnk(-* !) { _bios ERAFNK } // 0x00CC
+    proc dspfnk(-* !) { _bios DSPFNK } // 0x00CF
+    proc totext(-* !) { _bios TOTEXT } // 0x00D2
+    proc gtstck(-* A => A !) { _bios GTSTCK } // 0x00D5
+    proc gttrig(-* A => A !) { _bios GTTRIG } // 0x00D8 ?
+    proc gtpad(-* A => A !) { _bios GTPAD } // 0x00DB
+    proc gtpdl(-* A => A !) { _bios GTPDL } // 0x00DE
+    proc tapion(-* !) { _bios TAPION } // 0x00E1
+    proc tapin(-* => A !) { _bios TAPIN } // 0x00E4
+    proc tapiof(-*) { _bios TAPIOF } // 0x00E7
+    proc tapoon(-* A => !) { _bios TAPOON } // 0x00EA
+    proc tapout(-* A => !) { _bios TAPOUT } // 0x00ED
+    proc tapoof(-*) { _bios TAPOOF } // 0x00F0
+    proc stmotr(-* A =>) { _bios STMOTR } // 0x00F3
+    proc lftq(-* A => HL ! BC) { _bios LFTQ } // 0x00F6
+    proc putq(-* A E => ! BC HL) { _bios PUTQ } // 0x00F9
+    proc rightc(-*) { _bios RIGHTC } // 0x00FC
+    proc leftc(-*) { _bios LEFTC } // 0x00FF
+    proc upc(-*) { _bios UPC } // 0x0102
+    proc tupc(-*) { _bios TUPC } // 0x0105
+    proc downc(-*) { _bios DOWNC } // 0x0108
+    proc tdownc(-*) { _bios TDOWNC } // 0x010B
+    proc scalxy(-*) { _bios SCALXY } // 0x010E
+    proc mapxyc(-* BC =>) { _bios MAPXYC } // 0x0111
+    proc fetchc(-* => HL A) { _bios FETCHC } // 0x0114
+    proc storec(-* HL A =>) { _bios STOREC } // 0x0117
+    proc setatr(-*) { _bios SETATR } // 0x011A
+    proc readc(-*) { _bios READC } // 0x011D
+    proc setc(-*) { _bios SETC } // 0x0120
+    proc nsetcx(-*) { _bios NSETCX } // 0x0123
+    proc gtaspc(-* ! DE HL) { _bios GTASPC } // 0x0126
+    proc pntini(-*) { _bios PNTINI } // 0x0129
+    proc scanr(-*) { _bios SCANR } // 0x012C
+    proc scanl(-*) { _bios SCANL } // 0x012F
+    proc chgcap(-* A =>) { _bios CHGCAP } // 0x0132
+    proc chgsnd(-* A =>) { _bios CHGSND } // 0x0135
+    proc rslreg(-* => A) { _bios RSLREG } // 0x0138
+    proc wslreg(-* A =>) { _bios WSLREG } // 0x013B
+    proc rdvdp(-* => A) { _bios RDVDP } // 0x013E
+    proc snsmat(-* A => A) { _bios SNSMAT } // 0x0141
+    proc phydio(-* B C DE HL => !) { _bios PHYDIO } // 0x0144
+    proc format(-* !) { _bios FORMAT } // 0x0147
+    proc isflio(-* => A) { _bios ISFLIO } // 0x014A
+    proc outdlp(-* A =>) { _bios OUTDLP } // 0x014D
+    proc getvcp(-* A => HL) { _bios GETVCP } // 0x0150
+    proc getvc2(-* L => HL) { _bios GETVC2 } // 0x0153
+    proc kilbuf(-* ! HL) { _bios KILBUF } // 0x0156
+    proc calbas(-* IX => !) { _bios CALBAS } // 0x0159 !
+    proc subrom(-* IX => ! IY) { _bios SUBROM } // 0x015C
+    proc extrom(-* IX => ! IY) { _bios EXTROM } // 0x015F
+    proc chknew(-*) { _bios CHKNEW } // 0x0165
+    proc eol(-* H L => !) { _bios EOL } // 0x0168
+    proc bigfil(-* HL BC A => ! BC) { _bios BIGFIL } // 0x016B
+    proc nsetrd(-* HL =>) { _bios NSETRD } // 0x016E
+    proc nsetwr(-* HL =>) { _bios NSETWR } // 0x0171
+    proc nrdvrm(-* HL => A) { _bios NRDVRM } // 0x0174
+    proc nwrvrm(-* HL A =>) { _bios NWRVRM } // 0x0177
+    proc rdres(-* => A) { _bios RDRES } // 0x017A
+    proc wrres(-* A =>) { _bios WRRES } // 0x017D
+
+    macro rom-header() {
+        data byte [
+            0x41, 0x42, 0x10, 0x40, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+        ]
+    }
+
+    macro link-as-rom(sections ...) ={
+        link {
+            org msx:PAGE1_ADDR 0x8000 LINK/FILL
+            merge text { msx:rom-header } %*sections
+            merge rodata { align 2 } %*sections
+
+            org msx:PAGE3_ADDR 0x4000 LINK/NOLOAD
+            merge bss %*sections
+        }
+    }
+
+    if defined?(FOR_MSX2_OR_LATER) ={
+        macro otir-vdp-data() {
+            OTIR // 21
+        }
+        macro out-vdp-data/while/B-() {
+            loop {
+                A -out msx:VDP_DATA // 12
+            } while/B-              // 14
+        }
+    } else ={
+        macro otir-vdp-data() {
+            loop {
+                OUTI           // 18
+            } while not-zero?  // 11
+        }
+        macro out-vdp-data/while/B-() {
+            loop {
+                A -out msx:VDP_DATA // 12
+                NOP                 // 5
+            } while/B-              // 14
+        }
+    }
+
+    macro update-hook!(hook addr) {
+        @0xc3 -> [%=hook] // JP
+        HL@(%=addr) -> [%=hook + 1]
+    }
+
+    macro update-hook(hook addr) {
+        di/ei { msx:update-hook! %=hook %=addr }
+    }
+
+    macro set-vdp-mode!(r0 r1) {
+        msx:set-vdp-register! 0 %=r0
+        msx:set-vdp-register! 1 %=r1
+    }
+
+    macro set-vdp-mode(r0 r1) {
+        di/ei { msx:set-vdp-mode! %=r0 %=r1 }
+    }
+
+    macro set-vdp-addr!(addr) {
+        @lobyte(%=addr) -out msx:VDP_ADDR
+        @hibyte(%=addr) -out msx:VDP_ADDR
+    }
+
+    macro set-vdp-addr(addr) {
+        di/ei { msx:set-vdp-addr! %=addr }
+    }
+
+    macro set-vdp-read-addr!(addr) {
+        msx:set-vdp-addr! %=addr
+    }
+
+    macro set-vdp-read-addr(addr) {
+        msx:set-vdp-addr %=addr
+    }
+
+    macro set-vdp-write-addr!(addr) {
+        msx:set-vdp-addr! (%=addr | 0x4000)
+    }
+
+    macro set-vdp-write-addr(addr) {
+        msx:set-vdp-addr (%=addr | 0x4000)
+    }
+
+    macro set-vdp-register!(reg value: _) {
+        if use?(%&value) {
+            A <- %=value
+        }
+        A -out msx:VDP_ADDR
+        @(%=reg | 0x80) -out msx:VDP_ADDR
+    }
+
+    macro set-vdp-register(reg value: _) {
+        di/ei { msx:set-vdp-register! %=reg %=value }
+    }
+
+    macro set-vdp-registers/prepare(rest ...) [values] {
+        data %=values = byte [] : rodata
+        msx:set-vdp-registers/data %*rest
+        HL <- %=values
+    }
+
+    macro set-vdp-registers/data(reg value rest ...) {
+        data byte [%=value (%=reg | 0x80)] : rodata
+        if (%#rest >= 2) {
+            msx:set-vdp-registers/data %*rest
+        }
+    }
+
+    macro set-vdp-registers!(rest ...) {
+        msx:set-vdp-registers/prepare %*rest
+        BC <- asword(%#rest msx:VDP_ADDR)
+        OTIR
+    }
+
+    macro set-vdp-registers(rest ...) {
+        msx:set-vdp-registers/prepare %*rest
+        BC <- asword(%#rest msx:VDP_ADDR)
+        di/ei { OTIR }
+    }
+
+    macro set-vdp-palette/prepare(rest ...) [colors] {
+        data %=colors = word [%*rest] : rodata
+        HL <- %=colors
+    }
+
+    macro set-vdp-palette!(rest ...) {
+        msx:set-vdp-palette/prepare %*rest
+        BC <- asword((%#rest * 2) msx:VDP_PALT)
+        OTIR
+    }
+
+    macro set-vdp-palette(rest ...) {
+        msx:set-vdp-palette/prepare %*rest
+        BC <- asword((%#rest * 2) msx:VDP_PALT)
+        di/ei { OTIR }
+    }
+
+    macro write-vdp-data(from size) {
+        if use?(%&from) {
+            HL <- %=from
+        }
+        if use?(%&size) {
+            BC <- asword(%=size msx:VDP_DATA)
+        } else {
+            C <- msx:VDP_DATA
+        }
+        msx:otir-vdp-data
+    }
+
+    macro write-vdp-data/wide(from size) {
+        if use?(%&from) {
+            HL <- %=from
+        }
+        if use?(%&size) {
+            A <- lobyte(%=size)
+            BC <- asword(hibyte(%=size) msx:VDP_DATA)
+        } else {
+            C <- msx:VDP_DATA
+        }
+        loop {
+            msx:otir-vdp-data
+        } while/A-
+    }
+
+    macro write-vdp-data/rect(from to width height delta) {
+        if use?(%&to) {
+            DE <- (%=to | 0x4000)
+        }
+        if use?(%&from) {
+            HL <- %=from
+        }
+
+        if (%=height == 1) {
+            C@msx:VDP_ADDR . { di/ei { out/DE->C } }
+            msx:write-vdp-data _ %=width
+        } else {
+            A <- %=height
+            loop {
+                C@msx:VDP_ADDR . { di/ei { out/DE->C } }
+                msx:write-vdp-data _ %=width
+                HL<->DE { HL . C@%=delta + BC } // B == 0, BC == 32
+            } while/A-
+        }
+    }
+
+
+    macro fill-vdp-data(value: _ size: _) {
+        if use?(%&value) {
+            A <- %=value
+        }
+        if use?(%&size) {
+            B <- %=size
+        }
+        msx:out-vdp-data/while/B-
+    }
+
+    macro fill-vdp-data/wide(value: _ size: _) {
+        if use?(%&value) {
+            A <- %=value
+        }
+        if use?(%&size) {
+            BC <- %=size
+        }
+        loop {
+            msx:out-vdp-data/while/B-
+        } while/C-
+    }
+
+    macro wait() {
+        HALT
+    }
+
+    macro wait-vsync() {
+        A <- [HL@msx:JIFFY]
+        loop {
+            A -? [HL]; break-if !=?
+            msx:wait
+        }
+    }
+
+    macro sleep(n) {
+        if use?(%&n) {
+            B <- %=n
+        }
+        loop {
+            msx:wait-vsync
+        } while/B-
+    }
+
+    macro enable-slot/page2() {
+        msx:get-slot/page1(-* => A ! BC HL)
+        A . H@hibyte(msx:PAGE2_ADDR) . msx:enaslt(-* A HL => !)
+    }
+
+    proc get-slot/page1(-* => A ! BC HL) {
+        A -in msx:PSL_STAT & 0b0000_1100 >* 2 -> C . B@0
+        @[HL@msx:EXPTBL + BC] & 0b1000_0000 | C -> C
+        @[HL ++ ++ ++ ++] & 0b0000_1100 | C
+        return
+    }
+
+    const t32nam(x: 0 y: 0) = T32NAM/INI + (y * 32) + x
+    const rgb(r g b) = asword(g (r << 4) | b)
+}

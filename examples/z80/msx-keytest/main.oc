@@ -1,0 +1,180 @@
+arch z80
+include "msx.oc"
+
+msx:link-as-rom main _
+
+module device {
+    proc init(!) {
+        msx:set-vdp-mode 0b0000_0000 0b1110_0000
+        clear_namtab(!)
+        clear_spratr(!)
+        clear_chrtab(!)
+        HL@assets:chrdat . load_chrdat(HL => !)
+        msx:update-hook msx:H_TIMI timi
+        return
+    }
+
+    proc timi() {
+        push/pop AF {
+            A - A -> [msx:SCNCNT] -> [msx:INTCNT] // skip default key scan
+            device:read_keys(=> B ! C)
+        }
+        return
+    }
+
+    proc read_keys(=> B ! C) {
+        @5 . msx:snsmat(-* A => A) // Z Y X W - - - -
+        A >* 4 & 0x0F -> B
+
+        @8 . msx:snsmat(-* A => A) // LEFT DOWN UP RIGHT - - - -
+        A & 0xF0 | B -not -> B //  LEFT DOWN UP RIGHT Z Y X W
+
+        @[key_states] ^ B -> [key_changes]
+        @B -> [key_states]
+        return
+    }
+
+    proc wait_key_x() {
+        never-return loop {
+            msx:wait
+            @[key_changes] -bit? 1; if !=? {
+                @[key_states] -bit? 1; return-if !=?
+            }
+        }
+    }
+
+    proc clear_namtab(!) {
+        msx:set-vdp-write-addr msx:T32NAM/INI
+        msx:fill-vdp-data/wide ' ' asword(0 3)
+        return
+    }
+
+    proc clear_spratr(!) {
+        msx:set-vdp-write-addr msx:T32ATR/INI
+        msx:fill-vdp-data 209 128
+        return
+    }
+
+    proc clear_chrtab(!) {
+        msx:set-vdp-write-addr msx:T32CGP/INI
+        A - A . { msx:fill-vdp-data/wide _ asword(0 24) }
+        return
+    }
+
+    proc load_chrdat(HL => !) {
+        msx:set-vdp-write-addr msx:T32CGP/INI
+        msx:write-vdp-data/wide _ asword(0 4)
+        return
+    }
+
+    proc load_namdat(HL => !) {
+        msx:set-vdp-write-addr msx:T32NAM/INI
+        msx:write-vdp-data/wide _ asword(0 3)
+        return
+    }
+
+    section bss
+    data key_changes = byte * 1
+    data key_states = byte * 1
+}
+
+module assets {
+    section rodata
+    align 256
+    chrdat: incbin "./chr.dat"
+    namdat: incbin "./nam.dat"
+}
+
+module main {
+    data sbuf = byte * 24 : bss
+
+    macro run-game-loop(addr) {
+        SP <- msx:STACK_ADDR
+        goto %=addr
+    }
+
+    proc main(!) {
+        SP <- msx:STACK_ADDR
+        device:init(!)
+
+        fallthrough
+    }
+
+    proc init_game_states(!) {
+        memset sbuf 0 24
+        HL@assets:namdat . device:load_namdat(HL => !)
+
+        fallthrough
+    }
+
+    proc main_game_loop(!) {
+        msx:wait-vsync
+        msx:write-vdp-data/rect sbuf msx:t32nam(12 16) 8 3 32
+
+        @[device:key_changes] -> E
+        @[device:key_states] -> D
+        @D -? 0b0010_1010; if ==? {
+            run-game-loop stop
+        }
+
+        B <- 8
+        loop {
+            C <- '-'
+            E >> 1; if carry? {
+                C <- '+'
+            }
+            C -> [HL@(sbuf + 8 - 1) . HL+B(=> HL)]
+
+            C <- '-'
+            D >> 1; if carry? {
+                data keys = byte [0x18, 0x19, 0x1a, 0x1b, 'Z', 'Y', 'X', 'W'] : rodata
+                C <- [HL@(keys - 1) . HL+B(=> HL)]
+            }
+            C -> [HL@(sbuf - 1) . HL+B(=> HL)]
+        } while/B-
+
+        HL@[msx:JIFFY] . DE@(sbuf + 18) . itoa16(HL DE => !)
+        recur
+    }
+
+    proc stop(!) {
+        data message = byte [
+            "********"
+            "*      *"
+            "* STOP *"
+            "*      *"
+            "********"
+        ] : rodata
+
+        msx:wait-vsync
+        msx:write-vdp-data/rect message msx:t32nam(12 10) 8 5 32
+        device:wait_key_x()
+        run-game-loop init_game_states
+    }
+
+    proc HL+B(=> HL) {
+        @L + B -> L; return-if not-carry?
+        H ++
+        return
+    }
+
+    proc itoa16(HL DE => !) {
+        BC@-10000 . count(BC => HL DE)
+        BC@-1000 . count(BC => HL DE)
+        BC@-100 . count(BC => HL DE)
+        BC@-10 . count(BC => HL DE)
+        @L + '0' -> [DE]
+        return
+
+        proc count(BC => HL DE) {
+            A <- ('0' - 1)
+            loop {
+                A ++
+                HL + BC
+            } while carry?
+            HL -$ BC
+            A -> [DE]; DE ++
+            return
+        }
+    }
+}

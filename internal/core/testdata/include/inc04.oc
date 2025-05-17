@@ -1,0 +1,2 @@
+data byte [0x01]
+include "./inc04.oc"

@@ -1,0 +1,242 @@
+    .org 512
+L1:
+    LDA #5
+    LDA 5
+    LDA 5, X
+    LDA 1234
+    LDA 1234, X
+    LDA 1234, Y
+    LDA (5, X)
+    LDA (5), Y
+    LDA 5, Y
+L2:
+    LDX #5
+    LDX 5
+    LDX 5, Y
+    LDX 1234
+    LDX 1234, Y
+L3:
+    LDY #5
+    LDY 5
+    LDY 5, X
+    LDY 1234
+    LDY 1234, X
+L4:
+    STA 5
+    STA 5, X
+    STA 1234
+    STA 1234, X
+    STA 1234, Y
+    STA (5, X)
+    STA (5), Y
+    STA 5, Y
+L5:
+    STX 5
+    STX 5, Y
+    STX 1234
+L6:
+    STY 5
+    STY 5, X
+    STY 1234
+L7:
+    TAX 
+L8:
+    TAY 
+L9:
+    TSX 
+L10:
+    TXA 
+L11:
+    TXS 
+L12:
+    TYA 
+L13:
+    PHA 
+L14:
+    PHP 
+L15:
+    PLP 
+L16:
+    PLA 
+L17:
+    CLC 
+L18:
+    CLI 
+L19:
+    CLD 
+L20:
+    CLV 
+L21:
+    SEC 
+L22:
+    SEI 
+L23:
+    SED 
+L24:
+    BRK 
+L25:
+    NOP 
+L26:
+    RTS 
+L27:
+    RTI 
+L28:
+    JMP 1234
+    JMP (1234)
+    JMP 5
+L29:
+    JSR 1234
+    JSR 5
+L30:
+    BPL L29
+    BPL L32
+    BPL L29
+    BPL L32
+L31:
+    BMI L30
+    BMI L33
+    BMI L30
+    BMI L33
+L32:
+    BVC L31
+    BVC L34
+    BVC L31
+    BVC L34
+L33:
+    BVS L32
+    BVS L35
+    BVS L32
+    BVS L35
+L34:
+    BCC L33
+    BCC L36
+    BCC L33
+    BCC L36
+L35:
+    BCS L34
+    BCS L37
+    BCS L34
+    BCS L37
+L36:
+    BNE L35
+    BNE L38
+    BNE L35
+    BNE L38
+L37:
+    BEQ L36
+    BEQ L39
+    BEQ L36
+    BEQ L39
+L38:
+    ORA #5
+    ORA 5
+    ORA 5, X
+    ORA 1234
+    ORA 1234, X
+    ORA 1234, Y
+    ORA (5, X)
+    ORA (5), Y
+    ORA 5, Y
+L39:
+    AND #5
+    AND 5
+    AND 5, X
+    AND 1234
+    AND 1234, X
+    AND 1234, Y
+    AND (5, X)
+    AND (5), Y
+    AND 5, Y
+L40:
+    EOR #5
+    EOR 5
+    EOR 5, X
+    EOR 1234
+    EOR 1234, X
+    EOR 1234, Y
+    EOR (5, X)
+    EOR (5), Y
+    EOR 5, Y
+L41:
+    ADC #5
+    ADC 5
+    ADC 5, X
+    ADC 1234
+    ADC 1234, X
+    ADC 1234, Y
+    ADC (5, X)
+    ADC (5), Y
+    ADC 5, Y
+L42:
+    CMP #5
+    CMP 5
+    CMP 5, X
+    CMP 1234
+    CMP 1234, X
+    CMP 1234, Y
+    CMP (5, X)
+    CMP (5), Y
+    CMP 5, Y
+L43:
+    SBC #5
+    SBC 5
+    SBC 5, X
+    SBC 1234
+    SBC 1234, X
+    SBC 1234, Y
+    SBC (5, X)
+    SBC (5), Y
+    SBC 5, Y
+L44:
+    BIT 5
+    BIT 1234
+L45:
+    CPX #5
+    CPX 5
+    CPX 1234
+L46:
+    CPY #5
+    CPY 5
+    CPY 1234
+L47:
+    INC 5
+    INC 5, X
+    INC 1234
+    INC 1234, X
+L48:
+    INX 
+L49:
+    INY 
+L50:
+    DEC 5
+    DEC 5, X
+    DEC 1234
+    DEC 1234, X
+L51:
+    DEX 
+L52:
+    DEY 
+L53:
+    ASL A
+    ASL 5
+    ASL 5, X
+    ASL 1234
+    ASL 1234, X
+L54:
+    LSR A
+    LSR 5
+    LSR 5, X
+    LSR 1234
+    LSR 1234, X
+L55:
+    ROL A
+    ROL 5
+    ROL 5, X
+    ROL 1234
+    ROL 1234, X
+L56:
+    ROR A
+    ROR 5
+    ROR 5, X
+    ROR 1234
+    ROR 1234, X

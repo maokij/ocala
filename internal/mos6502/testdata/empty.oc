@@ -1,0 +1,2 @@
+arch mos6502
+include "mos6502.oc"

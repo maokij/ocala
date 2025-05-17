@@ -1,0 +1,297 @@
+// -*- mode: ocala; -*-
+include "noarch.oc"
+
+////////////////////////////////////////////////////////////
+// return macros
+////////////////////////////////////////////////////////////
+macro return(call: _) {
+    if use?(%&call) {
+        tco %=call
+    } else {
+        RET
+    }
+}
+
+macro return-if(cond) {
+    RET %=cond
+}
+
+////////////////////////////////////////////////////////////
+// goto macros
+////////////////////////////////////////////////////////////
+macro goto/HL() {
+    JP [HL]
+}
+
+macro goto(addr) {
+    JP %=addr
+}
+
+macro goto-if(cond addr) {
+    JP %=cond %=addr
+}
+
+macro goto-rel(addr) {
+    JR %=addr
+}
+
+macro goto-rel-if(cond addr) {
+    JR %=cond %=addr
+}
+
+////////////////////////////////////////////////////////////
+// while macros
+////////////////////////////////////////////////////////////
+macro while(cond) {
+    JP %=cond _BEG
+}
+
+macro while/B-() {
+    DJNZ _BEG
+}
+
+macro while/A-() {
+    DEC A
+    JP NZ? _BEG
+}
+
+macro while/C-() {
+    DEC C
+    JP NZ? _BEG
+}
+
+macro while/D-() {
+    DEC D
+    JP NZ? _BEG
+}
+
+macro while/E-() {
+    DEC E
+    JP NZ? _BEG
+}
+
+macro while/H-() {
+    DEC H
+    JP NZ? _BEG
+}
+
+macro while/L-() {
+    DEC L
+    JP NZ? _BEG
+}
+
+macro while/B-C-() {
+    while/B-
+    while/C-
+}
+
+macro while/D-E-() {
+    while/D-
+    while/E-
+}
+
+macro while/H-L-() {
+    while/H-
+    while/L-
+}
+
+////////////////////////////////////////////////////////////
+// out macros
+////////////////////////////////////////////////////////////
+macro out/while/B-(port value: _ size: _) {
+    if use?(%&value) {
+        A <- %=value
+    }
+    if use?(%&size) {
+        B <- %=size
+    }
+    loop {
+        A -out %=port
+    } while/B-
+}
+
+macro out/DE(port) {
+    @E -out %=port
+    @D -out %=port
+}
+
+macro out/DE->C() {
+    E -out C
+    D -out C
+}
+
+macro out/HL(port) {
+    @L -out %=port
+    @H -out %=port
+}
+
+macro out/HL->C() {
+    L -out C
+    H -out C
+}
+
+////////////////////////////////////////////////////////////
+// misc macros
+////////////////////////////////////////////////////////////
+macro di/ei(body ...) ={
+    DI
+    macro-conj %*body
+    EI
+}
+
+macro ex-AF(body ...) ={
+    EX AF AF-
+    macro-conj %*body
+    EX AF AF-
+}
+
+macro ex-BC/DE/HL(body ...) ={
+    EXX
+    macro-conj %*body
+    EXX
+}
+
+macro ex-AF/BC/DE/HL(body ...) ={
+    EX AF AF-
+    EXX
+    macro-conj %*body
+    EXX
+    EX AF AF-
+}
+
+macro HL<->DE(body ...) ={
+    HL <-> DE
+    macro-conj %*body
+    HL <-> DE
+}
+
+macro HL<->*SP(body ...) ={
+    HL <-> [SP]
+    macro-conj %*body
+    HL <-> [SP]
+}
+
+macro case/A-?(tag v body rest ...) ={
+    if (nameof(%=tag) != "when") {
+        compile-error "'when' required"
+    }
+
+    A -? %=v
+    if (%#rest == 2 && nameof(%<rest) == "else") ={
+        if ==? %=body else %><rest
+    } else if (%#rest > 0) ={
+        if ==? %=body else ={ case/A-? %*rest }
+    } else ={
+        if ==? %=body
+    }
+}
+
+macro memset(to v n) {
+    if use?(%&to) {
+        HL <- %=to
+    }
+    if use?(%&v) {
+        A <- %=v
+    }
+    if use?(%&n) {
+        B <- %=n
+    }
+    loop {
+        A -> [HL]; HL ++
+    } while/B-
+}
+
+macro memcpy(to from n) {
+    if use?(%&to) {
+        DE <- %=to
+    }
+    if use?(%&from) {
+        HL <- %=from
+    }
+    if use?(%&n) {
+        BC <- %=n
+    }
+    LDIR
+}
+
+macro memcpy-(to from n) {
+    if use?(%&to) {
+        DE <- %=to
+    }
+    if use?(%&from) {
+        HL <- %=from
+    }
+    if use?(%&n) {
+        BC <- %=n
+    }
+    LDDR
+}
+
+macro strcpy(to from) {
+    if use?(%&to) {
+        DE <- %=to
+    }
+    if use?(%&from) {
+        HL <- %=from
+    }
+    A - A
+    loop {
+        A -? [HL]
+        LDI
+    } while !=?
+}
+
+macro set-carry() {
+    SCF
+}
+
+macro clear-carry() {
+    SCF
+    CCF
+}
+
+macro extend-sign() {
+    A + A -$ A
+}
+
+macro *HL->HL() {
+    A <- [HL]; HL ++
+    H <- [HL]
+    L <- A
+}
+
+macro *HL->BC() {
+    C <- [HL]; HL ++
+    B <- [HL]
+}
+
+macro *HL->DE() {
+    E <- [HL]; HL ++
+    D <- [HL]
+}
+
+macro HL+A() {
+    A + L -> L +$ H - L -> H
+}
+
+macro BC+A() {
+    A + C -> C +$ B - C -> B
+}
+
+macro DE+A() {
+    A + E -> E +$ D - E -> D
+}
+
+////////////////////////////////////////////////////////////
+// z80 module
+////////////////////////////////////////////////////////////
+module z80 {
+    macro link-as-com(sections ...) ={
+        link {
+            org 0x0100 0 1
+            merge text %*sections
+            merge rodata %*sections
+            merge bss %*sections
+        }
+    }
+}

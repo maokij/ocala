@@ -1,0 +1,41 @@
+plugins:
+  - rubocop-performance
+  - rubocop-rubycw
+  - rubocop-minitest
+
+AllCops:
+  NewCops: enable
+  Exclude:
+    - 'tmp/**/*'
+    - 'vendor/**/*'
+    - 'dist/**/*'
+
+Metrics:
+  Enabled: false
+
+Lint:
+  Enabled: true
+
+Security:
+  Enabled: true
+
+Naming/MethodParameterName:
+  Enabled: false
+
+Style/Documentation:
+  Enabled: false
+
+Style/RedundantRegexpArgument:
+  Enabled: false
+
+Style/StringLiterals:
+  EnforcedStyle: double_quotes
+
+Style/NumericPredicate:
+  EnforcedStyle: comparison
+
+Style/FormatStringToken:
+  EnforcedStyle: unannotated
+
+Minitest/MultipleAssertions:
+  Max: 8

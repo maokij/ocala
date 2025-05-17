@@ -1,0 +1,15 @@
+arch z80
+include "msx.oc"
+msx:link-as-rom main _
+
+module main {
+    proc main() {
+        data message = byte [ "Hello, world!" ] : rodata
+
+        SP <- msx:STACK_ADDR
+        msx:init32(-* !)
+        BC@sizeof(message) . DE@msx:t32nam(10 12) . HL@message . msx:ldirvm(-* BC DE HL => !)
+
+        never-return loop { msx:wait }
+    }
+}

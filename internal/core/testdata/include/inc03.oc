@@ -1,0 +1,1 @@
+data byte [$$(loaded-as-main?())] : rodata

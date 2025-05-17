@@ -1,0 +1,177 @@
+    arch mos6502
+    link { org 512 0 1 ; merge text _ }
+    flat!
+    A <- X
+    A <- Y
+    A <- 5
+    A <- [5]
+    A <- [5 X]
+    A <- [5 Y]
+    A <- [1234]
+    A <- [1234 X]
+    A <- [1234 Y]
+    A <- [[5 X]]
+    A <- [[5] Y]
+    X <- A
+    X <- S
+    X <- 5
+    X <- [5]
+    X <- [5 Y]
+    X <- [1234]
+    X <- [1234 Y]
+    Y <- A
+    Y <- 5
+    Y <- [5]
+    Y <- [5 X]
+    Y <- [1234]
+    Y <- [1234 X]
+    S <- X
+    A -> X
+    A -> Y
+    A -> [5]
+    A -> [5 X]
+    A -> [5 Y]
+    A -> [1234]
+    A -> [1234 X]
+    A -> [1234 Y]
+    A -> [[5 X]]
+    A -> [[5] Y]
+    X -> A
+    X -> S
+    X -> [5]
+    X -> [5 Y]
+    X -> [1234]
+    Y -> A
+    Y -> [5]
+    Y -> [5 X]
+    Y -> [1234]
+    S -> X
+    A -push
+    P -push
+    A -pop
+    P -pop
+    A ++
+    X ++
+    Y ++
+    [5] ++
+    [5 X] ++
+    [1234] ++
+    [1234 X] ++
+    A --
+    X --
+    Y --
+    [5] --
+    [5 X] --
+    [1234] --
+    [1234 X] --
+    A -not
+    A -neg
+    A + 5
+    A + [5]
+    A + [5 X]
+    A + [5 Y]
+    A + [1234]
+    A + [1234 X]
+    A + [1234 Y]
+    A + [[5 X]]
+    A + [[5] Y]
+    A +$ 5
+    A +$ [5]
+    A +$ [5 X]
+    A +$ [5 Y]
+    A +$ [1234]
+    A +$ [1234 X]
+    A +$ [1234 Y]
+    A +$ [[5 X]]
+    A +$ [[5] Y]
+    A - 5
+    A - [5]
+    A - [5 X]
+    A - [5 Y]
+    A - [1234]
+    A - [1234 X]
+    A - [1234 Y]
+    A - [[5 X]]
+    A - [[5] Y]
+    A -$ 5
+    A -$ [5]
+    A -$ [5 X]
+    A -$ [5 Y]
+    A -$ [1234]
+    A -$ [1234 X]
+    A -$ [1234 Y]
+    A -$ [[5 X]]
+    A -$ [[5] Y]
+    A -? 5
+    A -? [5]
+    A -? [5 X]
+    A -? [5 Y]
+    A -? [1234]
+    A -? [1234 X]
+    A -? [1234 Y]
+    A -? [[5 X]]
+    A -? [[5] Y]
+    X -? 5
+    X -? [5]
+    X -? [1234]
+    Y -? 5
+    Y -? [5]
+    Y -? [1234]
+    A & 5
+    A & [5]
+    A & [5 X]
+    A & [5 Y]
+    A & [1234]
+    A & [1234 X]
+    A & [1234 Y]
+    A & [[5 X]]
+    A & [[5] Y]
+    A | 5
+    A | [5]
+    A | [5 X]
+    A | [5 Y]
+    A | [1234]
+    A | [1234 X]
+    A | [1234 Y]
+    A | [[5 X]]
+    A | [[5] Y]
+    A ^ 5
+    A ^ [5]
+    A ^ [5 X]
+    A ^ [5 Y]
+    A ^ [1234]
+    A ^ [1234 X]
+    A ^ [1234 Y]
+    A ^ [[5 X]]
+    A ^ [[5] Y]
+    A -bit? [5]
+    A -bit? [1234]
+    A <* 2
+    A <*$ 2
+    [5] <*$ 2
+    A >* 2
+    A >*$ 2
+    [5] >*$ 2
+    A << 2
+    [5] << 2
+    A >> 2
+    A >>> 2
+    [5] >>> 2
+    LBI:
+    $(LBI) -jump-if NE?
+    $(LBI) -jump-if EQ?
+    $(LBI) -jump-if CC?
+    $(LBI) -jump-if CS?
+    $(LBI) -jump-if VC?
+    $(LBI) -jump-if VS?
+    $(LBI) -jump-if PL?
+    $(LBI) -jump-if MI?
+    LBU:
+    $(LBU) -jump-unless NE?
+    $(LBU) -jump-unless EQ?
+    $(LBU) -jump-unless CC?
+    $(LBU) -jump-unless CS?
+    $(LBU) -jump-unless VC?
+    $(LBU) -jump-unless VS?
+    $(LBU) -jump-unless PL?
+    $(LBU) -jump-unless MI?

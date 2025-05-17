@@ -1,0 +1,134 @@
+// -*- mode: ocala; -*-
+
+macro never-return(tag body) [beg] ={
+    if (nameof(%=tag) != "loop") {
+        compile-error "invalid never-return form. expected `loop`"
+    }
+    %=beg: do %=body
+    goto %=beg
+}
+
+macro recur() {
+    goto __PROC__
+}
+
+macro __noop__() {
+}
+
+macro once(body) ={
+    loop %=body __noop__
+}
+
+macro redo() {
+    goto _BEG
+}
+
+macro redo-if(cond) {
+    $(_BEG) -jump-if %=cond
+}
+
+macro continue() {
+    goto _COND
+}
+
+macro continue-if(cond) {
+    $(_COND) -jump-if %=cond
+}
+
+macro break() {
+    goto _END
+}
+
+macro break-if(cond) {
+    $(_END) -jump-if %=cond
+}
+
+macro incbin(s) {
+    embed-file %=s
+}
+
+macro macro-conj(a: _ rest ...) {
+    if use?(%&a) {
+        if (%#rest == 0) {
+            do %=a
+        } else {
+            apply %=a %*rest
+        }
+    }
+}
+
+////////////////////////////////////////////////////////////
+// if macros
+////////////////////////////////////////////////////////////
+macro __if__(c body eltag: _ elbody: _) [endth endel] ={
+    $(%=endth) -jump-unless %=c
+    do %=body
+    if unuse?(%&eltag) ={
+        %=endth:
+    } else if (nameof(%=eltag) == "else" && use?(%&elbody)) ={
+        goto %=endel
+        %=endth:
+        do %=elbody
+        %=endel:
+    } else {
+        compile-error "invalid if/else form"
+    }
+}
+
+////////////////////////////////////////////////////////////
+// push macros
+////////////////////////////////////////////////////////////
+macro push*(a args ...) {
+    $(%=a) -push
+    if (%#args == 0) {
+    } else {
+        push* %*args
+    }
+}
+
+macro pop*(a args ...) {
+    $(%=a) -pop
+    if (%#args == 0) {
+    } else {
+        pop* %*args
+    }
+}
+
+macro push/pop(a args ...) ={
+    if (%#args == 0) {
+        do %=a
+    } else {
+        $(%=a) -push
+        push/pop %*args
+        $(%=a) -pop
+    }
+}
+
+////////////////////////////////////////////////////////////
+// constants
+////////////////////////////////////////////////////////////
+pragma list-constants 0 "noarch constants omitted"
+const BIT-0  = 0b0000_0001
+const BIT-1  = 0b0000_0010
+const BIT-2  = 0b0000_0100
+const BIT-3  = 0b0000_1000
+const BIT-4  = 0b0001_0000
+const BIT-5  = 0b0010_0000
+const BIT-6  = 0b0100_0000
+const BIT-7  = 0b1000_0000
+
+const BIT-8  = 0b0000_0001_0000_0000
+const BIT-9  = 0b0000_0010_0000_0000
+const BIT-10 = 0b0000_0100_0000_0000
+const BIT-11 = 0b0000_1000_0000_0000
+const BIT-12 = 0b0001_0000_0000_0000
+const BIT-13 = 0b0010_0000_0000_0000
+const BIT-14 = 0b0100_0000_0000_0000
+const BIT-15 = 0b1000_0000_0000_0000
+
+const LINK/NOLOAD  = 0
+const LINK/LOAD    = 1
+const LINK/FILL    = 2
+const LINK/+NOLOAD = 3
+const LINK/+LOAD   = 4
+pragma list-constants 1

@@ -1,0 +1,313 @@
+arch z80
+const FOR_MSX2_OR_LATER = 1
+include "msx.oc"
+
+msx:link-as-rom main _
+
+module main {
+    macro next(addr) ={
+        HL@%=addr -> [scroller]
+        return
+    }
+
+    data scroll-mode = byte * 1 : bss
+    data active-page = byte * 1 : bss
+    data adjust-x = byte * 1 : bss
+    data scroller = word * 1 : bss
+    data vdp-command = byte * 15 : bss
+
+    proc main() {
+        SP <- msx:STACK_ADDR
+        msx:enable-slot/page2 // skip EI
+
+        msx:set-vdp-registers,
+            0  0b0000_0110, // mode: graphic-4, intr/h: false
+            1  0b0110_0000, // visible: true, intr/v: true, sprite-size: 16, sprite-scale: 1
+            2  0b0001_1111, // vdp-page: 0
+            5  0b1111_1111, // sat-addr: 0x7c00
+            7  0b0000_0001, // backgound-color: 1
+            8  0b0000_1000, // vram: 64k, sprite-visible: true
+            9  0b0000_1000, // height: 192, interlace: true
+            11 0b0000_0011, // sat-page: 3
+            16 0            // palette-index: 0
+
+        msx:set-vdp-palette,
+            msx:rgb(0 0 0), // 0
+            msx:rgb(0 0 0), // 1
+            msx:rgb(0 0 7), // 2
+            msx:rgb(0 7 0), // 3
+            msx:rgb(0 7 7), // 4
+            msx:rgb(7 0 0), // 5
+            msx:rgb(7 0 7), // 6
+            msx:rgb(7 7 0), // 7
+            msx:rgb(7 7 7), // 8
+            msx:rgb(7 7 7), // 9
+            msx:rgb(7 7 7), // a
+            msx:rgb(7 7 7), // b
+            msx:rgb(7 7 7), // c
+            msx:rgb(7 7 7), // d
+            msx:rgb(7 7 7), // e
+            msx:rgb(7 7 7)  // f
+
+        init-sprites()
+        setup-scroller()
+        msx:update-hook msx:H_KEYI keyi
+        msx:set-vdp-registers 0 0b0001_0110, 19 60 // intr/h: true, intr/h-y:60
+
+        fallthrough
+    }
+
+    proc main-loop() {
+        msx:wait-vsync
+        msx:set-vdp-registers 2 0b0001_1111, 18 0 // vdp-page: 0, adjust: 0 0
+
+        @8 . msx:snsmat(-* A => A) & 0b0000_0001; if zero? { // SPC
+            msx:set-vdp-register 0 0b0000_0110 // intr/h: false
+            msx:wait-vsync
+            @[scroll-mode] | A; if zero? {
+                setup-scroller16()
+            } else {
+                setup-scroller()
+            }
+            msx:set-vdp-register 0 0b0001_0110 // intr/h: true
+            recur
+        }
+        HL@[scroller] . call/HL()
+        recur
+    }
+
+    proc call/HL() { goto/HL }
+
+    proc keyi() {
+        // already di
+        msx:set-vdp-register! 15 1 // S#1
+        A -in msx:VDP_STAT >*$ 1 // FH
+        msx:set-vdp-register! 15 0
+        return-if not-carry?
+
+        msx:set-vdp-register! 2  [active-page]
+        msx:set-vdp-register! 18 [adjust-x]
+        return
+    }
+
+    proc setup-scroller() {
+        clear-screen()
+        load-image()
+        A - A -> [adjust-x] -> [scroll-mode]
+        @0b0011_1111 -> [active-page]
+        HL@frame0 -> [scroller]
+        return
+
+        proc frame0() {
+            @[active-page] + 0b0010_0000 & 0b0011_1111 -> [active-page]
+            @8 -> [adjust-x]
+
+            data params/l = byte [0 0, 64 0, 232 0, 64 1, 8 0, 128 0, 0, 0, msx:VDP/HMMM] : rodata
+            HL@params/l . hmmm(HL => !)
+
+            data params/r = byte [8 0, 64 0, 0 0, 64 1, 232 0, 128 0, 0, 0, msx:VDP/HMMM] : rodata
+            HL@params/r . hmmm(HL => !)
+            next frame1
+        }
+
+        proc frame1() {
+            @9 -> [adjust-x]
+            E@0 . render-mask(E => !)
+            next frame2
+        }
+
+        proc frame2() {
+            @10 -> [adjust-x]
+            next frame3
+        }
+
+        proc frame3() {
+            @11 -> [adjust-x]
+            E@1 . render-mask(E => !)
+            next frame4
+        }
+
+        proc frame4() {
+            @12 -> [adjust-x]
+            next frame5
+        }
+
+        proc frame5() {
+            @13 -> [adjust-x]
+            E@2 . render-mask(E => !)
+            next frame6
+        }
+
+        proc frame6() {
+            @14 -> [adjust-x]
+            next frame7
+        }
+
+        proc frame7() {
+            @15 -> [adjust-x]
+            next frame0
+        }
+    }
+
+    proc setup-scroller16() {
+        clear-screen()
+        load-image()
+        A - A -> [adjust-x] ++ -> [scroll-mode]
+        @0b0011_1111 -> [active-page]
+        HL@frame0 -> [scroller]
+        return
+
+        proc frame0() {
+            @[active-page] + 0b0010_0000 & 0b0011_1111 -> [active-page]
+            @8 -> [adjust-x]
+
+            data params/l = byte [0 0, 64 0, 224 0, 64 1, 16 0, 128 0, 0, 0, msx:VDP/HMMM] : rodata
+            HL@params/l . hmmm(HL => !)
+
+            data params/r = byte [16 0, 64 0, 0 0, 64 1, 224 0, 128 0, 0, 0, msx:VDP/HMMM] : rodata
+            HL@params/r . hmmm(HL => !)
+            next frame1
+        }
+
+        proc frame1() {
+            @10 -> [adjust-x]
+            E@0 . render-mask(E => !)
+            next frame2
+        }
+
+        proc frame2() {
+            @12 -> [adjust-x]
+            E@1 . render-mask(E => !)
+            next frame3
+        }
+
+        proc frame3() {
+            @14 -> [adjust-x]
+            E@2 . render-mask(E => !)
+            next frame4
+        }
+
+        proc frame4() {
+            @0 -> [adjust-x]
+            E@3 . render-mask(E => !)
+            next frame5
+        }
+
+        proc frame5() {
+            @2 -> [adjust-x]
+            E@4 . render-mask(E => !)
+            next frame6
+        }
+
+        proc frame6() {
+            @4 -> [adjust-x]
+            E@5 . render-mask(E => !)
+            next frame7
+        }
+
+        proc frame7() {
+            @6 -> [adjust-x]
+            E@6 . render-mask(E => !)
+            next frame0
+        }
+    }
+
+    proc hmmm(HL => !) {
+        memcpy vdp-command _ sizeof(vdp-command)
+        HL@vdp-command
+        @[active-page] & BIT-5; if not-zero? {
+            HL<->DE {
+                A - A -> [HL@7 + DE] ++ -> [HL@3 + DE]
+            }
+        }
+        execute-vdp-command(HL => HL ! C)
+        return
+    }
+
+    proc render-mask(E => !) {
+        // page +0; Y:64 to Y:127(64 lines)
+        @[active-page] >* 4 & 0b010 -> D // 0bXYZ1_1111 -> 0b0000_00Z0
+        HL <- ((128 * 64) | BIT-14) . { @E + L -> L }
+        B@64 . write(B D HL => ! B HL)
+
+        // page +1; Y:128 to Y:184(56 lines)
+        D ++
+        HL <- ((128 *  0) | BIT-14) . { @E + L -> L }
+        B@64 . write(B D HL => ! B HL)
+        return
+
+        proc write(B D HL => ! B HL) {
+            di/ei {
+                msx:set-vdp-register! 14 D
+                loop {
+                    @L -out msx:VDP_ADDR
+                    @H -out msx:VDP_ADDR
+                    A - A -out msx:VDP_DATA
+                    @128 . {HL+A}
+                } while/B-
+            }
+            return
+        }
+    }
+
+    proc init-sprites() {
+        di/ei {
+            msx:set-vdp-register! 14 0b111 // page:3, 0x7c00
+            msx:set-vdp-write-addr! 0x3c00
+        }
+        @216 -out msx:VDP_DATA -out msx:VDP_DATA
+        return
+    }
+
+    proc clear-screen() {
+        data params = byte [0 0, 0 0, 0 0, 0 0, 0 1, 0 2, 0, 0, msx:VDP/HMMV] : rodata
+        HL@params . execute-vdp-command(HL => HL ! C)
+        return
+    }
+
+    proc wait-vdp-ready(-*) {
+        loop {
+            di/ei {
+                msx:set-vdp-register! 15 2
+                A -in msx:VDP_STAT >*$ 1 // CE
+                msx:set-vdp-register! 15 0
+            }
+        } while carry?
+        return
+    }
+
+    proc load-image() {
+        data params = byte [0 0, 0 0, 256 0, 192 0] : rodata
+
+        wait-vdp-ready(-*)
+        di/ei {
+            msx:set-vdp-register! 17 36
+            HL@params . BC@asword(sizeof(params) msx:VDP_REGS) . { OTIR }
+
+            @[HL@image-data] -out C // R#44
+            A - A -out C // R#45
+            @msx:VDP/HMMC -out C // R#46
+
+            msx:set-vdp-register! 17 (44 | 0x80) // no auto-increment
+            HL ++
+            DE <- asword(0 6) // loop 256 * 6 times
+            loop {
+                loop {
+                    expand-loop 16 { OUTI }
+                } while/D-
+            } while/E-
+        }
+        return
+    }
+
+    proc execute-vdp-command(HL => HL ! C) {
+        C@msx:VDP_REGS
+        msx:set-vdp-register 17 32
+        wait-vdp-ready(-*)
+        expand-loop 15 { OUTI }
+        return
+    }
+
+    section rodata
+    image-data: incbin "./image.dat"
+}

@@ -1,0 +1,4 @@
+module Mod {
+    const Co = 0xFC
+}
+const Tc = 0xFD
