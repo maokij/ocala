@@ -1,0 +1,5 @@
+if !loaded-as-main? ={
+    const blob = $$(compile-file(__FILE__))
+} else ={
+    db 0 1 2 3
+}

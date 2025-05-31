@@ -145,16 +145,9 @@ class GenerateArch
         @scanmap[:REG] = items
       },
       conditions: lambda { |_env, *items|
-        items.each_slice(2) do |as, bs|
-          a = as[0]
-          as = as[1..]
-          b = bs[0]
-          bs = bs[1..]
-          @scanmap[:COND] << a << b
-          as.each { @token_aliases[_1] = a }
-          bs.each { @token_aliases[_1] = b }
-          @condmap[a] = b
-          @condmap[b] = a
+        items.each do |name, *aliases|
+          @scanmap[:COND] << name
+          aliases.each { @token_aliases[_1] = name }
         end
       },
       bytemap: lambda { |_env, name, mask, min, max, *items|
@@ -266,7 +259,6 @@ class GenerateArch
     @uops = {}
     @bmaps = {}
     @scanmap = { REG: [], COND: [] }
-    @condmap = {}
     @examples = {}
     @inst_aliases = {}
     @token_aliases = {}
@@ -427,12 +419,6 @@ class GenerateArch
     bops = (@bops.keys - bops).map { %("#{_1}") }
     code << "    { #{uops.join(', ')} },"
     code << "    { #{bops.join(', ')} },"
-    code << "}" << ""
-
-    code << "var oppositeConds = map[*Keyword]*Keyword{"
-    @condmap.each do |k, v|
-      code << %(    #{@operands[k].go}: #{@operands[v].go},)
-    end
     code << "}" << ""
 
     code << "var bmaps = [][]byte{"

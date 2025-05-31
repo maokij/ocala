@@ -23,10 +23,10 @@ module device {
     }
 
     proc read_keys(=> B ! C) {
-        @5 . msx:snsmat(-* A => A) // Z Y X W - - - -
+        @5 . msx:snsmat(A => A) // Z Y X W - - - -
         A >* 4 & 0x0F -> B
 
-        @8 . msx:snsmat(-* A => A) // LEFT DOWN UP RIGHT - - - -
+        @8 . msx:snsmat(A => A) // LEFT DOWN UP RIGHT - - - -
         A & 0xF0 | B -not -> B //  LEFT DOWN UP RIGHT Z Y X W
 
         @[key_states] ^ B -> [key_changes]

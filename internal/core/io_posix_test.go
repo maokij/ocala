@@ -6,6 +6,7 @@ import (
 	"ocala/internal/tt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -30,6 +31,7 @@ func TestReplacePathExt(t *testing.T) {
 }
 
 func lastPathComponents(s string, n int) string {
+	s = filepath.ToSlash(s)
 	x := len(s)
 	for range n {
 		x = strings.LastIndex(s[:x], "/")
@@ -107,6 +109,33 @@ func TestRegularizePath(t *testing.T) {
 		for x, i := range data {
 			_, err := regularizePath(i.path, wd, paths)
 			tt.Eq(t, i.expected, err.Error(), x, i)
+		}
+	})
+
+	t.Run("error: windows", func(t *testing.T) {
+		wd, _ := os.Getwd()
+		paths := []string{}
+		data := []struct {
+			expected string
+			path     string
+		}{
+			{"invalid path `C:/`", `C:/`},
+			{"invalid path `//./C:/`", `//./C:/`},
+			{"invalid path `C:/a`", `C:/a`},
+			{"invalid path `//./C:/a`", `//./C:/a`},
+
+			{"invalid path `C:\\`", `C:\`},
+			{"invalid path `\\\\.\\C:\\`", `\\.\C:\`},
+			{"invalid path `C:\\a`", `C:\a`},
+			{"invalid path `\\\\.\\C:\\a`", `\\.\C:\a`},
+		}
+		for x, i := range data {
+			if runtime.GOOS == "windows" {
+				_, err := regularizePath(i.path, wd, paths)
+				tt.Eq(t, i.expected, err.Error(), x, i)
+			} else {
+				tt.Eq(t, 1, 1, x, i)
+			}
 		}
 	})
 }

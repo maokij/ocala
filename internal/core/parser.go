@@ -38,7 +38,7 @@ loop:
 	for ; !p.IsEOF(); p.ForwardChar() {
 		c := p.PeekChar()
 		switch {
-		case c == ' ', c == '\t':
+		case c == ' ', c == '\t', c == '\r':
 			// NOP
 		case c == ',' && comment <= 0:
 			if comma || p.Line != line {
@@ -97,8 +97,8 @@ var reInteger = regexp.MustCompile(`^([+-])?((0x[0-9a-fA-F][0-9a-fA-F_]*)|(0b[01
 var reIdentifier = regexp.MustCompile(
 	`^([_a-zA-Z][-^!$%&*+/<=>?|~_a-zA-Z0-9]*:|::)?([-^!$%&*+/<=>?|~_a-zA-Z][-^!$%&*+/<=>?|~_a-zA-Z0-9]*)`)
 var nameChars = `-^!$%&*+/<=>?|~_0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz`
-var wsChars = " \t\n"
-var tailChars = " \t\n,;)]}"
+var wsChars = " \t\r\n"
+var tailChars = " \t\r\n,;)]}"
 
 func (p *Parser) newIdLikeToken(s, t string, ws, nl bool, context byte, pos int32, ph string) *Token {
 	if u, ok := p.cc.TokenAliases[t]; ok {
@@ -106,6 +106,7 @@ func (p *Parser) newIdLikeToken(s, t string, ws, nl bool, context byte, pos int3
 	}
 	k := Intern(t)
 	v := &Identifier{Name: k, PlaceHolder: ph}
+	n := p.cc.Operators[t]
 
 	ns := s != ""
 	if ns {
@@ -117,10 +118,10 @@ func (p *Parser) newIdLikeToken(s, t string, ws, nl bool, context byte, pos int3
 
 	if tk, ok := tokenKinds[t]; ok { // =
 		return p.NewIdToken(tk, v, pos)
-	} else if _, ok := p.cc.UnaOps[t]; ok && !ns && ws && p.MatchChar(tailChars) {
+	} else if n&1 != 0 && !ns && ws && p.MatchChar(tailChars) {
 		p.CancelLastTokenIf(nl)
 		return p.NewIdToken(tkUOP, v, pos)
-	} else if _, ok := p.cc.BinOps[t]; ok && !ns && ws && p.MatchChar(wsChars) {
+	} else if n&2 != 0 && !ns && ws && p.MatchChar(wsChars) {
 		p.CancelLastTokenIf(nl)
 		// p.state = pstNoNl
 		return p.NewIdToken(tkBOP, v, pos)
@@ -237,7 +238,7 @@ func (p *Parser) scanToken() {
 	case p.ScanChar("."):
 		p.CancelLastTokenIf(nl)
 		tk := int32(tkDTMI)
-		if p.MatchChar(" \t\n") {
+		if p.MatchChar(wsChars) {
 			if !ws {
 				p.RaiseScanError("leading whitespaces are required before the operator `.`")
 			}

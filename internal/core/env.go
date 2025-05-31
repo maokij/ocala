@@ -13,6 +13,25 @@ func CopyPtr[T any](v *T) *T {
 	return &w
 }
 
+var TypeLabels = map[Value]string{
+	IntT:        "integer",
+	BlobT:       "blob",
+	KeywordT:    "keyword",
+	StrT:        "string",
+	VecT:        "vector",
+	MapT:        "map",
+	IdentifierT: "identifier",
+	ConstexprT:  "constexpr",
+	ConstFnT:    "constfn",
+	BCodeT:      "bcode",
+	OperandT:    "operand",
+	SectionT:    "section",
+	ModuleT:     "module",
+	NamedT:      "named",
+	LabelT:      "label",
+	InlineT:     "inline",
+}
+
 type Value interface {
 	Inspect() string
 	Dup() Value
@@ -81,17 +100,27 @@ func BoolInt(a bool) Int {
 }
 
 // //////////////////////////////////////////////////////////
-type Binary []byte
-
-var BynaryT = &Binary{}
-
-func (v *Binary) Inspect() string {
-	return fmt.Sprint(v)
+type Blob struct {
+	data     []byte
+	path     string
+	origPath string
+	compiled bool
 }
 
-func (v *Binary) Dup() Value {
-	w := append(make(Binary, 0, len(*v)), *v...)
-	return &w
+var BlobT = &Blob{}
+
+func (v *Blob) Inspect() string {
+	s := fmt.Sprintf("<Blob:%d:%s", len(v.data), v.origPath)
+	if v.compiled {
+		s += " compiled"
+	}
+	return s + ">"
+}
+
+func (v *Blob) Dup() Value {
+	v = CopyPtr(v)
+	v.data = slices.Clone(v.data)
+	return v
 }
 
 // //////////////////////////////////////////////////////////
@@ -518,10 +547,11 @@ const (
 	InstCode
 	InstData
 	InstDS
+	InstBlob
 	InstOrg
 	InstAlign
-	InstFile
 	InstConst
+	InstBind
 	InstMisc
 	InstAssert
 )
@@ -551,10 +581,26 @@ func NewInst(from *Vec, kind int, args ...Value) *Inst {
 }
 
 // //////////////////////////////////////////////////////////
+type Section struct {
+	Name  *Keyword
+	Insts []*Inst
+}
+
+var SectionT = &Section{}
+
+func (v *Section) Inspect() string {
+	return fmt.Sprintf("<Section:%s>", v.Name)
+}
+
+func (v *Section) Dup() Value {
+	return CopyPtr(v)
+}
+
+// //////////////////////////////////////////////////////////
 type Module struct {
 	Name     *Keyword
 	Env      *Env
-	Sections map[*Keyword][]*Inst
+	Sections map[*Keyword]*Section
 }
 
 var ModuleT = &Module{}
@@ -567,11 +613,28 @@ func (v *Module) Dup() Value {
 	return v
 }
 
+func (v *Module) NewSection(name *Keyword) *Section {
+	section := &Section{Name: name}
+	v.Sections[name] = section
+	return section
+}
+
+func (v *Module) FindOrNewSection(name *Keyword) *Section {
+	if section := v.Sections[name]; section != nil {
+		return section
+	}
+	return v.NewSection(name)
+}
+
 func NewModule(name *Keyword, env *Env) *Module {
 	return &Module{
-		Name:     name,
-		Env:      env,
-		Sections: map[*Keyword][]*Inst{KwTEXT: {}, KwBSS: {}, KwRODATA: {}},
+		Name: name,
+		Env:  env,
+		Sections: map[*Keyword]*Section{
+			KwTEXT:   &Section{Name: KwTEXT},
+			KwBSS:    &Section{Name: KwBSS},
+			KwRODATA: &Section{Name: KwRODATA},
+		},
 	}
 }
 
@@ -635,6 +698,7 @@ func (v *Named) Dup() Value {
 // //////////////////////////////////////////////////////////
 type Label struct {
 	Addr int
+	At   *Constexpr
 	Link *Inst
 	Sig  *Sig
 }
@@ -649,8 +713,21 @@ func (v *Label) Dup() Value {
 	return CopyPtr(v)
 }
 
+func (v *Label) IsReserved() bool {
+	return v.IsComputed() && KwReserved.MatchId(v.At.Body) != nil
+}
+
+func (v *Label) IsComputed() bool {
+	return v.At != nil
+}
+
+func (v *Label) LinkedToProc() bool {
+	return v.Sig != nil
+}
+
 func (v *Label) LinkedToData() bool {
-	return v.Link != nil && (v.Link.Kind == InstData || v.Link.Kind == InstDS)
+	return v.Link != nil &&
+		(v.Link.Kind == InstData || v.Link.Kind == InstDS || v.Link.Kind == InstBlob)
 }
 
 // //////////////////////////////////////////////////////////

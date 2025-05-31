@@ -15,6 +15,7 @@ func setupTestCLI() *CLI {
 
 func TestRun(t *testing.T) {
 	b := "../../internal/"
+	d := "../../internal/core/testdata/"
 
 	t.Run("ok", func(t *testing.T) {
 		cli := setupTestCLI()
@@ -22,11 +23,11 @@ func TestRun(t *testing.T) {
 			expected int
 			args     []string
 		}{
-			{0, []string{"-o", b + "output.bin", b + "z80/testdata/empty.oc"}},
-			{0, []string{"-I", b + "z80/testdata", b + "z80/testdata/empty.oc"}},
+			{0, []string{"-o", d + "output.bin", b + "z80/testdata/empty.oc"}},
+			{0, []string{"-I", d + "z80/testdata", b + "z80/testdata/empty.oc"}},
 			{0, []string{"-t", "z80", b + "z80/testdata/empty.oc"}},
 			{0, []string{"-t", "6502", b + "mos6502/testdata/empty.oc"}},
-			{0, []string{"-t", "z80", "-l", "-L", b + "output.lst", b + "z80/testdata/empty.oc"}},
+			{0, []string{"-t", "z80", "-l", "-L", d + "output.lst", b + "z80/testdata/empty.oc"}},
 			{0, []string{"-D", "CONST", b + "z80/testdata/empty.oc"}},
 			{0, []string{"-V"}},
 			{0, []string{"-h"}},

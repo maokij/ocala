@@ -28,6 +28,13 @@ func (g *Generator) CompileAndGenerate(path string) bool {
 	return false
 }
 
+// SPECIAL: (__FILE__)
+func (cc *Compiler) sFilename(env *Env, e *Vec) Value {
+	etag, _ := CheckExpr(e, 1, 1, CtConstexpr, cc)
+	cc.RaiseCompileError(etag, "not supported for browser wasm")
+	return NIL
+}
+
 // SYNTAX: (include path)
 func (cc *Compiler) sInclude(env *Env, e *Vec) Value {
 	etag, _ := CheckExpr(e, 2, 2, CtModule|CtProc, cc)
@@ -42,9 +49,16 @@ func (cc *Compiler) sInclude(env *Env, e *Vec) Value {
 	return cc.CompileIncluded(rpath, text)
 }
 
-// SYNTAX: (embed-file path)
-func (cc *Compiler) sEmbedFile(env *Env, e *Vec) Value {
-	etag, _ := CheckExpr(e, 2, 2, CtModule|CtProc, cc)
+// SYNTAX: (load-file path)
+func (cc *Compiler) sLoadFile(env *Env, e *Vec) Value {
+	etag, _ := CheckExpr(e, 2, 2, CtConstexpr, cc)
+	cc.RaiseCompileError(etag, "not supported for browser wasm")
+	return NIL
+}
+
+// SYNTAX: (compile-file path)
+func sCompileFile(cc *Compiler, env *Env, e *Vec) Value {
+	etag, _ := CheckExpr(e, 2, 2, CtConstexpr, cc)
 	cc.RaiseCompileError(etag, "not supported for browser wasm")
 	return NIL
 }

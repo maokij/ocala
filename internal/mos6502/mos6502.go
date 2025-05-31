@@ -20,7 +20,6 @@ func BuildCompiler() *Compiler {
 		AdjustOperand:   adjustOperand,
 		BMaps:           bmaps,
 		TokenAliases:    tokenAliases,
-		OppositeConds:   oppositeConds,
 		IsValidProcTail: isValidProcTail,
 		AdjustInline:    adjustInline,
 	}

@@ -44,7 +44,7 @@ macro break-if(cond) {
 }
 
 macro incbin(s) {
-    embed-file %=s
+    data byte load-file(%=s)
 }
 
 macro macro-conj(a: _ rest ...) {
@@ -54,24 +54,6 @@ macro macro-conj(a: _ rest ...) {
         } else {
             apply %=a %*rest
         }
-    }
-}
-
-////////////////////////////////////////////////////////////
-// if macros
-////////////////////////////////////////////////////////////
-macro __if__(c body eltag: _ elbody: _) [endth endel] ={
-    $(%=endth) -jump-unless %=c
-    do %=body
-    if unuse?(%&eltag) ={
-        %=endth:
-    } else if (nameof(%=eltag) == "else" && use?(%&elbody)) ={
-        goto %=endel
-        %=endth:
-        do %=elbody
-        %=endel:
-    } else {
-        compile-error "invalid if/else form"
     }
 }
 

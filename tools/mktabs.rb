@@ -11,7 +11,7 @@ class Mktab
       s = StringScanner.new(File.read(path))
       until s.eos?
         line = s.scan_until(/\n|\z/).strip
-        _, kind, name = *line.match(%r{// +(SYNTAX|FUN): +\((\S+)})
+        _, kind, name = *line.match(%r{// +(SYNTAX|FUN|SPECIAL): +\(([^\s)]+)})
         next unless kind
 
         line = s.scan_until(/\n|\z/).strip

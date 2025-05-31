@@ -16,7 +16,10 @@ package core
                 ('=' symexpr           { r = _2 }!
                 )?                     { w.Push(l, r) }!
             )* ']' )? block            { RET &Vec{KwMacro.ToId(_1), _2, v, w, _5.Value, _8} }!
-  | PROC identifierp '(' sig ')' block { RET &Vec{KwProc.ToId(_1), _2, _4, _6} }!
+  | PROC identifierp '(' sig ')'       { v := &Vec{KwProc.ToId(_1), _2, _4} }!
+      ( block                          { v.Push(_1) }!
+      | '@' dataexpr                   { v.Push(_2) }!
+      )                                { RET v }!
   | CONST                              { v := &Vec{} }!
       ( identifier                     { RET _1 }!
       | identifierp
@@ -44,13 +47,16 @@ package core
   labeleddata:
     label ':' identifier databody      { RET &Vec{_1, _3, _4} }!
   ;
-  databody:                           ^{ here := _here(p) }!
-    datalist?:NIL                      { alloc := Value(KwMulOp.ToId(here))
-                                         size := _constexpr(Int(1), here) }!
+  databody:                           ^{ here := _here(p); alloc := Value(KwMulOp.ToId(here))
+                                         size := _constexpr(Int(1), here); values := Value(NIL) }!
+    ( datalist                         { values = _1 }!
+    | constval                         { values = _1 }!
+    )?
       ( BOP dataval                    { alloc = _1.Value; size = _2 }!
-      )?                               { section := Value(NIL) }!
+      )?                               { section := Value(NIL); addr := Value(NIL) }!
       ( ':' identifier                 { section = _2 }!
-      )?                               { RET &Vec{_1, alloc, size, section } }!
+      | '@' dataexpr                   { addr = _2 }!
+      )?                               { RET &Vec{values, alloc, size, section, addr } }!
   ;
   datalist:
     '['                                { v := &Vec{KwVec.ToId(_1)} }!

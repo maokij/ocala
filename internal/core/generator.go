@@ -16,6 +16,8 @@ func (e *InternalError) Error() string {
 
 type Generator struct {
 	DebugMode bool
+	GenList   bool
+	IsSub     bool
 	Optimizer Optimizer
 	InReader  io.Reader
 	OutWriter io.Writer
@@ -23,7 +25,7 @@ type Generator struct {
 	Archs     map[string]func() *Compiler
 	IncPaths  []string
 	Defs      []string
-	GenList   bool
+	ListText  *[]byte
 	ListPath  string
 	OutPath   string
 	Err       *InternalError
@@ -92,7 +94,7 @@ func (g *Generator) SetCompilerFromSource(text []byte) {
 }
 
 func (g *Generator) findArchDirective(text []byte) string {
-	p := &Parser{Scanner: Scanner{Text: AdjustEol(text)}}
+	p := &Parser{Scanner: Scanner{Text: text}}
 
 	p.seekToNextToken(false)
 	if !p.Scan(reIdentifier) || p.Matched[1] != "" || p.Matched[2] != "arch" {
@@ -105,6 +107,10 @@ func (g *Generator) findArchDirective(text []byte) string {
 	}
 
 	return p.Matched[2]
+}
+
+func (g *Generator) prependList(list []byte) {
+	*g.ListText = append(list, *g.ListText...)
 }
 
 func (g *Generator) Compile(path string, text []byte) []*Inst {

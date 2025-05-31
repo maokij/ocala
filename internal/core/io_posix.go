@@ -19,16 +19,16 @@ func replacePathExt(path, ext string) string {
 var reInvalidPath = regexp.MustCompile(`^/|^\.\.+/|/\.+/|/\.*$|^\.+$`)
 
 func regularizePath(s, dir string, paths []string) (string, error) {
-	path := filepath.ToSlash(s)
+	b := filepath.ToSlash(s)
 
-	if reInvalidPath.MatchString(path) {
+	if filepath.IsAbs(s) || reInvalidPath.MatchString(b) {
 		return "", fmt.Errorf("invalid path `%s`", s)
 	}
-	if strings.HasPrefix(path, "./") {
+	if strings.HasPrefix(b, "./") {
 		paths = []string{dir}
 	}
-	for _, dir := range paths {
-		candidate := filepath.ToSlash(filepath.Join(dir, path))
+	for _, a := range paths {
+		candidate := filepath.Join(a, b)
 		if i, err := os.Stat(candidate); err == nil && !i.IsDir() {
 			return candidate, nil
 		}
@@ -48,23 +48,6 @@ func (g *Generator) AppendIncPath(path string) error {
 	}
 	g.IncPaths = append(g.IncPaths, a)
 	return nil
-}
-
-func generateFiles(g *Generator, insts []*Inst) {
-	binary, list := g.GenerateBin(insts)
-
-	var err error
-	if g.OutPath == "-" {
-		_, err = g.OutWriter.Write(binary)
-	} else {
-		err = os.WriteFile(g.OutPath, binary, 0o644)
-	}
-	if err == nil && g.GenList {
-		err = os.WriteFile(g.ListPath, []byte(list), 0o644)
-	}
-	if err != nil {
-		g.RaiseGenerateError(err.Error())
-	}
 }
 
 func (g *Generator) CompileAndGenerate(path string) bool {
@@ -104,8 +87,31 @@ func (g *Generator) CompileAndGenerate(path string) bool {
 		g.SetCompilerFromSource(text)
 	}
 
-	generateFiles(g, g.Compile(path, text))
+	binary := g.GenerateBin(g.Compile(path, text))
+	if g.OutPath == "-" {
+		_, err = g.OutWriter.Write(binary)
+	} else {
+		err = os.WriteFile(g.OutPath, binary, 0o644)
+	}
+	if err == nil && g.GenList {
+		err = os.WriteFile(g.ListPath, *g.ListText, 0o644)
+	}
+	if err != nil {
+		g.RaiseGenerateError(err.Error())
+	}
 	return true
+}
+
+// SPECIAL: (__FILE__)
+func (cc *Compiler) sFilename(env *Env, e *Vec) Value {
+	etag, _ := CheckExpr(e, 1, 1, CtConstexpr, cc)
+	CheckPhase(PhCompile, etag, cc)
+
+	path := cc.InPath
+	if path != "-" {
+		path = "./" + filepath.Base(path)
+	}
+	return NewStr(path)
 }
 
 // SYNTAX: (include path)
@@ -113,10 +119,7 @@ func (cc *Compiler) sInclude(env *Env, e *Vec) Value {
 	etag, _ := CheckExpr(e, 2, 2, CtModule|CtProc, cc)
 	path := CheckConst(e.At(1), StrT, "include path", etag, cc)
 
-	if cc.Context() == CtProc {
-		CheckToplevelEnv(env, etag, cc)
-	}
-
+	CheckToplevelEnvIfCtProc(env, etag, cc)
 	rpath, err := regularizePath(string(*path), filepath.Dir(cc.InPath), cc.g.IncPaths)
 	if err != nil {
 		cc.RaiseCompileError(etag, err.Error())
@@ -135,10 +138,11 @@ func (cc *Compiler) sInclude(env *Env, e *Vec) Value {
 	return cc.CompileIncluded(rpath, text)
 }
 
-// SYNTAX: (embed-file path)
-func (cc *Compiler) sEmbedFile(env *Env, e *Vec) Value {
-	etag, _ := CheckExpr(e, 2, 2, CtModule|CtProc, cc)
-	path := CheckConst(e.At(1), StrT, "include path", etag, cc)
+// SYNTAX: (load-file path)
+func (cc *Compiler) sLoadFile(env *Env, e *Vec) Value {
+	etag, _ := CheckExpr(e, 2, 2, CtConstexpr, cc)
+	path := EvalConstAs(e.At(1), env, StrT, "path", etag, cc)
+	CheckPhase(PhCompile, etag, cc)
 
 	rpath, err := regularizePath(string(*path), filepath.Dir(cc.InPath), cc.g.IncPaths)
 	if err != nil {
@@ -149,5 +153,19 @@ func (cc *Compiler) sEmbedFile(env *Env, e *Vec) Value {
 	if err != nil {
 		cc.RaiseCompileError(etag, err.Error())
 	}
-	return cc.EmitCode(NewInst(e, InstFile, path, (*Binary)(&data)))
+
+	return &Blob{data: data, path: rpath, origPath: string(*path)}
+}
+
+// SYNTAX: (compile-file path)
+func sCompileFile(cc *Compiler, env *Env, e *Vec) Value {
+	etag, _ := CheckExpr(e, 2, 2, CtConstexpr, cc)
+	path := EvalConstAs(e.At(1), env, StrT, "path", etag, cc)
+
+	blob := cc.sLoadFile(env, &Vec{etag, path}).(*Blob)
+	g := CopyPtr(cc.g)
+	g.IsSub = true
+	g.SetCompiler(g.Archs[cc.Arch]())
+	data := g.GenerateBin(g.Compile(blob.path, blob.data))
+	return &Blob{data: data, path: blob.path, origPath: blob.origPath, compiled: true}
 }

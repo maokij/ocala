@@ -4,36 +4,42 @@ import (
 	"fmt"
 )
 
-// SPECIAL: __PC__
-func sCurloc(cc *Compiler, env *Env, e *Vec) Value {
+// SPECIAL: (__PC__)
+func (cc *Compiler) sCurloc(env *Env, e *Vec) Value {
 	etag, _ := CheckExpr(e, 1, 1, CtConstexpr, cc)
-	if cc.lazyeval {
-		cc.RaiseCompileError(etag, "cannot use __PC__ in compile phase")
-	}
+	CheckPhase(PhLink, etag, cc)
 	return Int(cc.Pc)
 }
 
-// SPECIAL: __ORG__
-func sCurorg(cc *Compiler, env *Env, e *Vec) Value {
+// SPECIAL: (__ORG__)
+func (cc *Compiler) sCurorg(env *Env, e *Vec) Value {
 	etag, _ := CheckExpr(e, 1, 1, CtConstexpr, cc)
-	if cc.lazyeval {
-		cc.RaiseCompileError(etag, "cannot use __ORG__ in compile phase")
-	}
+	CheckPhase(PhLink, etag, cc)
 	return Int(cc.Org)
 }
 
-// SPECIAL: <declaration>
-func sDeclaration(cc *Compiler, env *Env, e *Vec) Value {
+// SPECIAL: (loaded-as-main?)
+func (cc *Compiler) sLoadedAsMain(env *Env, e *Vec) Value {
 	etag, _ := CheckExpr(e, 1, 1, CtConstexpr, cc)
-	cc.RaiseCompileError(etag, "declared but undefined")
+	CheckPhase(PhCompile, etag, cc)
+	return BoolInt(cc.MainPath == cc.InPath)
+}
+
+// SPECIAL: (<reserved>)
+func (cc *Compiler) sReserved(env *Env, e *Vec) Value {
+	etag, _ := CheckExpr(e, 1, 1, CtConstexpr, cc)
+	cc.RaiseCompileError(etag, "reserved but undefined")
 	return NIL
 }
+
+// SPECIAL: (__FILE__)
+// func (cc *Compiler) sFilename(env *Env, e *Vec) Value
 
 // SYNTAX: (include path)
 // func (cc *Compiler) sInclude(env *Env, e *Vec) Value
 
-// SYNTAX: (embed-file path)
-// func (cc *Compiler) sEmbedFile(env *Env, e *Vec) Value
+// SYNTAX: (load-file path)
+// func (cc *Compiler) sLoadFile(env *Env, e *Vec) Value
 
 // SYNTAX: (arch s)
 func (cc *Compiler) sArch(env *Env, e *Vec) Value {
@@ -50,7 +56,7 @@ func (cc *Compiler) sArch(env *Env, e *Vec) Value {
 // SYNTAX: (align a)
 func (cc *Compiler) sAlign(env *Env, e *Vec) Value {
 	etag, _ := CheckExpr(e, 2, 2, CtModule|CtProc, cc)
-	a := EvalConstAs(e.At(1), env, IntT, "argument", etag, cc)
+	a := CheckAndEvalConstAs(e.At(1), env, IntT, "argument", etag, cc)
 	return cc.EmitCode(NewInst(e, InstAlign, a))
 }
 
@@ -59,7 +65,7 @@ func (cc *Compiler) sLabel(env *Env, e *Vec) Value {
 	etag, _ := CheckExpr(e, 2, 2, CtModule|CtProc, cc)
 	a := CheckConst(e.At(1), IdentifierT, "label name", etag, cc)
 	nm := cc.InstallNamed(env, a, NmLabel, &Label{})
-	return cc.EmitCode(NewInst(e, InstLabel, nm, KwLabel))
+	return cc.EmitCode(NewInst(e, InstLabel, nm))
 }
 
 // SYNTAX: (#.tpl ...)
@@ -118,13 +124,13 @@ func (cc *Compiler) sLoop(env *Env, e *Vec) Value {
 	etag, n := CheckExpr(e, 2, -1, CtProc, cc)
 
 	env = env.Enter()
-	beg := cc.InstallNamed(env, etag.Expand(KwUBEG), NmLabel, &Label{})
-	end := cc.InstallNamed(env, etag.Expand(KwUEND), NmLabel, &Label{})
-	cond := cc.InstallNamed(env, etag.Expand(KwUCOND), NmLabel, &Label{})
+	begNm := cc.InstallNamed(env, etag.Expand(KwUBEG), NmLabel, &Label{})
+	endNm := cc.InstallNamed(env, etag.Expand(KwUEND), NmLabel, &Label{})
+	condNm := cc.InstallNamed(env, etag.Expand(KwUCOND), NmLabel, &Label{})
 
-	cc.EmitCode(NewInst(e, InstLabel, beg, KwLabel))
+	cc.EmitCode(NewInst(e, InstLabel, begNm))
 	cc.CompileExpr(env, CheckBlockForm(e.At(1), "body", etag, cc))
-	cc.EmitCode(NewInst(e, InstLabel, cond, KwLabel))
+	cc.EmitCode(NewInst(e, InstLabel, condNm))
 	if n == 2 {
 		a := etag.Expand(KwUBEG).ToConstexpr(nil)
 		cc.CompileExpr(env, &Vec{etag.Expand(KwJump), a, NIL})
@@ -132,7 +138,44 @@ func (cc *Compiler) sLoop(env *Env, e *Vec) Value {
 		a := CheckConst(e.At(2), IdentifierT, "loop condition", etag, cc)
 		cc.CompileExpr(env, NewVec(append([]Value{a}, (*e)[3:]...)))
 	}
-	return cc.EmitCode(NewInst(e, InstLabel, end, KwLabel))
+	return cc.EmitCode(NewInst(e, InstLabel, endNm))
+}
+
+func (cc *Compiler) sIfCond(env *Env, e *Vec) Value {
+	etag, n := CheckExpr(e, 3, 5, CtProc, cc)
+	cond := CheckValue(e.At(1), IdentifierT, "cond", etag, cc)
+	thenBody := CheckBlockForm(e.At(2), "body", etag, cc)
+
+	if !cc.IsCond(cond.Name) {
+		cc.RaiseCompileError(cond, "invalid condition")
+	}
+
+	endThenId := Gensym("end-then").ToId(etag.Token)
+	endThenNm := cc.InstallNamed(env, endThenId, NmLabel, &Label{})
+	cc.CompileExpr(env, &Vec{
+		etag.Expand(KwWith),
+		endThenId.ToConstexpr(env),
+		&Vec{etag.Expand(KwJumpUnless), cond, NIL},
+	})
+	cc.CompileExpr(env, thenBody)
+	if n == 3 {
+		return cc.EmitCode(NewInst(e, InstLabel, endThenNm))
+	}
+
+	elseTag := CheckConst(e.At(3), IdentifierT, "else", etag, cc)
+	if KwElse.MatchId(elseTag) == nil {
+		cc.RaiseCompileError(elseTag, "invalid if form, expected `else`")
+	} else if n != 5 {
+		cc.RaiseCompileError(elseTag, "invalid if form, else body required")
+	}
+	elseBody := CheckBlockForm(e.At(4), "body", etag, cc)
+
+	endElseId := Gensym("end-else").ToId(etag.Token)
+	endElseNm := cc.InstallNamed(env, endElseId, NmLabel, &Label{})
+	cc.CompileExpr(env, &Vec{etag.Expand(KwJump), endElseId.ToConstexpr(env), NIL})
+	cc.EmitCode(NewInst(e, InstLabel, endThenNm))
+	cc.CompileExpr(env, elseBody)
+	return cc.EmitCode(NewInst(e, InstLabel, endElseNm))
 }
 
 // SYNTAX: (if cond then `else` else)
@@ -140,8 +183,7 @@ func (cc *Compiler) sIf(env *Env, e *Vec) Value {
 	etag, _ := CheckExpr(e, 3, -1, CtModule|CtProc, cc)
 
 	if _, ok := e.At(1).(*Constexpr); !ok {
-		etag := etag.Expand(KwUIF)
-		return cc.CompileExpr(env, NewVec(append([]Value{etag}, (*e)[1:]...)))
+		return cc.sIfCond(env, e)
 	}
 
 	var matched Value
@@ -189,8 +231,7 @@ func (cc *Compiler) sIf(env *Env, e *Vec) Value {
 // SYNTAX: (case value rest ...)
 func (cc *Compiler) sCase(env *Env, e *Vec) Value {
 	etag, _ := CheckExpr(e, 4, -1, CtModule|CtProc, cc)
-	value := CheckValue(e.At(1), ConstexprT, "value", etag, cc)
-	a := EvalConst(value, env, etag, cc)
+	a := CheckAndEvalConst(e.At(1), env, "value", etag, cc)
 
 	var matched Value
 	for v := (*e)[2:]; len(v) > 0; {
@@ -227,6 +268,77 @@ func (cc *Compiler) sCase(env *Env, e *Vec) Value {
 	return NIL
 }
 
+// SYNTAX: (when cond then body else elbody)
+func (cc *Compiler) sWhen(env *Env, e *Vec) Value {
+	etag, n := CheckExpr(e, 4, 6, CtProc, cc)
+	condBody := CheckBlockForm(e.At(1), "cond", etag, cc)
+
+	thenTag := CheckConst(e.At(2), IdentifierT, "then", etag, cc)
+	if KwThen.MatchId(thenTag) == nil {
+		cc.RaiseCompileError(thenTag, "invalid when form, expected `then`")
+	}
+	thenBody := CheckBlockForm(e.At(3), "body", etag, cc)
+
+	thenId := Gensym("then").ToId(etag.Token)
+	thenNm := cc.InstallNamed(env, thenId, NmLabel, &Label{})
+	endThenId := Gensym("end-then").ToId(etag.Token)
+	endThenNm := cc.InstallNamed(env, endThenId, NmLabel, &Label{})
+
+	{ // cond part
+		env := env.Enter()
+		and := SyntaxFn(func(cc *Compiler, env *Env, e *Vec) Value {
+			etag, _ := CheckExpr(e, 2, 2, CtProc, cc)
+			cond := CheckValue(e.At(1), IdentifierT, "cond", etag, cc)
+			return cc.CompileExpr(env, &Vec{
+				etag.Expand(KwWith),
+				endThenId.ToConstexpr(env),
+				&Vec{etag.Expand(KwJumpUnless), cond, NIL},
+			})
+		})
+		cc.InstallNamed(env, etag.Expand(KwWhenAnd), NmSyntax, and)
+
+		or := SyntaxFn(func(cc *Compiler, env *Env, e *Vec) Value {
+			etag, _ := CheckExpr(e, 2, 2, CtProc, cc)
+			cond := CheckValue(e.At(1), IdentifierT, "cond", etag, cc)
+			return cc.CompileExpr(env, &Vec{
+				etag.Expand(KwWith),
+				thenId.ToConstexpr(env),
+				&Vec{etag.Expand(KwJumpIf), cond, NIL},
+			})
+		})
+		cc.InstallNamed(env, etag.Expand(KwWhenOr), NmSyntax, or)
+
+		n := condBody.Size()
+		if n == 1 {
+			cc.RaiseCompileError(etag, "at least one condition required")
+		} else if KwWhenAnd.MatchExpr(condBody.At(n-1)) == nil {
+			cc.RaiseCompileError(etag, "the last condition must be an AND expression")
+		}
+		cc.CompileExpr(env, condBody)
+	}
+
+	cc.EmitCode(NewInst(e, InstLabel, thenNm))
+	cc.CompileExpr(env, thenBody)
+	if n == 4 {
+		return cc.EmitCode(NewInst(e, InstLabel, endThenNm))
+	}
+
+	elseTag := CheckConst(e.At(4), IdentifierT, "else", etag, cc)
+	if KwElse.MatchId(elseTag) == nil {
+		cc.RaiseCompileError(elseTag, "invalid when form, expected `else`")
+	} else if n != 6 {
+		cc.RaiseCompileError(elseTag, "invalid when form, else body required")
+	}
+	elseBody := CheckBlockForm(e.At(5), "body", etag, cc)
+
+	endElseId := Gensym("end-else").ToId(etag.Token)
+	endElseNm := cc.InstallNamed(env, endElseId, NmLabel, &Label{})
+	cc.CompileExpr(env, &Vec{etag.Expand(KwJump), endElseId.ToConstexpr(env), NIL})
+	cc.EmitCode(NewInst(e, InstLabel, endThenNm))
+	cc.CompileExpr(env, elseBody)
+	return cc.EmitCode(NewInst(e, InstLabel, endElseNm))
+}
+
 // SYNTAX: (alias new old)
 func (cc *Compiler) sAlias(env *Env, e *Vec) Value {
 	etag, _ := CheckExpr(e, 3, 3, CtModule|CtProc, cc)
@@ -253,7 +365,7 @@ func (cc *Compiler) sModule(env *Env, e *Vec) Value {
 	CheckToplevelEnv(env, etag, cc)
 	module, section := cc.Module, cc.Section
 	cc.Module = NewModule(name.Name, nil)
-	cc.Section = KwTEXT
+	cc.Section = cc.Module.Sections[KwTEXT]
 	cc.InstallNamed(env, name, NmModule, cc.Module)
 
 	cc.EnterContext(CtModule)
@@ -269,19 +381,23 @@ func (cc *Compiler) sModule(env *Env, e *Vec) Value {
 
 // SYNTAX: (section name)
 func (cc *Compiler) sSection(env *Env, e *Vec) Value {
-	etag, _ := CheckExpr(e, 2, 2, CtModule|CtProc, cc)
-	name := CheckConst(e.At(1), IdentifierT, "section name", etag, cc)
+	etag, n := CheckExpr(e, 2, 3, CtModule|CtProc, cc)
+	id := CheckConstPlainId(e.At(1), "section name", etag, cc)
 
-	if cc.Context() == CtProc {
-		CheckToplevelEnv(env, etag, cc)
-	}
-	if cc.Section == name.Name {
+	CheckToplevelEnvIfCtProc(env, etag, cc)
+	if cc.Section.Name == id.Name {
 		return NIL
 	}
 
-	cc.EmitCodeToSection(cc.Section, cc.LeaveCodeBlock()...)
+	section := cc.Section
+	cc.EmitCodeToSection(section, cc.LeaveCodeBlock()...)
 	cc.EnterCodeBlock()
-	cc.Section = name.Name
+	cc.Section = cc.Module.FindOrNewSection(id.Name)
+	if n == 3 {
+		v := CheckBlockForm(e.At(2), "body", etag, cc)
+		cc.CompileExpr(env, v)
+		cc.CompileExpr(env, &Vec{etag, etag.Expand(section.Name).ToConstexpr(env)})
+	}
 	return NIL
 }
 
@@ -303,7 +419,7 @@ func (cc *Compiler) sFlatMode(env *Env, e *Vec) Value {
 	etag, _ := CheckExpr(e, 1, 1, CtModule, cc)
 
 	CheckToplevelEnv(env, etag, cc)
-	cc.Section = KwTEXT
+	cc.Section = cc.Module.Sections[KwTEXT]
 	cc.EnterContext(CtProc)
 	cc.EnterCodeBlock()
 
@@ -319,23 +435,21 @@ func (cc *Compiler) sFlatMode(env *Env, e *Vec) Value {
 // SYNTAX: (pragma ...)
 func (cc *Compiler) sPragma(env *Env, e *Vec) Value {
 	etag, n := CheckExpr(e, 2, -1, 0, cc)
-	k := CheckConst(e.At(1), IdentifierT, "pragma", etag, cc)
-
-	CheckNameUnqualified(k, cc)
+	k := CheckConstPlainId(e.At(1), "pragma", etag, cc)
 
 	switch k.Name {
 	case KwListConstants:
 		CheckExpr(e, 3, 4, CtModule, cc)
 
 		if n == 4 {
-			v := EvalConstAs(e.At(3), env, StrT, "message", etag, cc)
+			v := CheckAndEvalConstAs(e.At(3), env, StrT, "message", etag, cc)
 			cc.EmitCodeTo(0, NewInst(e, InstMisc, KwComment, v))
 		}
-		v := EvalConstAs(e.At(2), env, IntT, "value", etag, cc)
+		v := CheckAndEvalConstAs(e.At(2), env, IntT, "value", etag, cc)
 		cc.EmitCodeTo(0, NewInst(e, InstMisc, KwListConstants, v))
 	case KwComment:
 		CheckExpr(e, 3, -1, CtModule|CtProc, cc)
-		v := EvalConstAs(e.At(2), env, StrT, "comment", etag, cc)
+		v := CheckAndEvalConstAs(e.At(2), env, StrT, "comment", etag, cc)
 		r := []Value{KwComment, v}
 		for _, i := range (*e)[3:] {
 			r = append(r, cc.CompileExpr(env, i))
@@ -364,7 +478,7 @@ func (cc *Compiler) sMacro(env *Env, e *Vec) Value {
 	args := []*Keyword{}
 	for x, a := range *as {
 		a := a.(*Vec)
-		k := CheckConst(a.At(0), IdentifierT, "macro parameter", etag, cc)
+		k := CheckConstPlainId(a.At(0), "macro parameter", etag, cc)
 		v := a.At(1)
 		if rest && x == len(*as)-1 {
 			if v != NIL {
@@ -382,7 +496,7 @@ func (cc *Compiler) sMacro(env *Env, e *Vec) Value {
 
 	vars := []Value{}
 	for x, n := 0, vs.Size(); x < n; x += 2 {
-		k := CheckConst((*vs)[x], IdentifierT, "macro variable", etag, cc)
+		k := CheckConstPlainId((*vs)[x], "macro variable", etag, cc)
 		v := (*vs)[x+1]
 		if v != NIL {
 			CheckValue(v, ConstexprT, "macro variable body", etag, cc)
@@ -400,9 +514,18 @@ func (cc *Compiler) sProc(env *Env, e *Vec) Value {
 	etag, _ := CheckExpr(e, 4, 4, CtModule|CtProc, cc)
 	name := CheckConst(e.At(1), IdentifierT, "proc name", etag, cc)
 	sigv := CheckValue(e.At(2), VecT, "signature", etag, cc)
-	body := CheckBlockForm(e.At(3), "proc body", etag, cc)
-
 	sig := cc.newSig(sigv)
+
+	if addr, ok := e.At(3).(*Constexpr); ok {
+		if sig.IsInline {
+			cc.RaiseCompileError(etag, "cannot bind inline proc")
+		}
+		addr = cc.CompileExpr(env, addr).(*Constexpr)
+		nm := cc.InstallNamed(env, name, NmLabel, &Label{Sig: sig, At: addr})
+		return cc.EmitCodeByEnv(env, NewInst(e, InstBind, nm))
+	}
+
+	body := CheckBlockForm(e.At(3), "proc body", etag, cc)
 	if sig.IsInline {
 		cc.InstallNamed(env, name, NmInline, &Inline{Body: body, Sig: sig})
 		return NIL
@@ -412,11 +535,11 @@ func (cc *Compiler) sProc(env *Env, e *Vec) Value {
 	cc.EnterCodeBlock()
 
 	nm := cc.InstallNamed(env, name, NmLabel, &Label{Sig: sig})
-	cc.EmitCode(NewInst(e, InstLabel, nm, KwProc))
+	cc.EmitCode(NewInst(e, InstLabel, nm, NIL))
 
 	env = env.Enter()
-	nm = cc.InstallNamed(env, etag.Expand(KwPROCNAME), NmConst, name.ToConstexpr(env))
-	cc.EmitCode(NewInst(e, InstConst, nm))
+	procNm := cc.InstallNamed(env, etag.Expand(KwPROCNAME), NmConst, name.ToConstexpr(env))
+	cc.EmitCode(NewInst(e, InstConst, procNm))
 
 	cc.sBlock(env, body)
 	cc.EmitCode(NewInst(e, InstMisc, KwEndProc))
@@ -437,13 +560,9 @@ func (cc *Compiler) sCallproc(env *Env, e *Vec) Value {
 	sig := cc.newSig(sigv)
 
 	if sig.IsInline {
-		nm := cc.LookupNamed(env, id)
-		if nm == nil {
-			cc.RaiseCompileError(etag, "undefined proc %s", id.String())
-		} else if nm.Kind != NmInline {
-			cc.RaiseCompileError(etag, "%s is not a inline proc", id.String())
-		}
-		cc.expandInline(nm.Env, e, id, nm.Value.(*Inline))
+		inst := NewInst(e, InstMisc, KwInline, env, id, NIL)
+		cc.InlineInsts = append(cc.InlineInsts, inst)
+		cc.EmitCode(inst)
 	} else {
 		cc.CompileExpr(env, &Vec{etag.Expand(op), name, cond})
 	}
@@ -488,7 +607,7 @@ func (cc *Compiler) sConst(env *Env, e *Vec) Value {
 		args := []*Keyword{}
 		for _, a := range *as {
 			a := a.(*Vec)
-			k := CheckConst(a.At(0), IdentifierT, "function parameter", etag, cc)
+			k := CheckConstPlainId(a.At(0), "function parameter", etag, cc)
 
 			v := a.At(1)
 			if len(opts) > 0 && v == NIL {
@@ -507,40 +626,58 @@ func (cc *Compiler) sConst(env *Env, e *Vec) Value {
 	return cc.EmitCodeByEnv(env, NewInst(e, InstConst, nm))
 }
 
-// SYNTAX: (#.data name type (values op count section))
+// SYNTAX: (#.data name type (values op count section addr))
 func (cc *Compiler) sData(env *Env, e *Vec) Value {
 	etag, _ := CheckExpr(e, 4, 4, CtModule|CtProc, cc)
 
+	var nm *Named
 	info := &Label{}
+
 	cc.EnterCodeBlock()
 	if name := e.At(1); name != NIL {
 		name := CheckConst(name, IdentifierT, "data name", etag, cc)
-		nm := cc.InstallNamed(env, name, NmLabel, info)
-		cc.EmitCode(NewInst(e, InstLabel, nm, KwData))
+		nm = cc.InstallNamed(env, name, NmLabel, info)
+		cc.EmitCode(NewInst(e, InstLabel, nm))
 	}
 
-	t := CheckConst(e.At(2), IdentifierT, "data type", etag, cc).Name
+	t := CheckConstPlainId(e.At(2), "data type", etag, cc).Name
 	if t != KwByte && t != KwWord {
 		cc.RaiseCompileError(etag, "invalid data type %s", t.String())
 	}
 
 	body := CheckValue(e.At(3), VecT, "data body", etag, cc)
-	// op := EvalConstAs(body.At(1), env, IdentifierT, "op", etag, cc)
-	n := EvalConstAs(body.At(2), env, IntT, "count", etag, cc)
+	// op := CheckConstAs(body.At(1), env, IdentifierT, "op", etag, cc)
+	n := CheckAndEvalConstAs(body.At(2), env, IntT, "count", etag, cc)
 	if n < 1 {
 		cc.RaiseCompileError(etag, "invalid repeat count %d", n)
 	}
 
-	if values := body.At(0); values != NIL {
-		info.Link = NewInst(e, InstData, t, n, cc.sVec(env, values.(*Vec)))
-	} else {
+	switch values := body.At(0).(type) {
+	case *Constexpr:
+		info.Link = NewInst(e, InstBlob, EvalConstAs(values, env, BlobT, "blob", etag, cc))
+	case *Vec:
+		info.Link = NewInst(e, InstData, t, n, cc.sVec(env, values))
+	default:
 		info.Link = NewInst(e, InstDS, t, n)
 	}
 	cc.EmitCode(info.Link)
 
 	if body.At(3) != NIL {
-		section := CheckConst(body.At(3), IdentifierT, "section", etag, cc)
-		cc.EmitCodeToSection(section.Name, cc.LeaveCodeBlock()...)
+		name := CheckConstPlainId(body.At(3), "section", etag, cc)
+		section := cc.Module.FindOrNewSection(name.Name)
+		cc.EmitCodeToSection(section, cc.LeaveCodeBlock()...)
+	} else if body.At(4) != NIL {
+		if nm == nil {
+			cc.RaiseCompileError(etag, "data name required")
+		}
+		if info.Link.Kind != InstDS {
+			cc.RaiseCompileError(etag, "the addressed data cannot contain any elements")
+		}
+
+		addr := CheckValue(body.At(4), ConstexprT, "data address", etag, cc)
+		info.At = cc.CompileExpr(env, addr).(*Constexpr)
+		cc.LeaveCodeBlock()
+		cc.EmitCodeByEnv(env, NewInst(e, InstBind, nm))
 	} else {
 		cc.EmitCode(cc.LeaveCodeBlock()...)
 	}
@@ -578,7 +715,7 @@ func (cc *Compiler) sByte(env *Env, e *Vec) Value {
 func (cc *Compiler) sRep(env *Env, e *Vec) Value {
 	etag, _ := CheckExpr(e, 3, 3, CtProc, cc)
 	a := cc.ExprToOperand(cc, e.At(1))
-	n := EvalConstAs(a.A0, env, IntT, "loop counter", etag, cc)
+	n := CheckAndEvalConstAs(a.A0, env, IntT, "loop counter", etag, cc)
 
 	for range int(n) {
 		cc.CompileExpr(env, e.At(2).Dup())
@@ -611,7 +748,7 @@ func (cc *Compiler) sValueOf(env *Env, e *Vec) Value {
 	v := EvalConst(a, env, etag, cc)
 
 	switch v.(type) {
-	case Int, *Str:
+	case Int, *Str, *Blob:
 		return &Constexpr{Token: a.Token, Body: v, Env: env}
 	}
 	return v
@@ -745,7 +882,7 @@ func (cc *Compiler) sImport(env *Env, e *Vec) Value {
 // SYNTAX: (expand-loop n a)
 func (cc *Compiler) sExpandLoop(env *Env, e *Vec) Value {
 	etag, _ := CheckExpr(e, 3, 3, CtProc, cc)
-	n := EvalConstAs(e.At(1), env, IntT, "loop counter", etag, cc)
+	n := CheckAndEvalConstAs(e.At(1), env, IntT, "loop counter", etag, cc)
 	body := CheckBlockForm(e.At(2), "loop body", etag, cc)
 
 	for range int(n) {
@@ -760,7 +897,7 @@ func (cc *Compiler) sPatch(env *Env, e *Vec) Value {
 	name := CheckConst(e.At(1), IdentifierT, "name", etag, cc)
 
 	nm := cc.LookupNamed(env, name)
-	CheckDeclaration(nm, name, cc)
+	CheckReserved(nm, name, cc)
 
 	delta := Value(Int(0))
 	if n == 3 {
@@ -775,41 +912,15 @@ func (cc *Compiler) sPatch(env *Env, e *Vec) Value {
 	id := Gensym("patch." + name.String()).ToId(etag.Token)
 	label := cc.InstallNamed(env, id, NmLabel, &Label{})
 
-	nm.Value = cc.CompileExpr(env, &Constexpr{Body: &Vec{etag.Expand(KwPlusOp), id, delta}})
-	return cc.EmitCode(NewInst(e, InstLabel, label, KwLabel))
-}
-
-// SYNTAX: (experimental/define-constant a b c)
-func (cc *Compiler) sDefineConstant(env *Env, e *Vec) Value {
-	etag, n := CheckExpr(e, 3, 4, CtModule|CtProc, cc)
-	name := CheckConst(e.At(1), IdentifierT, "constant name", etag, cc)
-
-	var value Value
-	if n == 3 { // name value
-		value = e.At(2)
-	} else { // name ns value
-		value = e.At(3)
-		ns := CheckConst(e.At(2), IdentifierT, "namespace", etag, cc)
-
-		CheckNameUnqualified(name, cc)
-		CheckNameUnqualified(ns, cc)
-
-		name = name.Clone()
-		name.Namespace = ns.Name
-	}
-	value = cc.CompileExpr(env, value)
-
-	nm := cc.LookupNamed(env, name)
-	CheckDeclaration(nm, name, cc)
-	nm.Value = CheckValue(value, ConstexprT, "constant value", etag, cc)
-	return NIL
+	nm.Value.(*Label).At = &Constexpr{Env: env, Body: &Vec{etag.Expand(KwPlusOp), id, delta}}
+	return cc.EmitCode(NewInst(e, InstLabel, label))
 }
 
 // SYNTAX: (make-counter name value)
 func (cc *Compiler) sMakeCounter(env *Env, e *Vec) Value {
 	etag, _ := CheckExpr(e, 3, 3, CtModule|CtProc, cc)
 	name := CheckConst(e.At(1), IdentifierT, "name", etag, cc)
-	value := EvalConstAs(e.At(2), env, IntT, "start", etag, cc)
+	value := CheckAndEvalConstAs(e.At(2), env, IntT, "start", etag, cc)
 
 	getter := SyntaxFn(func(cc *Compiler, env *Env, e *Vec) Value {
 		v := value
@@ -945,12 +1056,6 @@ func (cc *Compiler) sDefinedp(env *Env, e *Vec) Value {
 
 ////////////////////////////////////////////////////////////
 
-// FUN: (flat-vec ...)
-func (cc *Compiler) fFlatVec(env *Env, e *Vec) Value {
-	CheckExpr(e, 1, -1, CtConstexpr, cc)
-	return NewVec((*e)[1:]).Flatten()
-}
-
 // FUN: (#.make-id ...)
 func (cc *Compiler) fMakeId(env *Env, e *Vec) Value {
 	etag, _ := CheckExpr(e, 1, -1, CtConstexpr, cc)
@@ -971,7 +1076,7 @@ func (cc *Compiler) fMakeId(env *Env, e *Vec) Value {
 				cc.RaiseCompileError(etag, "invalid fragment")
 			}
 		default:
-			cc.RaiseCompileError(etag, "invalid fragment")
+			cc.RaiseCompileError(etag, "[BUG] invalid fragment")
 		}
 	}
 	return Intern(s).ToId(etag.Token)
@@ -1195,19 +1300,6 @@ func (cc *Compiler) fAsWord(env *Env, e *Vec) Value {
 	return Int(((h & 0xff) << 8) | (l & 0xff))
 }
 
-// FUN: (opposite-condition a)
-func (cc *Compiler) fOppositeCondition(env *Env, e *Vec) Value {
-	etag, _ := CheckExpr(e, 2, 2, CtConstexpr, cc)
-	form := cc.unwrapExprdata(e.At(1), etag)
-	a := CheckValue(form, IdentifierT, "cond", etag, cc)
-
-	v, ok := cc.OppositeConds[a.Name]
-	if !ok {
-		cc.RaiseCompileError(etag, "invalid condition %s", a.String())
-	}
-	return v.ToId(a.Token)
-}
-
 // FUN: (unuse? a)
 func (cc *Compiler) fUnusep(env *Env, e *Vec) Value {
 	etag, _ := CheckExpr(e, 2, 2, CtConstexpr, cc)
@@ -1220,11 +1312,6 @@ func (cc *Compiler) fUnusep(env *Env, e *Vec) Value {
 // FUN: (use? a)
 func (cc *Compiler) fUsep(env *Env, e *Vec) Value {
 	return BoolInt(cc.fUnusep(env, e) == Int(0))
-}
-
-// FUN: (loaded-as-main? )
-func (cc *Compiler) fLoadedAsMain(env *Env, e *Vec) Value {
-	return BoolInt(cc.MainPath == cc.InPath)
 }
 
 // FUN: (formtypeof a)

@@ -51,10 +51,6 @@ func FormatErrorLine(token *Token, chain bool, message string) string {
 	return s
 }
 
-func AdjustEol(text []byte) []byte {
-	return bytes.ReplaceAll(text, []byte{'\r'}, []byte{})
-}
-
 type Scanner struct {
 	Path    string
 	Text    []byte

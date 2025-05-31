@@ -64,17 +64,6 @@ var tokenWords = [][]string{
 	{"<-", "->", "+$", "-$", "-?", "-bit?", "<*", "<*$", ">*", ">*$", "-jump-if", "-jump-unless"},
 }
 
-var oppositeConds = map[*Keyword]*Keyword{
-	kwCondNE: kwCondEQ,
-	kwCondEQ: kwCondNE,
-	kwCondCC: kwCondCS,
-	kwCondCS: kwCondCC,
-	kwCondVC: kwCondVS,
-	kwCondVS: kwCondVC,
-	kwCondPL: kwCondMI,
-	kwCondMI: kwCondPL,
-}
-
 var bmaps = [][]byte{}
 
 var tokenAliases = map[string]string{

@@ -58,7 +58,7 @@ func (cli *CLI) findAppRoot() error {
 	}
 
 	path = filepath.Join(path, "../..")
-	stat, err := os.Stat(filepath.Join(path, "share", "ocala", "include"))
+	stat, err := os.Stat(filepath.Join(path, "share/ocala/include"))
 	if err != nil || !stat.IsDir() {
 		return errInvalidInstallation
 	}
@@ -117,7 +117,7 @@ func (*CLI) ParseCommandLineOptions(g *core.Generator, args []string) (string, e
 		g.GenList = true
 	}
 
-	g.AppendIncPath(filepath.Join(appRoot, "share", "ocala", "include"))
+	g.AppendIncPath(filepath.Join(appRoot, "share/ocala/include"))
 	for _, i := range incPaths {
 		if err := g.AppendIncPath(i); err != nil {
 			fmt.Fprintln(g.ErrWriter, err.Error())
@@ -143,6 +143,7 @@ func (cli *CLI) Run(args []string) int {
 		ErrWriter: cli.errWriter,
 		DebugMode: os.Getenv("OCALADEBUG") == "1",
 		Archs:     Archs,
+		ListText:  &[]byte{},
 	}
 	if appRoot == "" {
 		if err := cli.findAppRoot(); err != nil {

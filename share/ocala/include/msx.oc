@@ -610,128 +610,127 @@ module msx {
     const VDP/YMMM  = 0b1110_0000
     const VDP/HMMC  = 0b1111_0000
 
-    pragma list-constants 1
+    // BIOS signatures
+    proc chkram(!) @ CHKRAM // 0x0000
+    proc synchr(HL => A HL) @ SYNCHR // 0x0008 !
+    proc rdslt(A HL => A ! C DE) @ RDSLT // 0x000C
+    proc chrgtr(HL => A HL) @ CHRGTR // 0x0010
+    proc wrslt(A HL E => ! BC D) @ WRSLT // 0x0014
+    proc outdo(A =>) @ OUTDO // 0x0018
+    proc calslt(IY IX => !) @ CALSLT // 0x001C !
+    proc dcompr(HL DE =>) @ DCOMPR // 0x0020 !
+    proc enaslt(A HL => !) @ ENASLT // 0x0024 !
+    proc getypr() @ GETYPR // 0x0028
+    proc callf(!) @ CALLF // 0x0030 !
+    proc initio(!) @ INITIO // 0x003B
+    proc inifnk(!) @ INIFNK // 0x003E
+    proc disscr(! BC) @ DISSCR // 0x0041
+    proc enascr(! BC) @ ENASCR // 0x0044
+    proc wrtvdp(C B ! BC) @ WRTVDP // 0x0047 !
+    proc rdvrm(HL => A) @ RDVRM // 0x004A
+    proc wrtvrm(HL A =>) @ WRTVRM // 0x004D
+    proc setrd(HL =>) @ SETRD // 0x0050
+    proc setwrt(HL =>) @ SETWRT // 0x0053
+    proc filvrm(A BC HL => ! BC) @ FILVRM // 0x0056
+    proc ldirmv(BC DE HL => !) @ LDIRMV // 0x0059 !
+    proc ldirvm(BC DE HL => !) @ LDIRVM // 0x005C
+    proc chgmod(A => !) @ CHGMOD // 0x005F
+    proc chgclr(A => !) @ CHGCLR // 0x0062
+    proc nmi() @ NMI // 0x0066
+    proc clrspr(!) @ CLRSPR // 0x0069
+    proc initxt(!) @ INITXT // 0x006C
+    proc init32(!) @ INIT32 // 0x006F
+    proc inigrp(!) @ INIGRP // 0x0072
+    proc inimlt(!) @ INIMLT // 0x0075
+    proc settxt(!) @ SETTXT // 0x0078
+    proc sett32(!) @ SETT32 // 0x007B
+    proc setgrp(!) @ SETGRP // 0x007E
+    proc setmlt(!) @ SETMLT // 0x0081
+    proc calpat(A => HL ! DE) @ CALPAT // 0x0084
+    proc calatr(A => HL ! DE) @ CALATR // 0x0087
+    proc gspsiz(=> A) @ GSPSIZ // 0x008A
+    proc grpprt(A =>) @ GRPPRT // 0x008D !
+    proc gicini(!) @ GICINI // 0x0090
+    proc wrtpsg(A E =>) @ WRTPSG // 0x0093
+    proc rdpsg(A => A) @ RDPSG // 0x0096
+    proc strtms(!) @ STRTMS // 0x0099
+    proc chsns() @ CHSNS // 0x009C
+    proc chget(=> A) @ CHGET // 0x009F
+    proc chput(A =>) @ CHPUT // 0x00A2
+    proc lptout(A =>) @ LPTOUT // 0x00A5
+    proc lptstt(=> A) @ LPTSTT // 0x00A8
+    proc cnvchr(A =>) @ CNVCHR // 0x00AB
+    proc pinlin(=> HL !) @ PINLIN // 0x00AE
+    proc inlin(=> HL !) @ INLIN // 0x00B1
+    proc qinlin(=> HL !) @ QINLIN // 0x00B4
+    proc breakx() @ BREAKX // 0x00B7
+    proc iscntc() @ ISCNTC // 0x00BA
+    proc ckcntc() @ CKCNTC // 0x00BD
+    proc beep(!) @ BEEP // 0x00C0
+    proc cls(! BC DE) @ CLS // 0x00C3
+    proc posit(H L =>) @ POSIT // 0x00C6
+    proc fnksb(!) @ FNKSB // 0x00C9
+    proc erafnk(!) @ ERAFNK // 0x00CC
+    proc dspfnk(!) @ DSPFNK // 0x00CF
+    proc totext(!) @ TOTEXT // 0x00D2
+    proc gtstck(A => A !) @ GTSTCK // 0x00D5
+    proc gttrig(A => A !) @ GTTRIG // 0x00D8 ?
+    proc gtpad(A => A !) @ GTPAD // 0x00DB
+    proc gtpdl(A => A !) @ GTPDL // 0x00DE
+    proc tapion(!) @ TAPION // 0x00E1
+    proc tapin(=> A !) @ TAPIN // 0x00E4
+    proc tapiof() @ TAPIOF // 0x00E7
+    proc tapoon(A => !) @ TAPOON // 0x00EA
+    proc tapout(A => !) @ TAPOUT // 0x00ED
+    proc tapoof() @ TAPOOF // 0x00F0
+    proc stmotr(A =>) @ STMOTR // 0x00F3
+    proc lftq(A => HL ! BC) @ LFTQ // 0x00F6
+    proc putq(A E => ! BC HL) @ PUTQ // 0x00F9
+    proc rightc() @ RIGHTC // 0x00FC
+    proc leftc() @ LEFTC // 0x00FF
+    proc upc() @ UPC // 0x0102
+    proc tupc() @ TUPC // 0x0105
+    proc downc() @ DOWNC // 0x0108
+    proc tdownc() @ TDOWNC // 0x010B
+    proc scalxy() @ SCALXY // 0x010E
+    proc mapxy(BC =>) @ MAPXY // 0x0111
+    proc fetchc(=> HL A) @ FETCHC // 0x0114
+    proc storec(HL A =>) @ STOREC // 0x0117
+    proc setatr() @ SETATR // 0x011A
+    proc readc() @ READC // 0x011D
+    proc setc() @ SETC // 0x0120
+    proc nsetcx() @ NSETCX // 0x0123
+    proc gtaspc(! DE HL) @ GTASPC // 0x0126
+    proc pntini() @ PNTINI // 0x0129
+    proc scanr() @ SCANR // 0x012C
+    proc scanl() @ SCANL // 0x012F
+    proc chgcap(A =>) @ CHGCAP // 0x0132
+    proc chgsnd(A =>) @ CHGSND // 0x0135
+    proc rslreg(=> A) @ RSLREG // 0x0138
+    proc wslreg(A =>) @ WSLREG // 0x013B
+    proc rdvdp(=> A) @ RDVDP // 0x013E
+    proc snsmat(A => A) @ SNSMAT // 0x0141
+    proc phydio(B C DE HL => !) @ PHYDIO // 0x0144
+    proc format(!) @ FORMAT // 0x0147
+    proc isflio(=> A) @ ISFLIO // 0x014A
+    proc outdlp(A =>) @ OUTDLP // 0x014D
+    proc getvcp(A => HL) @ GETVCP // 0x0150
+    proc getvc2(L => HL) @ GETVC2 // 0x0153
+    proc kilbuf(! HL) @ KILBUF // 0x0156
+    proc calbas(IX => !) @ CALBAS // 0x0159 !
+    proc subrom(IX => ! IY) @ SUBROM // 0x015C
+    proc extrom(IX => ! IY) @ EXTROM // 0x015F
+    proc chknew() @ CHKNEW // 0x0165
+    proc eol(H L => !) @ EOL // 0x0168
+    proc bigfil(HL BC A => ! BC) @ BIGFIL // 0x016B
+    proc nsetrd(HL =>) @ NSETRD // 0x016E
+    proc nstwrt(HL =>) @ NSTWRT // 0x0171
+    proc nrdvrm(HL => A) @ NRDVRM // 0x0174
+    proc nwrvrm(HL A =>) @ NWRVRM // 0x0177
+    proc rdres(=> A) @ RDRES // 0x017A
+    proc wrres(A =>) @ WRRES // 0x017D
 
-    // BIOS wrapper inline procedures
-    macro _bios(addr) { CALL %=addr; RET }
-    proc chkram(-* !) { _bios CHKRAM } // 0x0000
-    proc synchr(-* HL => A HL) { _bios SYNCHR } // 0x0008 !
-    proc rdslt(-* A HL => A ! C DE) { _bios RDSLT } // 0x000C
-    proc chrgtr(-* HL => A HL) { _bios CHRGTR } // 0x0010
-    proc wrslt(-* A HL E => ! BC D) { _bios WRSLT } // 0x0014
-    proc outdo(-* A =>) { _bios OUTDO } // 0x0018
-    proc calslt(-* IY IX => !) { _bios CALSLT } // 0x001C !
-    proc dcompr(-* HL DE =>) { _bios DCOMPR } // 0x0020 !
-    proc enaslt(-* A HL => !) { _bios ENASLT } // 0x0024 !
-    proc getypr(-*) { _bios GETYPR } // 0x0028
-    proc callf(-* !) { _bios CALLF } // 0x0030 !
-    proc initio(-* !) { _bios INITIO } // 0x003B
-    proc inifnk(-* !) { _bios INIFNK } // 0x003E
-    proc disscr(-* ! BC) { _bios DISSCR } // 0x0041
-    proc enascr(-* ! BC) { _bios ENASCR } // 0x0044
-    proc wrtvdp(-* C B ! BC) { _bios WRTVDP } // 0x0047 !
-    proc rdvrm(-* HL => A) { _bios RDVRM } // 0x004A
-    proc wrtvrm(-* HL A =>) { _bios WRTVRM } // 0x004D
-    proc setrd(-* HL =>) { _bios SETRD } // 0x0050
-    proc setwrt(-* HL =>) { _bios SETWRT } // 0x0053
-    proc filvrm(-* A BC HL => ! BC) { _bios FILVRM } // 0x0056
-    proc ldirmv(-* BC DE HL => !) { _bios LDIRMV } // 0x0059 !
-    proc ldirvm(-* BC DE HL => !) { _bios LDIRVM } // 0x005C
-    proc chgmod(-* A => !) { _bios CHGMOD } // 0x005F
-    proc chgclr(-* A => !) { _bios CHGCLR } // 0x0062
-    proc nmi(-*) { _bios NMI } // 0x0066
-    proc clrspr(-* !) { _bios CLRSPR } // 0x0069
-    proc initxt(-* !) { _bios INITXT } // 0x006C
-    proc init32(-* !) { _bios INIT32 } // 0x006F
-    proc inigrp(-* !) { _bios INIGRP } // 0x0072
-    proc inimlt(-* !) { _bios INIMLT } // 0x0075
-    proc settxt(-* !) { _bios SETTXT } // 0x0078
-    proc sett32(-* !) { _bios SETT32 } // 0x007B
-    proc setgrp(-* !) { _bios SETGRP } // 0x007E
-    proc setmlt(-* !) { _bios SETMLT } // 0x0081
-    proc calpat(-* A => HL ! DE) { _bios CALPAT } // 0x0084
-    proc calatr(-* A => HL ! DE) { _bios CALATR } // 0x0087
-    proc gspsiz(-* => A) { _bios GSPSIZ } // 0x008A
-    proc grpprt(-* A =>) { _bios GRPPRT } // 0x008D !
-    proc gicini(-* !) { _bios GICINI } // 0x0090
-    proc wrtpsg(-* A E =>) { _bios WRTPSG } // 0x0093
-    proc rdpsg(-* A => A) { _bios RDPSG } // 0x0096
-    proc strtms(-* !) { _bios STRTMS } // 0x0099
-    proc chsns(-*) { _bios CHSNS } // 0x009C
-    proc chget(-* => A) { _bios CHGET } // 0x009F
-    proc chput(-* A =>) { _bios CHPUT } // 0x00A2
-    proc lptout(-* A =>) { _bios LPTOUT } // 0x00A5
-    proc lptstt(-* => A) { _bios LPTSTT } // 0x00A8
-    proc cnvchr(-* A =>) { _bios CNVCHR } // 0x00AB
-    proc pinlin(-* => HL !) { _bios PINLIN } // 0x00AE
-    proc inlin(-* => HL !) { _bios INLIN } // 0x00B1
-    proc qinlin(-* => HL !) { _bios QINLIN } // 0x00B4
-    proc breakx(-*) { _bios BREAKX } // 0x00B7
-    proc iscntc(-*) { _bios ISCNTC } // 0x00BA
-    proc ckcntc(-*) { _bios CKCNTC } // 0x00BD
-    proc beep(-* !) { _bios BEEP } // 0x00C0
-    proc cls(-* ! BC DE) { _bios CLS } // 0x00C3
-    proc posit(-* H L =>) { _bios POSIT } // 0x00C6
-    proc fnksb(-* !) { _bios FNKSB } // 0x00C9
-    proc erafnk(-* !) { _bios ERAFNK } // 0x00CC
-    proc dspfnk(-* !) { _bios DSPFNK } // 0x00CF
-    proc totext(-* !) { _bios TOTEXT } // 0x00D2
-    proc gtstck(-* A => A !) { _bios GTSTCK } // 0x00D5
-    proc gttrig(-* A => A !) { _bios GTTRIG } // 0x00D8 ?
-    proc gtpad(-* A => A !) { _bios GTPAD } // 0x00DB
-    proc gtpdl(-* A => A !) { _bios GTPDL } // 0x00DE
-    proc tapion(-* !) { _bios TAPION } // 0x00E1
-    proc tapin(-* => A !) { _bios TAPIN } // 0x00E4
-    proc tapiof(-*) { _bios TAPIOF } // 0x00E7
-    proc tapoon(-* A => !) { _bios TAPOON } // 0x00EA
-    proc tapout(-* A => !) { _bios TAPOUT } // 0x00ED
-    proc tapoof(-*) { _bios TAPOOF } // 0x00F0
-    proc stmotr(-* A =>) { _bios STMOTR } // 0x00F3
-    proc lftq(-* A => HL ! BC) { _bios LFTQ } // 0x00F6
-    proc putq(-* A E => ! BC HL) { _bios PUTQ } // 0x00F9
-    proc rightc(-*) { _bios RIGHTC } // 0x00FC
-    proc leftc(-*) { _bios LEFTC } // 0x00FF
-    proc upc(-*) { _bios UPC } // 0x0102
-    proc tupc(-*) { _bios TUPC } // 0x0105
-    proc downc(-*) { _bios DOWNC } // 0x0108
-    proc tdownc(-*) { _bios TDOWNC } // 0x010B
-    proc scalxy(-*) { _bios SCALXY } // 0x010E
-    proc mapxyc(-* BC =>) { _bios MAPXYC } // 0x0111
-    proc fetchc(-* => HL A) { _bios FETCHC } // 0x0114
-    proc storec(-* HL A =>) { _bios STOREC } // 0x0117
-    proc setatr(-*) { _bios SETATR } // 0x011A
-    proc readc(-*) { _bios READC } // 0x011D
-    proc setc(-*) { _bios SETC } // 0x0120
-    proc nsetcx(-*) { _bios NSETCX } // 0x0123
-    proc gtaspc(-* ! DE HL) { _bios GTASPC } // 0x0126
-    proc pntini(-*) { _bios PNTINI } // 0x0129
-    proc scanr(-*) { _bios SCANR } // 0x012C
-    proc scanl(-*) { _bios SCANL } // 0x012F
-    proc chgcap(-* A =>) { _bios CHGCAP } // 0x0132
-    proc chgsnd(-* A =>) { _bios CHGSND } // 0x0135
-    proc rslreg(-* => A) { _bios RSLREG } // 0x0138
-    proc wslreg(-* A =>) { _bios WSLREG } // 0x013B
-    proc rdvdp(-* => A) { _bios RDVDP } // 0x013E
-    proc snsmat(-* A => A) { _bios SNSMAT } // 0x0141
-    proc phydio(-* B C DE HL => !) { _bios PHYDIO } // 0x0144
-    proc format(-* !) { _bios FORMAT } // 0x0147
-    proc isflio(-* => A) { _bios ISFLIO } // 0x014A
-    proc outdlp(-* A =>) { _bios OUTDLP } // 0x014D
-    proc getvcp(-* A => HL) { _bios GETVCP } // 0x0150
-    proc getvc2(-* L => HL) { _bios GETVC2 } // 0x0153
-    proc kilbuf(-* ! HL) { _bios KILBUF } // 0x0156
-    proc calbas(-* IX => !) { _bios CALBAS } // 0x0159 !
-    proc subrom(-* IX => ! IY) { _bios SUBROM } // 0x015C
-    proc extrom(-* IX => ! IY) { _bios EXTROM } // 0x015F
-    proc chknew(-*) { _bios CHKNEW } // 0x0165
-    proc eol(-* H L => !) { _bios EOL } // 0x0168
-    proc bigfil(-* HL BC A => ! BC) { _bios BIGFIL } // 0x016B
-    proc nsetrd(-* HL =>) { _bios NSETRD } // 0x016E
-    proc nsetwr(-* HL =>) { _bios NSETWR } // 0x0171
-    proc nrdvrm(-* HL => A) { _bios NRDVRM } // 0x0174
-    proc nwrvrm(-* HL A =>) { _bios NWRVRM } // 0x0177
-    proc rdres(-* => A) { _bios RDRES } // 0x017A
-    proc wrres(-* A =>) { _bios WRRES } // 0x017D
+    pragma list-constants 1
 
     macro rom-header() {
         data byte [
@@ -965,7 +964,7 @@ module msx {
 
     macro enable-slot/page2() {
         msx:get-slot/page1(-* => A ! BC HL)
-        A . H@hibyte(msx:PAGE2_ADDR) . msx:enaslt(-* A HL => !)
+        A . H@hibyte(msx:PAGE2_ADDR) . msx:enaslt(A HL => !)
     }
 
     proc get-slot/page1(-* => A ! BC HL) {

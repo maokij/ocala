@@ -12,9 +12,9 @@ func BuildGenerator(cc *Compiler, src string) *Generator {
 		InReader:  bytes.NewBuffer([]byte(src)),
 		OutWriter: &bytes.Buffer{},
 		ErrWriter: &bytes.Buffer{},
-		ListPath:  "/dev/null",
-		GenList:   src == "//+GENLIST",
 		OutPath:   "-",
+		ListText:  &[]byte{},
+		Archs:     map[string]func() *Compiler{"ttarch": BuildCompiler},
 	}
 	if cc != nil {
 		g.SetCompiler(cc)
@@ -23,21 +23,24 @@ func BuildGenerator(cc *Compiler, src string) *Generator {
 }
 
 func Compile(cc *Compiler, src string) ([]byte, string) {
-	binary, _, mes := DoCompile(BuildGenerator(cc, src), src)
+	g := BuildGenerator(cc, src)
+	binary, _, mes := DoCompile(g, "-")
 	return binary, mes
 }
 
 func GenList(cc *Compiler, src string) (string, string) {
-	_, list, mes := DoCompile(BuildGenerator(cc, "//+GENLIST"), src)
+	g := BuildGenerator(cc, src)
+	g.GenList = true
+	_, list, mes := DoCompile(g, "-")
 	return string(list), mes
 }
 
-func DoCompile(g *Generator, src string) ([]byte, []byte, string) {
-	binary, list := func() ([]byte, []byte) {
+func DoCompile(g *Generator, path string) ([]byte, []byte, string) {
+	binary := func() []byte {
 		defer g.HandlePanic()
-		return g.GenerateBin(g.Compile("-", []byte(src)))
+		return g.GenerateBin(g.Compile(path, g.InReader.(*bytes.Buffer).Bytes()))
 	}()
-	return binary, list, g.ErrorMessage()
+	return binary, *g.ListText, g.ErrorMessage()
 }
 
 func CompileTestFile(cc *Compiler, path string) ([]byte, []byte, string) {
@@ -70,7 +73,6 @@ func BuildCompiler() *Compiler {
 		AdjustOperand:   adjustOperand,
 		BMaps:           bmaps,
 		TokenAliases:    tokenAliases,
-		OppositeConds:   oppositeConds,
 		IsValidProcTail: isValidProcTail,
 		AdjustInline:    adjustInline,
 	}

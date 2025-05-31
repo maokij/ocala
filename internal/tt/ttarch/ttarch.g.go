@@ -47,14 +47,7 @@ var tokenWords = [][]string{
 	{"A", "B", "P", "X", "Y", "AB", "SP"},
 	{"NE?", "EQ?", "CC?", "CS?"},
 	{"-dnnm", "-byte"},
-	{"<-", "-rep"},
-}
-
-var oppositeConds = map[*Keyword]*Keyword{
-	kwCondNE: kwCondEQ,
-	kwCondEQ: kwCondNE,
-	kwCondCC: kwCondCS,
-	kwCondCS: kwCondCC,
+	{"<-", "-jump-if", "-jump-unless", "-rep"},
 }
 
 var bmaps = [][]byte{
@@ -549,6 +542,38 @@ var ctxOpMap = map[*Keyword]map[*Keyword]map[*Keyword][][]Value{
 			},
 			kwRegPQ: {
 				{Intern("LD"), &Vec{Int(0), nil}, Int(4660)},
+			},
+		},
+	},
+	Intern("-jump-if"): {
+		kwImmNN: {
+			kwCondNE: {
+				{Intern("BCO"), &Vec{Int(0), nil}, &Vec{Int(1), nil}},
+			},
+			kwCondEQ: {
+				{Intern("BCO"), &Vec{Int(0), nil}, &Vec{Int(1), nil}},
+			},
+			kwCondCC: {
+				{Intern("BCO"), &Vec{Int(0), nil}, &Vec{Int(1), nil}},
+			},
+			kwCondCS: {
+				{Intern("BCO"), &Vec{Int(0), nil}, &Vec{Int(1), nil}},
+			},
+		},
+	},
+	Intern("-jump-unless"): {
+		kwImmNN: {
+			kwCondNE: {
+				{Intern("BCO"), &Vec{Int(0), nil}, &Operand{Kind: kwCondEQ}},
+			},
+			kwCondEQ: {
+				{Intern("BCO"), &Vec{Int(0), nil}, &Operand{Kind: kwCondNE}},
+			},
+			kwCondCC: {
+				{Intern("BCO"), &Vec{Int(0), nil}, &Operand{Kind: kwCondCS}},
+			},
+			kwCondCS: {
+				{Intern("BCO"), &Vec{Int(0), nil}, &Operand{Kind: kwCondCC}},
 			},
 		},
 	},

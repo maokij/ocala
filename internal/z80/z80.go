@@ -20,7 +20,6 @@ func BuildCompiler() *Compiler {
 		AdjustOperand:   adjustOperand,
 		BMaps:           bmaps,
 		TokenAliases:    tokenAliases,
-		OppositeConds:   oppositeConds,
 		IsValidProcTail: isValidProcTail,
 		AdjustInline:    adjustInline,
 	}
@@ -275,11 +274,9 @@ func sCall(cc *Compiler, env *Env, e *Vec) Value {
 // SYNTAX: (optimize ...)
 func sOptimize(cc *Compiler, env *Env, e *Vec) Value {
 	etag, _ := CheckExpr(e, 2, -1, CtModule|CtProc, cc)
-	k := CheckConst(e.At(1), IdentifierT, "kind", etag, cc)
+	k := CheckConstPlainId(e.At(1), "kind", etag, cc)
 
 	CheckToplevelEnv(env, etag, cc)
-	CheckNameUnqualified(k, cc)
-
 	optimizer := cc.GetOptimizer()
 	switch k.Name {
 	case kwNearJump:

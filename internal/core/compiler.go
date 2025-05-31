@@ -9,13 +9,13 @@ import (
 )
 
 var KwUNDER = Intern("_")
+var KwFILENAME = Intern("__FILE__")
 var KwPROCNAME = Intern("__PROC__")
 var KwCURLOC = Intern("__PC__")
 var KwCURORG = Intern("__ORG__")
 var KwUBEG = Intern("_BEG")
 var KwUEND = Intern("_END")
 var KwUCOND = Intern("_COND")
-var KwUIF = Intern("__if__")
 
 var KwDot = Intern(".")
 var KwDotDot = Intern("..")
@@ -33,6 +33,8 @@ var KwConst = Intern("#.const")
 var KwData = Intern("#.data")
 var KwMem = Intern("#.mem")
 var KwJump = Intern("#.jump")
+var KwJumpIf = Intern("-jump-if")
+var KwJumpUnless = Intern("-jump-unless")
 var KwTpl = Intern("#.tpl")
 var KwVec = Intern("#.vec")
 var KwProg = Intern("#.prog")
@@ -50,6 +52,7 @@ var KwField = Intern("#.field")
 var KwSetIota = Intern("#.set-iota")
 var KwInvalidExpansion = Intern("#.invalid-expansion")
 var KwMakeId = Intern("#.make-id")
+var KwInline = Intern("#.inline")
 
 var KwLeftArrow = Intern("<-")
 var KwPlusOp = Intern("+")
@@ -71,10 +74,14 @@ var KwMerge = Intern("merge")
 var KwArch = Intern("arch")
 var KwListConstants = Intern("list-constants")
 var KwComment = Intern("comment")
-var KwDeclaration = Intern("<declaration>")
+var KwReserved = Intern("<reserved>")
 var KwWhen = Intern("when")
+var KwWhenAnd = Intern("&&-")
+var KwWhenOr = Intern("||-")
+var KwThen = Intern("then")
 var KwOptimize = Intern("optimize")
 var KwVolatile = Intern("<volatile>")
+var KwCompileFile = Intern("compile-file")
 
 var IdUNDER = InternalId(KwUNDER)
 
@@ -107,6 +114,13 @@ const (
 	CtConstexpr = 0b100
 )
 
+const (
+	PhCompile = iota
+	PhLink
+)
+
+var PhaseLabels = []string{"compile", "link"}
+
 type Compiler struct {
 	Arch      string
 	Toplevel  *Env
@@ -114,13 +128,13 @@ type Compiler struct {
 	Contexts  []byte
 	CodeStack [][]*Inst
 	Module    *Module
-	Section   *Keyword
+	Section   *Section
 	InPath    string
 	MainPath  string
 	Constvals map[*Constexpr]Value
 	Pc        int
 	Org       int
-	lazyeval  bool
+	Phase     int
 	link      *Vec
 	loaded    []string
 	g         *Generator
@@ -144,12 +158,13 @@ type Compiler struct {
 
 	BMaps         [][]byte
 	KwRegA        *Keyword
-	BinOps        map[string]int
-	UnaOps        map[string]int
+	Precs         map[*Keyword]int
+	Operators     map[string]int
 	TokenWords    [][]string
 	TokenAliases  map[string]string
 	ReservedWords map[string]int32
-	OppositeConds map[*Keyword]*Keyword
+	MacroNesting  int
+	InlineInsts   []*Inst
 }
 
 func (cc *Compiler) RaiseCompileError(id *Identifier, message string, args ...any) {
@@ -207,11 +222,8 @@ func (cc *Compiler) EmitCodeByEnv(env *Env, inst *Inst) Value {
 	return cc.EmitCode(inst)
 }
 
-func (cc *Compiler) EmitCodeToSection(section *Keyword, code ...*Inst) {
-	if cc.Module.Sections[section] == nil {
-		cc.Module.Sections[section] = []*Inst{}
-	}
-	cc.Module.Sections[section] = append(cc.Module.Sections[section], code...)
+func (cc *Compiler) EmitCodeToSection(section *Section, code ...*Inst) {
+	section.Insts = append(section.Insts, code...)
 }
 
 func (cc *Compiler) resolveNamespace(env *Env, id *Identifier) *Env {
@@ -316,20 +328,19 @@ func (cc *Compiler) initTopLevelEnv() {
 	cc.installBuiltins(env, NmSyntax, cc.SyntaxMap)
 	cc.installBuiltins(env, NmFunc, FunMap)
 	cc.installBuiltins(env, NmFunc, cc.FunMap)
-	env.Install(&Named{Name: KwCURLOC, Kind: NmSpecial, Value: SyntaxFn(sCurloc)})
-	env.Install(&Named{Name: KwCURORG, Kind: NmSpecial, Value: SyntaxFn(sCurorg)})
-	env.Install(&Named{Name: KwDeclaration, Kind: NmSpecial, Value: SyntaxFn(sDeclaration)})
+	cc.installBuiltins(env, NmSpecial, SpecialMap)
+	env.Install(&Named{Name: KwCompileFile, Kind: NmSyntax, Value: SyntaxFn(sCompileFile)})
 
 	cc.Toplevel = env.Enter()
 	cc.Module = NewModule(KwToplevel, cc.Toplevel)
 	cc.Module.Env.Module = cc.Module
-	cc.Section = KwBSS
+	cc.Section = cc.Module.Sections[KwBSS]
 	cc.Toplevel.Install(&Named{Name: KwToplevel, Kind: NmModule, Value: cc.Module})
 }
 
-func (cc *Compiler) initConstvals(lazyeval bool) {
+func (cc *Compiler) initConstvals(phase int) {
 	cc.Constvals = map[*Constexpr]Value{}
-	cc.lazyeval = lazyeval
+	cc.Phase = phase
 }
 
 func (cc *Compiler) initReservedWords() {
@@ -342,15 +353,18 @@ func (cc *Compiler) initReservedWords() {
 		cc.ReservedWords[i] = tkCOND
 	}
 
-	cc.UnaOps = map[string]int{}
+	cc.Operators = map[string]int{}
 	for _, i := range cc.TokenWords[2] {
-		cc.UnaOps[i] = 0
+		cc.Operators[i] |= 1
 	}
 
-	cc.BinOps = map[string]int{}
-	maps.Copy(cc.BinOps, binOps)
+	cc.Precs = map[*Keyword]int{}
+	for k, v := range binOps {
+		cc.Operators[k] |= 2
+		cc.Precs[Intern(k)] = v
+	}
 	for _, i := range cc.TokenWords[3] {
-		cc.BinOps[i] = 0
+		cc.Operators[i] |= 2
 	}
 }
 
@@ -373,22 +387,21 @@ func (cc *Compiler) Compile(path string, text []byte) []*Inst {
 	cc.initHooks()
 	cc.initMainPath(path)
 	cc.initTopLevelEnv()
-	cc.initConstvals(true)
+	cc.initConstvals(PhCompile)
 	cc.initReservedWords()
 	cc.EnterContext(CtModule)
 	cc.EnterCodeBlock() // Constants
 	cc.EnterCodeBlock() // Toplevel
 	cc.CompileExpr(cc.Toplevel, cc.buildSetupCode())
 	cc.CompileExpr(cc.Toplevel, cc.Parse(path, text))
-	cc.doLink()
-	return cc.LeaveCodeBlock()
+	return cc.doLink()
 }
 
 func (cc *Compiler) CompileIncluded(path string, text []byte) Value {
 	inPath, module, section := cc.InPath, cc.Module, cc.Section
 	cc.InPath = path
 	cc.Module = cc.Toplevel.Module
-	cc.Section = KwBSS
+	cc.Section = cc.Module.Sections[KwBSS]
 	cc.EnterContext(CtModule)
 	cc.EnterCodeBlock()
 	cc.CompileExpr(cc.Toplevel, cc.Parse(path, text))
@@ -400,7 +413,7 @@ func (cc *Compiler) CompileIncluded(path string, text []byte) Value {
 
 func (cc *Compiler) Parse(path string, text []byte) *Vec {
 	cc.InPath = path
-	p := &Parser{Scanner: Scanner{Path: path, Text: AdjustEol(text), cc: cc}, contexts: []byte{'{'}}
+	p := &Parser{Scanner: Scanner{Path: path, Text: text, cc: cc}, contexts: []byte{'{'}}
 	res, _ := p._parse()
 	return res.(*Vec)
 }
@@ -437,7 +450,7 @@ func CheckValue[T Value](v Value, t T, name string, id *Identifier, cc *Compiler
 	if w, ok := v.(T); ok {
 		return w
 	}
-	cc.RaiseCompileError(id, "%s is must be %T", name, t)
+	cc.RaiseCompileError(id, "%s is must be %s", name, TypeLabels[t])
 	return t
 }
 
@@ -448,7 +461,7 @@ func CheckConst[T Value](v Value, t T, name string, id *Identifier, cc *Compiler
 
 func EvalConstAs[T Value](v Value, env *Env, t T, name string, id *Identifier, cc *Compiler) T {
 	a := EvalConst(v, env, id, cc)
-	return CheckValue(a, t, "value", id, cc)
+	return CheckValue(a, t, name, id, cc)
 }
 
 func EvalConst(v Value, env *Env, id *Identifier, cc *Compiler) Value {
@@ -462,6 +475,16 @@ func EvalConst(v Value, env *Env, id *Identifier, cc *Compiler) Value {
 	}
 	cc.RaiseCompileError(nil, "[BUG] invalid context for the constexpr, %s", v.Inspect())
 	return NIL
+}
+
+func CheckAndEvalConstAs[T Value](v Value, env *Env, t T, name string, id *Identifier, cc *Compiler) T {
+	a := CheckValue(v, ConstexprT, name, id, cc)
+	return EvalConstAs(a, env, t, name, id, cc)
+}
+
+func CheckAndEvalConst(v Value, env *Env, name string, id *Identifier, cc *Compiler) Value {
+	CheckValue(v, ConstexprT, name, id, cc)
+	return EvalConst(v, env, id, cc)
 }
 
 func EvalAndCacheIfConst(v Value, cc *Compiler) Value {
@@ -483,8 +506,8 @@ func GetConstBody(v Value) Value {
 	return v.(*Constexpr).Body
 }
 
-func GetNamedValue(v Value) Value {
-	return v.(*Named).Value
+func GetNamedValue[T Value](v Value, t T) T {
+	return v.(*Named).Value.(T)
 }
 
 func GetTokenAsId(e Value) *Identifier {
@@ -505,19 +528,27 @@ func CheckToplevelEnv(env *Env, etag *Identifier, cc *Compiler) {
 	}
 }
 
-func CheckDeclaration(nm *Named, id *Identifier, cc *Compiler) {
-	if nm == nil || nm.Kind != NmConst {
-		cc.RaiseCompileError(id, "unknown constant: %s", id)
+func CheckToplevelEnvIfCtProc(env *Env, etag *Identifier, cc *Compiler) {
+	if (cc.Context() & CtProc) != 0 {
+		CheckToplevelEnv(env, etag, cc)
 	}
-	if decl, ok := nm.Value.(*Constexpr); !ok || KwDeclaration.MatchId(decl.Body) == nil {
+}
+
+func CheckReserved(nm *Named, id *Identifier, cc *Compiler) {
+	if nm == nil || nm.Kind != NmLabel {
+		cc.RaiseCompileError(id, "unknown label: %s", id)
+	}
+	if e, ok := nm.Value.(*Label); !ok || !e.IsReserved() {
 		cc.RaiseCompileError(id, "%s already defined", id)
 	}
 }
 
-func CheckNameUnqualified(id *Identifier, cc *Compiler) {
-	if id.Namespace != nil {
+func CheckConstPlainId(v Value, name string, id *Identifier, cc *Compiler) *Identifier {
+	a := CheckConst(v, IdentifierT, name, id, cc)
+	if a.Namespace != nil {
 		cc.RaiseCompileError(id, "qualified name is not allowed in this context")
 	}
+	return a
 }
 
 func AsTaggedVec(v Value) (*Identifier, *Vec) {
@@ -550,6 +581,13 @@ func CheckBlockForm(v Value, name string, id *Identifier, cc *Compiler) *Vec {
 	}
 	cc.RaiseCompileError(id, "%s is must be block-form", name)
 	return nil
+}
+
+func CheckPhase(phase int, id *Identifier, cc *Compiler) {
+	if cc.Phase == phase {
+		return
+	}
+	cc.RaiseCompileError(id, "cannot use %s in %s phase", id.String(), PhaseLabels[cc.Phase])
 }
 
 //
@@ -695,8 +733,13 @@ func (cc *Compiler) expandMacroBody(env *Env, e Value, r *Vec, unwrap bool, by *
 }
 
 func (cc *Compiler) expandMacro(env *Env, e *Vec, mac *Macro) Value {
-	var etag *Identifier
+	etag := e.At(0).(*Identifier)
 	tenv := NewEnv(env)
+
+	if cc.MacroNesting > 64 {
+		cc.RaiseCompileError(etag, "macro expansion too deep")
+	}
+	cc.MacroNesting++
 
 	as := (*e)[1:]
 	m := len(as)
@@ -704,7 +747,7 @@ func (cc *Compiler) expandMacro(env *Env, e *Vec, mac *Macro) Value {
 	d := n - len(mac.Opts)
 	x := 0
 	if mac.Rest {
-		etag, _ = CheckExpr(e, d+1, -1, 0, cc)
+		CheckExpr(e, d+1, -1, 0, cc)
 
 		for ; x < m && x < n-1; x++ {
 			tenv.Install(&Named{Name: mac.Args[x], Kind: NmVar, Value: as[x]})
@@ -715,7 +758,7 @@ func (cc *Compiler) expandMacro(env *Env, e *Vec, mac *Macro) Value {
 			tenv.Install(&Named{Name: mac.Args[x], Kind: NmVar, Value: mac.Opts[x-d].Dup()})
 		}
 	} else {
-		etag, _ = CheckExpr(e, d+1, n+1, 0, cc)
+		CheckExpr(e, d+1, n+1, 0, cc)
 
 		for ; x < m; x++ {
 			tenv.Install(&Named{Name: mac.Args[x], Kind: NmVar, Value: as[x]})
@@ -737,7 +780,9 @@ func (cc *Compiler) expandMacro(env *Env, e *Vec, mac *Macro) Value {
 	}
 	r := cc.expandMacroBody(tenv, mac.Body, nil, false, etag)
 
-	return cc.CompileExpr(env, r)
+	cc.CompileExpr(env, r)
+	cc.MacroNesting--
+	return NIL
 }
 
 func (cc *Compiler) expandInline(env *Env, e *Vec, id *Identifier, inline *Inline) Value {
@@ -745,7 +790,7 @@ func (cc *Compiler) expandInline(env *Env, e *Vec, id *Identifier, inline *Inlin
 
 	env = env.Enter()
 	cc.InstallNamed(env, etag.Expand(KwPROCNAME), NmInvalid, NIL)
-	l := cc.InstallNamed(env, etag.Expand(KwEndInline), NmLabel, &Label{})
+	nm := cc.InstallNamed(env, etag.Expand(KwEndInline), NmLabel, &Label{})
 	r := cc.expandMacroBody(NewEnv(nil), inline.Body, nil, false, etag)
 
 	cc.EnterCodeBlock()
@@ -753,14 +798,14 @@ func (cc *Compiler) expandInline(env *Env, e *Vec, id *Identifier, inline *Inlin
 	cc.EmitCode(NewInst(e, InstMisc, KwComment, NewStr("begin-inline "+id.String())))
 	cc.CompileExpr(env, r)
 	cc.AdjustInline(cc, cc.CodeStack[len(cc.CodeStack)-1])
-	cc.EmitCode(NewInst(e, InstLabel, l, KwLabel))
+	cc.EmitCode(NewInst(e, InstLabel, nm))
 	cc.EmitCode(cc.LeaveCodeBlock()...)
 	return NIL
 }
 
 func (cc *Compiler) evaluateConstexpr(env *Env, e Value, token *Token) Value {
 	switch e := e.(type) {
-	case Int, *Str, *Keyword, *Nil:
+	case Int, *Str, *Keyword, *Blob, *Nil:
 		return e
 	case *Vec:
 		id, _ := CheckExpr(e, 1, -1, CtConstexpr, cc)
@@ -812,13 +857,19 @@ func (cc *Compiler) evaluateConstexpr(env *Env, e Value, token *Token) Value {
 		case NmVar:
 			return nm.Value
 		case NmLabel:
-			if cc.lazyeval {
+			if cc.Phase == PhCompile {
 				cc.RaiseCompileError(e, "cannot use label address in compile phase")
 			}
-			if v, ok := nm.Value.(*Label); ok {
+			v := nm.Value.(*Label)
+			if v.At == nil {
 				return Int(v.Addr)
 			}
-			cc.RaiseCompileError(e, "[BUG] invalid label value %s", e)
+
+			w := cc.Constvals[v.At]
+			if w == nil {
+				cc.RaiseCompileError(e, "label %s used before declaration", e)
+			}
+			return w
 		case NmSpecial:
 			if v, ok := nm.Value.(SyntaxFn); ok {
 				return v(cc, env, &Vec{e})
@@ -828,7 +879,7 @@ func (cc *Compiler) evaluateConstexpr(env *Env, e Value, token *Token) Value {
 			v := nm.Value.(*Constexpr)
 			w := cc.Constvals[v]
 			if w == nil {
-				if cc.lazyeval {
+				if cc.Phase == PhCompile {
 					w = cc.evaluateConstexpr(v.Env, v.Body, v.Token)
 					cc.Constvals[v] = w
 				} else {
@@ -844,18 +895,17 @@ func (cc *Compiler) evaluateConstexpr(env *Env, e Value, token *Token) Value {
 	return NIL
 }
 
-var idOpLast = InternalId(NewKeyword("#"))
+var idOpLast = InternalId(Intern("#"))
 
 func (cc *Compiler) orderByPrec(s []Value, right *Identifier, v Value) []Value {
-	tab := cc.BinOps
-	rp, ok := tab[right.Name.String()]
+	rp, ok := cc.Precs[right.Name]
 	if !ok || rp == 0 {
 		cc.RaiseCompileError(right.Token.TagId(), "[BUG] Unknown operator '%s'", right.Token)
 	}
 
 	for len(s) >= 3 {
 		left := s[len(s)-2].(*Identifier)
-		lp := tab[left.Name.String()]
+		lp := cc.Precs[left.Name]
 
 		if lp <= rp {
 			s = append(s[:len(s)-3], &Vec{left, s[len(s)-3], s[len(s)-1]})
@@ -909,21 +959,59 @@ func (cc *Compiler) IsReg(a *Keyword) bool {
 }
 
 func (cc *Compiler) emitCodeFromModule(m *Module, s *Keyword) {
-	if code, ok := m.Sections[s]; ok {
-		cc.EmitCode(code...)
-		m.Sections[s] = []*Inst{}
+	if section := m.Sections[s]; section != nil {
+		cc.EmitCode(section.Insts...)
+		section.Insts = []*Inst{}
+	}
+}
+
+func (cc *Compiler) expandAllInlines() {
+	cc.EnterContext(CtProc)
+	for n := 0; n < 64 && len(cc.InlineInsts) > 0; n++ {
+		insts := cc.InlineInsts
+		cc.InlineInsts = []*Inst{}
+		for _, i := range insts {
+			env := i.Args[1].(*Env)
+			id := i.Args[2].(*Identifier)
+			nm := cc.LookupNamed(env, id)
+			if nm == nil {
+				cc.RaiseCompileError(i.ExprTag(), "undefined proc %s", id.String())
+			} else if nm.Kind != NmInline {
+				cc.RaiseCompileError(i.ExprTag(), "%s is not a inline proc", id.String())
+			}
+			cc.EnterCodeBlock()
+			cc.expandInline(nm.Env, i.From, id, nm.Value.(*Inline))
+			i.Args[3] = &Section{Insts: cc.LeaveCodeBlock()}
+		}
+	}
+	cc.LeaveContext()
+
+	if len(cc.InlineInsts) > 0 {
+		etag := cc.InlineInsts[0].ExprTag()
+		cc.RaiseCompileError(etag, "inline proc expansion too deep")
+	}
+}
+
+func flattenInsts(acc *[]*Inst, insts []*Inst) {
+	for _, i := range insts {
+		if i.Kind == InstMisc && i.Args[0] == KwInline {
+			flattenInsts(acc, i.Args[3].(*Section).Insts)
+		} else {
+			*acc = append(*acc, i)
+		}
 	}
 }
 
 var defaultLink = []byte("org 0 0 1; merge text _; merge rodata _; merge bss _")
 
-func (cc *Compiler) doLink() Value {
+func (cc *Compiler) doLink() []*Inst {
 	if cc.link == nil {
 		cc.link = cc.Parse("@", defaultLink)
 	}
 
 	cc.hooks.beforeLink(cc)
 	cc.EmitCodeToSection(cc.Section, cc.LeaveCodeBlock()...) // Toplevel
+	cc.expandAllInlines()
 	cc.EnterCodeBlock()
 	env := cc.Toplevel
 	modules := env.Filter(NmModule)
@@ -964,12 +1052,16 @@ func (cc *Compiler) doLink() Value {
 	}
 
 	for _, nm := range modules {
-		for sec, code := range nm.Value.(*Module).Sections {
-			if len(code) > 0 {
-				cc.RaiseCompileError(nil, "the section `%s@%s` is not linked", sec.String(), nm.Name.String())
+		for name, section := range nm.Value.(*Module).Sections {
+			if len(section.Insts) > 0 {
+				cc.RaiseCompileError(nil, "the section `%s@%s` is not linked", name.String(), nm.Name.String())
 			}
 		}
 	}
 	cc.EmitCode(cc.LeaveCodeBlock()...)
-	return cc.EmitCode(NewInst(&Vec{IdUNDER}, InstOrg, Int(0), Int(0), Int(0), Int(0)))
+	cc.EmitCode(NewInst(&Vec{IdUNDER}, InstOrg, Int(0), Int(0), Int(0), Int(0)))
+
+	flatten := []*Inst{}
+	flattenInsts(&flatten, cc.LeaveCodeBlock())
+	return flatten
 }

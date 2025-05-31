@@ -20,16 +20,21 @@ func TestInt(t *testing.T) {
 	tt.Eq(t, Value(Int(1234)), Int(1234).Dup())
 }
 
-func TestBinary(t *testing.T) {
-	tt.Eq(t, "&[0 1 2 3]", (&Binary{0, 1, 2, 3}).Inspect())
+func TestBlob(t *testing.T) {
+	tt.Eq(t, "<Blob:4:->",
+		(&Blob{data: []byte{0, 1, 2, 3}, origPath: "-"}).Inspect())
+	tt.Eq(t, "<Blob:4:- compiled>",
+		(&Blob{data: []byte{0, 1, 2, 3}, origPath: "-", compiled: true}).Inspect())
 
-	a := &Binary{0, 1, 2, 3}
-	b := a.Dup().(*Binary)
-	tt.EqSlice(t, []byte(*a), []byte(*b))
+	a := &Blob{data: []byte{0, 1, 2, 3}}
+	b := a.Dup().(*Blob)
+	tt.Eq(t, a.compiled, b.compiled)
+	tt.Eq(t, a.path, b.path)
+	tt.EqSlice(t, a.data, b.data)
 	tt.True(t, a != b)
 
-	(*b)[1] = 100
-	tt.Eq(t, 1, (*a)[1])
+	b.data[1] = 100
+	tt.Eq(t, 1, a.data[1])
 }
 
 func TestKeyword(t *testing.T) {
@@ -199,6 +204,12 @@ func TestInst(t *testing.T) {
 	tt.Eq(t, "expr", a.ExprTag().String())
 }
 
+func TestSection(t *testing.T) {
+	a := &Section{Name: Intern("section"), Insts: []*Inst{NewInst(&Vec{}, InstData)}}
+	tt.Prefix(t, "<Section:section>", a.Inspect())
+	tt.True(t, Value(a) != a.Dup())
+}
+
 func TestModule(t *testing.T) {
 	a := NewModule(Intern("ModA"), NewEnv(nil))
 	tt.Prefix(t, "<Module:", a.Inspect())
@@ -216,12 +227,22 @@ func TestLabel(t *testing.T) {
 	tt.Prefix(t, "<Label:", a.Inspect())
 	tt.True(t, Value(a) != a.Dup())
 	tt.True(t, !a.LinkedToData())
+	tt.True(t, !a.IsComputed())
 
 	a.Link = NewInst(nil, InstData)
 	tt.True(t, a.LinkedToData())
 
 	a.Link = NewInst(nil, InstDS)
 	tt.True(t, a.LinkedToData())
+
+	a.Link = NewInst(nil, InstBlob)
+	tt.True(t, a.LinkedToData())
+
+	a.At = InternalConstexpr(Int(1))
+	tt.True(t, a.IsComputed())
+
+	a.At = InternalConstexpr(InternalId(KwReserved))
+	tt.True(t, a.IsReserved())
 }
 
 func TestInline(t *testing.T) {

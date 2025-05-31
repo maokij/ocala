@@ -210,7 +210,7 @@ func TestGenerateList(t *testing.T) {
 			align 8
 			data byte ["long long string byte\n"]
 
-			L0: embed-file "./testdata/embed01.dat"
+			L0: data byte load-file("./testdata/embed01.dat")
 
 			section bss
 			data byte * 16
@@ -552,6 +552,11 @@ func TestCompileProc(t *testing.T) {
 			proc f004(A B => A X ! B Y) { RET }
 			f004(A B => A X ! B Y)
 			f004(B A => X A ! Y B)
+
+			proc f101(!) @ 0x0005
+			proc f102(!) @ f001 + 3
+			f101(!)
+			f102(!)
 		`)
 		tt.True(t, len(dat) > 0, mes)
 	})
@@ -560,8 +565,14 @@ func TestCompileProc(t *testing.T) {
 		dat, mes := compile(`flat!
 			proc f001(-* !) { db 0 1 2; RET }
 			f001(-* !)
+
+			f002(-* !)
+			proc f002(-* !) {
+				g(-*); RET
+				proc g(-*) { db 0 1 2; RET }
+			}
 		`)
-		tt.EqSlice(t, []byte{0, 1, 2}, dat, mes)
+		tt.EqSlice(t, []byte{0, 1, 2, 0, 1, 2}, dat, mes)
 	})
 
 	t.Run("error", func(t *testing.T) {
@@ -597,6 +608,12 @@ func TestCompileProc(t *testing.T) {
 			"the last instruction must be a return/fallthrough within the proc", `flat!
 				proc f001(!) { A@1 }
 			`,
+			"the last instruction must be placed before inner procs", `flat!
+				proc f001() {
+					proc f002() { RET }
+					RET
+				}
+			`,
 			"the fallthrough must be followed by a proc", `flat!
 				proc f001(!) { fallthrough }
 			`,
@@ -618,161 +635,16 @@ func TestCompileProc(t *testing.T) {
 				data f001 = byte [0]
 				f001(-* !)
 			`,
+			"inline proc expansion too deep", `flat!
+				proc f001(-*) { f001(-*); RET}
+				f001(-*)
+			`,
 			"cannot use the invalid `__PROC__` within this context", `flat!
 				proc f001(-* !) { JMP __PROC__ }
 				f001(-* !)
 			`,
-		}
-		for x := 0; x < len(es); x += 2 {
-			_, mes := compile(es[x+1])
-			tt.Eq(t, "compile error: "+es[x], mes, es[x+1])
-		}
-	})
-}
-
-func sbyte(n int) byte {
-	return byte(n)
-}
-
-func TestCompileFunctions(t *testing.T) {
-	t.Run("ok: operators", func(t *testing.T) {
-		dat, mes := compile(`flat!
-			db (2 * 3) (3 * -5) (-5 * -5)
-			db (10 / 3) (12 / -4)  (-20 / -6)
-			db (10 % 3) (12 % -4)  (-20 % -6)
-			db (1 + 2) (10 + -5) (-1 + -2)
-			db (10 - 2) (10 - -5) (-3 - -5)  -(32)
-
-			db (1 << 3) (0x11 << 5) (0xd0 << 65)
-			db (-0xcd >> 3 == -0x1a) (0xaa >> 10 == 0) (0xd0 >> 65 == 0)
-			db (-0xcd >>> 60 == 0x0f) (0xaa >>> 10 == 0) (0xd0 >>> 65 == 0)
-
-			db (1 > 0) (1 > 1) (2 > 1)
-			db (1 >= 0) (0 >= 1) (2 >= 2)
-			db (1 < 0) (1 < 1) (1 < 2)
-			db (1 <= 0) (1 <= 1) (2 <= 1)
-			db (1 == 1) (1 == 2) ("a" == "a") ("a" == "b")
-			db (1 != 1) (1 != 2) ("a" != "a") ("a" != "b")
-			db !0 !1 !-1 ~0 ~1 ~-1
-
-			db (1 && 2) (0 && 2)
-			db (1 || 2) (0 || 2)
-			db (3 & 2)
-			db (3 | 4)
-			db (0xab ^ 0xcd)
-			db ~(0x10) ~(0) ~(-0x60)
-			db lobyte(0xabcd) hibyte(0xabcd)
-			dw asword(0xab 0xcd)
-			$(0xFF) -byte; $(0xFE) -byte; $(0x01) -rep 6
-		`)
-		tt.EqSlice(t, []byte{
-			6, sbyte(-15), 25, 3, sbyte(-3), 3, 1, 0, sbyte(-2),
-			3, 5, sbyte(-3), 8, 15, 2, sbyte(-32),
-			8, 32, 0, 1, 1, 1, 1, 1, 1,
-			1, 0, 1, 1, 0, 1,
-			0, 0, 1, 0, 1, 0,
-			1, 0, 1, 0, 0, 1, 0, 1,
-			1, 0, 0, 0xff, 0xfe, 0,
-			2, 0, 1, 2, 2, 7, 0x66, 0xef, 0xff, 0x5f,
-			0xcd, 0xab, 0xcd, 0xab, 0xff, 0xfe, 1, 1, 1, 1, 1, 1,
-		}, dat, mes, dat)
-	})
-
-	t.Run("ok: typecasts", func(t *testing.T) {
-		dat, mes := compile(`flat!
-			dw byte(-2) byte(-1) byte(0) byte(1) byte(2) byte(255)
-			dw byte(-0xffff) byte(-0x7ffe) byte(-0x7fff) byte(0x1ff) byte(0xffff)
-			dw word(-2) word(-1) word(0) word(1) word(2) word(255)
-			dw word(-0x7ffe) word(-0x7fff) word(0x1ff) word(0xffff)
-		`)
-		tt.EqSlice(t, []byte{
-			254, +0, 255, +0, 0, +0, 1, +0, 2, +0, 255, +0,
-			1, +0, 2, +0, 1, +0, 255, +0, 255, +0,
-			254, 255, 255, 255, 0, +0, 1, +0, 2, +0, 255, +0,
-			2, 128, 1, 128, 255, 1, 255, 255,
-		}, dat, mes, dat)
-	})
-
-	t.Run("ok: functions", func(t *testing.T) {
-		dat, mes := compile(`flat!
-			link { org 0 0 1; merge text _; org 0 0 0; merge bss _ }
-			module ModA { const c001 = 1 }
-			module ModB { const c002 = 2 }
-			data d001 = byte * 5 : bss
-			db sizeof(d001)
-			db nameof(d001)
-			db defined?(d001)
-			db defined?(ModA:c001)
-			db defined?(ModB:c001)
-			db defined?(ModA:c002)
-			db defined?(ModC:c002)
-		`)
-		tt.EqSlice(t, []byte{
-			5, 'd', '0', '0', '1', 1, 1, 0, 0, 0,
-		}, dat, mes, dat)
-	})
-
-	t.Run("ok: others", func(t *testing.T) {
-		dat, mes := compile(`
-			link { org 0 0 1; merge text ModA ModB _ }
-			module ModA { const c001 = 1 }
-			module ModB { import ModA; const c002 = 2 }
-			macro m(a ...) {}
-			macro m001() ={ macro m002(a) { db %%=a } }
-			macro isform(a b) { if (formtypeof(%&a) != %=b) { compile-error %=b } }
-			macro isexpr(a b) { if (exprtypeof(%=a) != %=b) { compile-error %=b } }
-			section text
-			proc f001(!) {
-				data byte ["long long string"]
-				expand-loop (1 + 2) { db 0xab}
-				NOOP
-				X <- 1
-				AB <- 1 : 2
-				A . { db 1 }
-				A . f001(!)
-				A . B@1
-				A EQ?. <- 1
-				[0x1234] -dnnm
-				@1
-				BCO f001 ==?
-				m [+ X] [X +] (1 / 1) -10 0b1010 '\0' "ok\0" {
-					A
-					  + 1
-					  . { db 1 }
-					$(1)
-					  -byte
-				}
-				m001; m002 1
-				L0: JPR L0
-				db 'o' 'k'
-				isform A "reg"
-				isform EQ? "cond"
-				isform 1 "constexpr"
-				isform { do } "block-form"
-				isform [1] "mem-form"
-				isform A@1 "unknown"
-				isexpr 1 "int"
-				isexpr "str" "str"
-				isexpr (1 + 1) "unknown"
-				RET
-			}
-		`)
-		tt.True(t, len(dat) > 0, mes)
-	})
-
-	t.Run("error", func(t *testing.T) {
-		es := []string{
-			"unknown label name L1", `flat!
-				db $$(sizeof(L1))
-			`,
-			"L1 is not a data", `flat!
-				L1: db $$(sizeof(L1))
-			`,
-			"unknown namespace nothing", `flat!
-				import nothing
-			`,
-			"this is compile-error", `flat!
-				compile-error "this is compile-error"
+			"cannot bind inline proc", `flat!
+				proc f001(-* !) @ 0x0005
 			`,
 		}
 		for x := 0; x < len(es); x += 2 {
@@ -838,28 +710,21 @@ func TestCompileConst(t *testing.T) {
 	t.Run("ok", func(t *testing.T) {
 		dat, mes := compile(`
 			const c001 = 1
-			const x001 = <declaration>
 			module ModA {
 				const c002 = 2
-				const x002 = <declaration>
 			}
 			module ModB {
 				const c003 = 3
-				const x003 = <declaration>
 			}
 			data byte [ c001 ModA:c002 ModB:c003 ]
-			experimental/define-constant x001 21
-			experimental/define-constant x002 ModA 22
-			experimental/define-constant ModB:x003 23
 			const f001(a) = a + 1
 			proc p001(!) {
 				const c004 = 4
-				data byte [ c001 ModA:c002 ModB:c003 c004 x001
- 							ModA:x002 ModB:x003 f001(1) ]
+				data byte [ c001 ModA:c002 ModB:c003 c004 f001(1) ]
 				RET
 			}
 		`)
-		tt.EqSlice(t, []byte{1, 2, 3, 1, 2, 3, 4, 21, 22, 23, 2}, dat[:len(dat)-1], mes, dat)
+		tt.EqSlice(t, []byte{1, 2, 3, 1, 2, 3, 4, 2}, dat[:len(dat)-1], mes, dat)
 	})
 
 	t.Run("ok: function", func(t *testing.T) {
@@ -895,28 +760,21 @@ func TestCompileConst(t *testing.T) {
 					const c001 = 1
 				}
 			`,
+			"label f001 used before declaration", `flat!
+				do {
+					db f001
+					proc f001() @ 0x0005
+				}
+			`,
 			"LD is a builtin name", `flat!
 				const LD = 1
 			`,
-			"constant value is must be *core.Constexpr", `flat!
+			"constant value is must be constexpr", `flat!
 				macro mac(a) ={ const a = %=a }
 				mac EQ?
 			`,
 			"qualified name is not allowed in this context", `flat!
-				experimental/define-constant ModA:c001 ModB 1
-			`,
-			"unknown constant: ModA:c001", `flat!
-				experimental/define-constant ModA:c001 1
-			`,
-			"unknown constant: ModA:c001", `flat!
-				experimental/define-constant c001 ModA 1
-			`,
-			"unknown constant: c001", `flat!
-				experimental/define-constant c001 1
-			`,
-			"c001 already defined", `flat!
-				const c001 = 1
-				experimental/define-constant c001 1
+				const f001(invalid:a) = a + 1
 			`,
 			"f001: 1 argument(s) required, but given 0", `flat!
 				const f001(a) = a + 1
@@ -929,6 +787,9 @@ func TestCompileConst(t *testing.T) {
 			"f001: 1..2 argument(s) required, but given 3", `flat!
 				const f001(a b: 1) = a + b
 				db f001(1 2 3)
+			`,
+			"default value required", `flat!
+				const f001(a: 1 b) = a + 1
 			`,
 			"undefined name b", `flat!
 				const f001(a: b) = a + 1
@@ -961,6 +822,7 @@ func TestCompileData(t *testing.T) {
 			data b006 = byte [4 5 6 7] * 3 : rodata
 			data w005 = word [0xa 0xb] * 1 : rodata
 			data w006 = word [0xc 0xd] * 2 : rodata
+			data p001 = word @ b001
 
 			section bss
 			data b100 = byte * 10
@@ -978,6 +840,12 @@ func TestCompileData(t *testing.T) {
 
 	t.Run("error", func(t *testing.T) {
 		es := []string{
+			"qualified name is not allowed in this context", `
+				data b001 = invalid:byte
+			`,
+			"qualified name is not allowed in this context", `
+				data b001 = byte : invalid:bss
+			`,
 			"invalid namespace ModA", `
 				data ModA:b001 = byte
 			`,
@@ -990,11 +858,17 @@ func TestCompileData(t *testing.T) {
 			"invalid data type qword", `flat!
 				data qword
 			`,
-			"invalid data value *core.Identifier", `flat!
+			"invalid data value", `flat!
 				data b001 = byte [quote(test)]
 			`,
 			"invalid repeat count 0", `flat!
 				data byte * 0
+			`,
+			"data name required", `flat!
+				data byte @ 0x0005
+			`,
+			"the addressed data cannot contain any elements", `flat!
+				data b001 = byte [1] @ 0x0005
 			`,
 		}
 		for x := 0; x < len(es); x += 2 {
@@ -1006,12 +880,12 @@ func TestCompileData(t *testing.T) {
 
 func TestCompileInclude(t *testing.T) {
 	t.Run("ok", func(t *testing.T) {
-		g := ttarch.BuildGenerator(ttarch.BuildCompiler(), "")
-		g.AppendIncPath("./testdata/include")
-		dat, _, mes := ttarch.DoCompile(g, `
+		g := ttarch.BuildGenerator(ttarch.BuildCompiler(), `
 			include "inc01.oc"
 			data b001 = byte [Mod:Co, Tc]
 		`)
+		g.AppendIncPath("./testdata/include")
+		dat, _, mes := ttarch.DoCompile(g, "-")
 		tt.EqSlice(t, []byte{0xFC, 0xFD}, dat, mes)
 	})
 
@@ -1071,11 +945,11 @@ func TestCompileInclude(t *testing.T) {
 	})
 
 	t.Run("ok: not loaded as main", func(t *testing.T) {
-		g := ttarch.BuildGenerator(ttarch.BuildCompiler(), "")
-		g.AppendIncPath("./testdata/include")
-		dat, _, mes := ttarch.DoCompile(g, `
+		g := ttarch.BuildGenerator(ttarch.BuildCompiler(), `
 			include "inc03.oc"
 		`)
+		g.AppendIncPath("./testdata/include")
+		dat, _, mes := ttarch.DoCompile(g, "-")
 		tt.EqSlice(t, []byte{0x00}, dat, mes)
 	})
 
@@ -1105,30 +979,125 @@ func TestCompileInclude(t *testing.T) {
 	})
 }
 
-func TestCompileEmbedFile(t *testing.T) {
+func TestCompileLoadFile(t *testing.T) {
 	t.Run("ok", func(t *testing.T) {
 		dat, mes := compile(`
-			embed-file "./testdata/embed01.dat"
+			data byte load-file("./testdata/embed01.dat")
 		`)
 		tt.EqSlice(t, []byte{0xF, 0xE, 0xD, 0xC, 0xB, 0xA, 9, 8,
 			7, 6, 5, 4, 3, 2, 1, 0}, dat, mes)
 	})
 
 	t.Run("ok: from include path", func(t *testing.T) {
-		g := ttarch.BuildGenerator(ttarch.BuildCompiler(), "")
+		g := ttarch.BuildGenerator(ttarch.BuildCompiler(), `
+			data byte load-file("embed01.dat")
+		`)
 		g.AppendIncPath("./testdata")
-		dat, _, mes := ttarch.DoCompile(g, `
-			embed-file "embed01.dat"
+		dat, _, mes := ttarch.DoCompile(g, "-")
+		tt.EqSlice(t, []byte{0xF, 0xE, 0xD, 0xC, 0xB, 0xA, 9, 8,
+			7, 6, 5, 4, 3, 2, 1, 0}, dat, mes)
+	})
+
+	t.Run("ok: const", func(t *testing.T) {
+		dat, mes := compile(`
+			const blob = $$(load-file("./testdata/embed01.dat"))
+			data byte blob
 		`)
 		tt.EqSlice(t, []byte{0xF, 0xE, 0xD, 0xC, 0xB, 0xA, 9, 8,
 			7, 6, 5, 4, 3, 2, 1, 0}, dat, mes)
 	})
 
-	t.Run("error", func(t *testing.T) {
-		_, mes := compile(`
-			embed-file "./testdata/nothing.dat"
+	t.Run("ok: generate list", func(t *testing.T) {
+		list, mes := genlist(`
+			data byte load-file("./testdata/embed01.dat")
 		`)
-		tt.Eq(t, "compile error: the file `./testdata/nothing.dat` not found", mes)
+		tt.EqText(t, tt.Unindent(`
+			|                                            ; generated by ocala
+
+			     - 0000                                 .org 0
+			000000 0000[16] ..                          .incbin "./testdata/embed01.dat"
+		`)[1:]+"\n", list, mes)
+	})
+
+	t.Run("error", func(t *testing.T) {
+		es := []string{
+			"the file `./testdata/nothing.dat` not found", `flat!
+				data byte compile-file("./testdata/nothing.dat")
+			`,
+			"cannot use compile-file in link phase", `flat!
+				const blob = compile-file("./testdata/test.dat")
+			`,
+		}
+		for x := 0; x < len(es); x += 2 {
+			_, mes := compile(es[x+1])
+			tt.Eq(t, "compile error: "+es[x], mes, es[x+1])
+		}
+	})
+}
+
+func TestCompileCompileFile(t *testing.T) {
+	t.Run("ok", func(t *testing.T) {
+		dat, mes := compile(`
+			data byte compile-file("./testdata/test.oc")
+		`)
+		tt.EqSlice(t, []byte{0, 1, 2, 3}, dat, mes)
+	})
+
+	t.Run("ok: from include path", func(t *testing.T) {
+		g := ttarch.BuildGenerator(ttarch.BuildCompiler(), `
+			data byte compile-file("test.oc")
+		`)
+		g.AppendIncPath("./testdata")
+		dat, _, mes := ttarch.DoCompile(g, "-")
+		tt.EqSlice(t, []byte{0, 1, 2, 3}, dat, mes)
+	})
+
+	t.Run("ok: const", func(t *testing.T) {
+		dat, mes := compile(`
+			const blob = $$(compile-file("./testdata/test.oc"))
+			data byte blob
+		`)
+		tt.EqSlice(t, []byte{0, 1, 2, 3}, dat, mes)
+	})
+
+	t.Run("ok: include", func(t *testing.T) {
+		dat, mes := compile(`
+			include "./testdata/include/inc05.oc"
+			data byte blob
+		`)
+		tt.EqSlice(t, []byte{0, 1, 2, 3}, dat, mes)
+	})
+
+	t.Run("ok: generate list", func(t *testing.T) {
+		list, mes := genlist(`
+			data byte compile-file("./testdata/test.oc")
+		`)
+		tt.EqText(t, tt.Unindent(`
+			|                                            ; generated by ocala
+
+			     - 0000                                 .org 0
+			000000 0000[4] ..                           .incbin "(compiled):./testdata/test.oc"
+
+			                                            ; ----------------
+
+			     - 0000                                 .org 0
+			     - 0000[4] 00 01 02 03                  .byte 0, 1, 2, 3
+		`)[1:]+"\n", list, mes)
+	})
+
+	t.Run("error", func(t *testing.T) {
+		es := []string{
+			"the file `./testdata/nothing.oc` not found", `flat!
+				data byte compile-file("./testdata/nothing.oc")
+			`,
+			"cannot use compile-file in link phase", `flat!
+				const blob = compile-file("./testdata/test.oc")
+			`,
+		}
+		for x := 0; x < len(es); x += 2 {
+			_, mes := compile(es[x+1])
+			tt.Eq(t, "compile error: "+es[x], mes, es[x+1])
+		}
 	})
 }
 
@@ -1144,6 +1113,9 @@ func TestCompileAlign(t *testing.T) {
 
 	t.Run("error", func(t *testing.T) {
 		es := []string{
+			"argument is must be constexpr", `flat!
+				align A
+			`,
 			"the alignment size must be power of 2", `flat!
 				align 0
 			`,
@@ -1158,145 +1130,32 @@ func TestCompileAlign(t *testing.T) {
 	})
 }
 
-func TestCompileControlFlow(t *testing.T) {
-	t.Run("ok: do", func(t *testing.T) {
-		dat, mes := compile(`flat!
-			do ={ L01: }
-			JMP L01
-		`)
-		tt.True(t, len(dat) > 0, mes)
-	})
-
-	t.Run("error: prog", func(t *testing.T) {
-		_, mes := compile(`flat!
-			do { L01: }
-			JMP L01
-		`)
-		tt.Eq(t, "compile error: undefined name L01", mes)
-	})
-
-	t.Run("ok: apply", func(t *testing.T) {
-		dat, mes := compile(`flat!
-			apply do { NOP }
-		`)
-		tt.EqSlice(t, []byte{0x00}, dat, mes)
-	})
-
-	t.Run("ok: loop", func(t *testing.T) {
-		dat, mes := compile(`flat!
-			loop {
-				JMP _BEG
-				JMP _END
-				JMP _COND
-			}
-		`)
-		tt.True(t, len(dat) > 0, mes)
-	})
-
-	t.Run("ok: loop cond", func(t *testing.T) {
-		dat, mes := compile(`flat!
-			loop {
-			} JMP _END
-		`)
-		tt.True(t, len(dat) > 0, mes)
-	})
-}
-
-func TestCompileIf(t *testing.T) {
+func TestCompileSection(t *testing.T) {
 	t.Run("ok", func(t *testing.T) {
-		dat, mes := compile(`flat!
-			if (1 == 2) { db 0 }
-			if (1 == 1) { db 0 }
-			if (1 == 2) { db 0 } else { db 1 }
-			if (1 == 2) { db 0 } else if (1 == 1) { db 2 }
-			if (1 == 2) { db 0 } else if (1 == 3) { db 1 } else { db 3 }
-		`)
-		tt.EqSlice(t, []byte{0, 1, 2, 3}, dat, mes)
-	})
-
-	t.Run("ok: __if__ macro", func(t *testing.T) {
-		dat, mes := compile(`flat!
-			macro __if__(c body eltag: _ elbody: _) {
-				if use?(%&elbody) {
-					do %=elbody
-				} else {
-					do %=body
-				}
+		dat, mes := compile(`
+			link {
+				org 0 20 1
+				merge text _
+				merge rodata _
 			}
-			if EQ? { db 0 }
-			if EQ? { db 0 } else { db 1 }
+			module Mod {
+				db 0x00 0x01 0x02 0x03
+				section rodata ={ db 0xf0 0xf1 0xf2 0xf3 }
+				db 0x04 0x05 0x06 0x07
+				section rodata ={ db 0xf4 0xf5 0xf6 0xf7 }
+				db 0x08 0x09 0x0a 0x0b
+			}
 		`)
-		tt.EqSlice(t, []byte{0, 1}, dat, mes)
+		tt.EqSlice(t, []byte{
+			0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b,
+			0xf0, 0xf1, 0xf2, 0xf3, 0xf4, 0xf5, 0xf6, 0xf7,
+		}, dat, mes)
 	})
 
 	t.Run("error", func(t *testing.T) {
 		es := []string{
-			"then-body is must be block-form", `flat!
-				if (1 == 1) A
-			`,
-			"invalid if form, expected `else`", `flat!
-				if (1 == 1) { db 0 } ell
-			`,
-			"invalid if form, else body required", `flat!
-				if (1 == 1) { db 0 } else
-			`,
-			"else-body is must be block-form", `flat!
-				if (1 == 1) { db 0 } else iff
-			`,
-			"invalid else-if form", `flat!
-				if (1 == 1) { db 0 } else if
-			`,
-			"cond is must be *core.Constexpr", `flat!
-				if (1 == 1) { db 0 } else if EQ? {}
-			`,
-			"then-body is must be block-form", `flat!
-				if (1 == 1) { db 0 } else if 1 B
-			`,
-		}
-		for x := 0; x < len(es); x += 2 {
-			_, mes := compile(es[x+1])
-			tt.Eq(t, "compile error: "+es[x], mes, es[x+1])
-		}
-	})
-}
-
-func TestCompileCase(t *testing.T) {
-	t.Run("ok", func(t *testing.T) {
-		dat, mes := compile(`flat!
-			case 1 when 2 { db 0 }
-			case 1 when 1 { db 0 }
-			case 1 when 2 { db 0 } else { db 1 }
-			case 1 when 2 { db 0 } when 1 { db 2 }
-			case 1 when 2 { db 0 } when 3 { db 1 } else { db 3 }
-		`)
-		tt.EqSlice(t, []byte{0, 1, 2, 3}, dat, mes)
-	})
-
-	t.Run("error", func(t *testing.T) {
-		es := []string{
-			"case: 3+ argument(s) required, but given 1", `flat!
-				case 1
-			`,
-			"value is must be *core.Constexpr", `flat!
-				case A when 1 {}
-			`,
-			"invalid case-when form", `flat!
-				case 1 when 1 {} when
-			`,
-			"pattern is must be *core.Constexpr", `flat!
-				case 1 when EQ? {}
-			`,
-			"when-body is must be block-form", `flat!
-				case 1 when 1 A
-			`,
-			"invalid case form. when/else required", `flat!
-				case 1 when 1 { db 0 } ell
-			`,
-			"invalid case-else form", `flat!
-				case 1 when 1 { db 0 } else
-			`,
-			"else-body is must be block-form", `flat!
-				case 1 when 1 { db 0 } else A
+			"body is must be block-form", `
+				section text 1
 			`,
 		}
 		for x := 0; x < len(es); x += 2 {
@@ -1492,8 +1351,15 @@ func TestCompileMacro(t *testing.T) {
 				macro m001(a ...) { db %>a }
 				m001
 			`,
+			"macro expansion too deep", `flat!
+				macro m001() { m001 }
+				m001
+			`,
 			"rest parameter name required", `flat!
 				macro mac(...) {}
+			`,
+			"qualified name is not allowed in this context", `flat!
+				macro mac(invalid:a) {}
 			`,
 			"the rest parameter cannot have default value", `flat!
 				macro mac(a: _ ...) {}
@@ -1533,6 +1399,10 @@ func TestCompileMacro(t *testing.T) {
 				macro mac() {}
 				db $$(mac())
 			`,
+			"qualified name is not allowed in this context", `flat!
+				macro mac(a) [invalid:b] {}
+				mac (1 + 2)
+			`,
 			"invalid fragment", `flat!
 				macro mac(a) [b = %{a}] {}
 				mac (1 + 2)
@@ -1544,121 +1414,6 @@ func TestCompileMacro(t *testing.T) {
 		}
 	})
 
-}
-
-func TestCompileTco(t *testing.T) {
-	t.Run("ok", func(t *testing.T) {
-		s, _ := compile(`flat!
-			proc f001(!) { RET }
-			JMP f001
-		`)
-		dat, mes := compile(`flat!
-			proc f001(!) { RET }
-			tco { f001(!) }
-		`)
-		tt.True(t, len(s) > 0 && slices.Equal(s, dat), mes)
-	})
-
-	t.Run("error", func(t *testing.T) {
-		es := []string{
-			"only one statement is allowed within the tco form", `flat!
-				proc f001(!) { RET }
-				tco { f001(!); f001(!) }
-			`,
-			"proc call required", `flat!
-				proc f001(!) { RET }
-				tco { @1 }
-			`,
-			"the conditional call is not a tail call", `flat!
-				proc f001(!) { RET }
-				tco { EQ?.f001(!) }
-			`,
-		}
-		for x := 0; x < len(es); x += 2 {
-			_, mes := compile(es[x+1])
-			tt.Eq(t, "compile error: "+es[x], mes, es[x+1])
-		}
-	})
-}
-
-func TestCompilePatch(t *testing.T) {
-	t.Run("ok", func(t *testing.T) {
-		s, u := compile(`flat!
-			const d001 = <declaration>
-			LD [d001] A@10
-			A <- 0; *patch* d001 byte
-		`)
-		dat, mes := compile(`flat!
-			LD [l001 + 1] A@10
-			l001: A <- 0
-		`)
-		tt.True(t, len(s) > 0 && slices.Equal(s, dat), u, mes)
-	})
-
-	t.Run("ok: word", func(t *testing.T) {
-		s, u := compile(`flat!
-			const d001 = <declaration>
-			LD [d001] A@10
-			AB <- 0; *patch* d001 word
-		`)
-		dat, mes := compile(`flat!
-			LD [(l001 + 1)] A@10
-			l001: AB <- 0
-		`)
-		tt.True(t, len(s) > 0 && slices.Equal(s, dat), u, mes)
-	})
-
-	t.Run("ok: index", func(t *testing.T) {
-		s, u := compile(`flat!
-			const d001 = <declaration>
-			LD [d001] A@10
-			AB <- 0; *patch* d001 -2
-		`)
-		dat, mes := compile(`flat!
-			LD [(l001 + 1)] A@10
-			l001: AB <- 0
-		`)
-		tt.True(t, len(s) > 0 && slices.Equal(s, dat), u, mes)
-	})
-
-	t.Run("error", func(t *testing.T) {
-		es := []string{
-			"declared but undefined", `flat!
-				const d001 = <declaration>
-			`,
-		}
-		for x := 0; x < len(es); x += 2 {
-			_, mes := compile(es[x+1])
-			tt.Eq(t, "compile error: "+es[x], mes, es[x+1])
-		}
-	})
-}
-
-func TestCompileAssert(t *testing.T) {
-	t.Run("ok", func(t *testing.T) {
-		dat, mes := compile(`flat!
-			beg: NOP; end:
-			assert (end - beg == 1)
-		`)
-		tt.True(t, len(dat) == 1, mes)
-	})
-
-	t.Run("error", func(t *testing.T) {
-		es := []string{
-			"assertion ([!= [- end beg] 1]) failed", `flat!
-				beg: NOP; end:
-				assert (end - beg != 1)
-			`,
-			"error message", `flat!
-				beg: NOP; end:
-				assert (end - beg != 1) "error message"
-			`,
-		}
-		for x := 0; x < len(es); x += 2 {
-			_, mes := compile(es[x+1])
-			tt.Eq(t, "compile error: "+es[x], mes, es[x+1])
-		}
-	})
 }
 
 func TestCompileWith(t *testing.T) {
@@ -1692,92 +1447,6 @@ func TestCompileWith(t *testing.T) {
 			_, mes := compile(es[x+1])
 			tt.Eq(t, "compile error: "+es[x], mes, es[x+1])
 		}
-	})
-}
-
-func TestCompileNameType(t *testing.T) {
-	t.Run("ok", func(t *testing.T) {
-		dat, mes := compile(`
-			module ModA { const c002 = 2 }
-			macro m001() {}
-			const c001 = 1
-			proc f001(!) {
-				data d001 = byte [0]
-				L001:
-				if (nametypeof(ModA) == "module") { db 1 }
-				if (nametypeof(if) == "syntax") { db 2 }
-				if (nametypeof(m001) == "macro") { db 3 }
-				if (nametypeof(+) == "func") { db 4 }
-				if (nametypeof(LD) == "inst") { db 5 }
-				if (nametypeof(c001) == "const") { db 6 }
-				if (nametypeof(d001) == "label") { db 7 }
-				if (nametypeof(f001) == "label") { db 8 }
-				if (nametypeof(L001) == "label") { db 9 }
-				if (nametypeof(__PC__) == "special") { db 10 }
-				if (nametypeof(ModA:c002) == "const") { db 11 }
-				RET
-			}
-		`)
-		tt.EqSlice(t, []byte{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11}, dat[:12], mes, dat)
-	})
-
-	t.Run("error", func(t *testing.T) {
-		es := []string{
-			"unknown name unknown", `flat!
-				db nametypeof(unknown)
-			`,
-			"unknown name unknown:unknown", `flat!
-				db nametypeof(unknown:unknown)
-			`,
-			"unknown name ModA:unknown", `flat!
-				module ModA {}
-				db nametypeof(ModA:unknown)
-			`,
-			"unknown name unknown:c001", `flat!
-				const c001 = 1
-				db nametypeof(unknown:c001)
-			`,
-		}
-		for x := 0; x < len(es); x += 2 {
-			_, mes := compile(es[x+1])
-			tt.Eq(t, "compile error: "+es[x], mes, es[x+1])
-		}
-	})
-}
-
-func TestCompileDebugInspect(t *testing.T) {
-	t.Run("ok", func(t *testing.T) {
-		g := ttarch.BuildGenerator(ttarch.BuildCompiler(), "")
-		ttarch.DoCompile(g, `flat!
-			debug-inspect "hello"
-			debug-inspect EQ?
-			debug-inspect quote(LD)
-		`)
-		tt.Eq(t, "[DEBUG] \"hello\"\n"+
-			"[DEBUG] EQ?\n"+
-			"[DEBUG] LD\n", tt.FlushString(g.ErrWriter))
-	})
-}
-
-func TestCompileOppositeCondition(t *testing.T) {
-	t.Run("ok", func(t *testing.T) {
-		dat, mes := compile(`flat!
-			macro branch-unless(c l) {
-				BCO %=l $$(opposite-condition(%&c))
-			}
-			L1: branch-unless EQ? L1
-		`)
-		tt.True(t, len(dat) > 0, mes)
-	})
-
-	t.Run("error", func(t *testing.T) {
-		_, mes := compile(`flat!
-			macro branch-unless(c l) {
-				BCO %=l $$(opposite-condition(%&c))
-			}
-			L1: branch-unless A L1
-		`)
-		tt.Eq(t, "compile error: invalid condition A", mes)
 	})
 }
 
@@ -1869,7 +1538,7 @@ func TestSemanticCheck(t *testing.T) {
 			"<field> form not implemented yet", `flat!
 				A <- L0.field
 			`,
-			"data type is must be *core.Constexpr", `flat!
+			"data type is must be constexpr", `flat!
 				data d001 = struct { a: byte [0] }
 			`,
 		}
@@ -1894,16 +1563,16 @@ func TestExprCheck(t *testing.T) {
 			"flat! is not allowed in this context", `
 				proc p001(!) { flat! }
 			`,
-			"section: 1 argument(s) required, but given 0", `
+			"section: 1..2 argument(s) required, but given 0", `
 				section
 			`,
-			"section: 1 argument(s) required, but given 2", `
-				section 1 2
+			"section: 1..2 argument(s) required, but given 3", `
+				section 1 2 3
 			`,
 			"apply: 1+ argument(s) required, but given 0", `
 				apply
 			`,
-			"pragma is must be *core.Identifier", `
+			"pragma is must be identifier", `
 				pragma 1
 			`,
 			"qualified name is not allowed in this context", `

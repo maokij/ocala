@@ -30,7 +30,6 @@ func main() {
 		InReader:  &bytes.Buffer{},
 		OutWriter: &bytes.Buffer{},
 		ErrWriter: &bytes.Buffer{},
-		ListPath:  "/dev/null",
 		GenList:   true,
 		OutPath:   "-",
 		Archs: map[string]func() *core.Compiler{
@@ -39,11 +38,11 @@ func main() {
 		},
 	}
 
-	_, list := func(src []byte) ([]byte, []byte) {
+	func(src []byte) {
 		defer g.HandlePanic()
 
 		g.SetCompilerFromSource(src)
-		return g.GenerateBin(g.Compile("-", src))
+		g.GenerateBin(g.Compile("-", src))
 	}([]byte(text.String()))
-	core.OnComplete.Invoke(string(list), "")
+	core.OnComplete.Invoke(string(*g.ListText), "")
 }

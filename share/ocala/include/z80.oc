@@ -194,11 +194,12 @@ macro memset(to v n) {
         A <- %=v
     }
     if use?(%&n) {
-        B <- %=n
+        BC <- %=n
     }
-    loop {
-        A -> [HL]; HL ++
-    } while/B-
+    BC --
+    DE <- H : L ++
+    A -> [HL]
+    LDIR
 }
 
 macro memcpy(to from n) {
@@ -280,6 +281,22 @@ macro BC+A() {
 
 macro DE+A() {
     A + E -> E +$ D - E -> D
+}
+
+macro skip-1() {
+    data byte [0xfe] // CP N
+}
+
+macro skip-2!BC() {
+    data byte [0x01] // LD BC NN
+}
+
+macro skip-2!DE() {
+    data byte [0x11] // LD DE NN
+}
+
+macro skip-2!HL() {
+    data byte [0x21] // LD HL NN
 }
 
 ////////////////////////////////////////////////////////////

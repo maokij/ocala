@@ -90,17 +90,6 @@ var tokenWords = [][]string{
 	{"<-", "->", "<->", "+$", "-$", "-?", "<*", "<*$", ">*", ">*$", "-set", "-reset", "-bit?", "-in", "-out", "-jump-if", "-jump-unless"},
 }
 
-var oppositeConds = map[*Keyword]*Keyword{
-	kwCondNZ: kwCondZ,
-	kwCondZ:  kwCondNZ,
-	kwCondNC: kwCondC,
-	kwCondC:  kwCondNC,
-	kwCondPO: kwCondPE,
-	kwCondPE: kwCondPO,
-	kwCondP:  kwCondM,
-	kwCondM:  kwCondP,
-}
-
 var bmaps = [][]byte{
 	{255, 0, 0, 233},         // 0: JP
 	{3, 0, 2, 70, 86, 94, 0}, // 1: IM

@@ -61,7 +61,7 @@ module main {
         msx:wait-vsync
         msx:set-vdp-registers 2 0b0001_1111, 18 0 // vdp-page: 0, adjust: 0 0
 
-        @8 . msx:snsmat(-* A => A) & 0b0000_0001; if zero? { // SPC
+        @8 . msx:snsmat(A => A) & 0b0000_0001; if zero? { // SPC
             msx:set-vdp-register 0 0b0000_0110 // intr/h: false
             msx:wait-vsync
             @[scroll-mode] | A; if zero? {

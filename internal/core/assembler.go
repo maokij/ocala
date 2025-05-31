@@ -17,13 +17,6 @@ func _sizeof(v Value) int {
 	panic("invalid type")
 }
 
-func _asValueSlice(v Value) []Value {
-	if vec, ok := v.(*Vec); ok {
-		return *vec
-	}
-	return []Value{v}
-}
-
 func (g *Generator) validateProcTail(inst *Inst) {
 	if (inst.Kind == InstCode && g.cc.IsValidProcTail(g.cc, inst)) ||
 		(inst.Kind == InstMisc && inst.Args[0] == KwFallthrough) {
@@ -37,7 +30,7 @@ func (g *Generator) validateFallthrough(insts []*Inst) {
 	for _, i := range insts {
 		if i.Kind == InstMisc && i.Args[0] == KwEndProc {
 			continue
-		} else if i.Kind == InstLabel && i.Args[1] == KwProc {
+		} else if i.Kind == InstLabel && GetNamedValue(i.Args[0], LabelT).LinkedToProc() {
 			break // OK
 		}
 		g.cc.RaiseCompileError(i.ExprTag(),
@@ -73,31 +66,50 @@ func (g *Generator) validateCallproc(inst *Inst) {
 }
 
 func (g *Generator) validateInsts(insts []*Inst) {
-	ci := insts[0]
-	state := []*Inst{}
+	type state struct {
+		from  int
+		to    int
+		inner int
+	}
+
+	s := &state{}
+	states := []*state{}
 
 	for x, i := range insts {
 		switch i.Kind {
 		case InstCode:
-			ci = i
+			s.to = x
 		case InstLabel:
-			GetNamedValue(i.Args[0]).(*Label).Addr = 0
-			switch i.Args[1] {
-			case KwProc:
-				state, ci = append(state, ci), i
-			case KwLabel:
-				ci = i
+			label := GetNamedValue(i.Args[0], LabelT)
+			label.Addr = 0
+			switch {
+			case label.LinkedToProc():
+				if s.inner == 0 {
+					s.inner = x
+				}
+				states, s = append(states, s), &state{from: x}
+			case label.LinkedToData():
+				// SKIP
+			default:
+				s.to = x
 			}
 		case InstMisc:
 			switch i.Args[0] {
 			case KwCallproc:
 				g.validateCallproc(i)
 			case KwEndProc:
-				g.validateProcTail(ci)
-				ci, state = state[len(state)-1], state[:len(state)-1]
+				tail := insts[s.to]
+				if s.inner > 0 && s.to > s.inner {
+					g.cc.RaiseCompileError(tail.ExprTag(),
+						"the last instruction must be placed before inner procs")
+				}
+
+				g.validateProcTail(tail)
+				insts[s.from].Args[1] = tail
+				s, states = states[len(states)-1], states[:len(states)-1]
 			case KwFallthrough:
 				g.validateFallthrough(insts[x+1:])
-				ci = i
+				s.to = x
 			}
 		}
 	}
@@ -147,7 +159,7 @@ func (g *Generator) resolveInstsWithoutOptimize(insts []*Inst, verify bool) int 
 func (g *Generator) resolveInsts(insts []*Inst, verify bool) int {
 	g.cc.Pc = 0
 	g.changes = 0
-	g.cc.initConstvals(false)
+	g.cc.initConstvals(PhLink)
 
 	org := 0
 	limit := 0
@@ -166,13 +178,15 @@ func (g *Generator) resolveInsts(insts []*Inst, verify bool) int {
 		case InstAssert:
 			EvalAndCacheIfConst(i.Args[0], g.cc)
 		case InstLabel:
-			v := GetNamedValue(i.Args[0]).(*Label)
+			v := GetNamedValue(i.Args[0], LabelT)
 			if v.Addr != g.cc.Pc {
 				v.Addr = g.cc.Pc
 				g.Changed()
 			}
 		case InstConst:
-			EvalAndCacheIfConst(GetNamedValue(i.Args[0]), g.cc)
+			EvalAndCacheIfConst(GetNamedValue(i.Args[0], ConstexprT), g.cc)
+		case InstBind:
+			EvalAndCacheIfConst(GetNamedValue(i.Args[0], LabelT).At, g.cc)
 		case InstOrg:
 			if n := g.cc.Pc - org; verify && limit > 0 && n > limit {
 				g.cc.RaiseCompileError(i.ExprTag(), "size limit exceeded(%d/%d)", n, limit)
@@ -191,18 +205,16 @@ func (g *Generator) resolveInsts(insts []*Inst, verify bool) int {
 			n := _sizeof(i.Args[0])
 			pc := g.cc.Pc // increment the field directly on each iteration for __PC__
 			for _, v := range *i.Args[2].(*Vec) {
-				for _, v := range _asValueSlice(EvalAndCacheIfConst(v, g.cc)) {
-					switch v := v.(type) {
-					case Int:
-						g.cc.Pc += n
-					case *Str:
-						if n != 1 {
-							g.cc.RaiseCompileError(i.ExprTag(), "word type data cannot contain byte strings")
-						}
-						g.cc.Pc += len(*v)
-					default:
-						g.cc.RaiseCompileError(i.ExprTag(), "invalid data value %T", v)
+				switch v := EvalAndCacheIfConst(v, g.cc).(type) {
+				case Int:
+					g.cc.Pc += n
+				case *Str:
+					if n != 1 {
+						g.cc.RaiseCompileError(i.ExprTag(), "word type data cannot contain byte strings")
 					}
+					g.cc.Pc += len(*v)
+				default:
+					g.cc.RaiseCompileError(i.ExprTag(), "invalid data value")
 				}
 			}
 			i.size = (g.cc.Pc - pc) * int(i.Args[1].(Int))
@@ -217,8 +229,8 @@ func (g *Generator) resolveInsts(insts []*Inst, verify bool) int {
 			}
 			i.size = ((g.cc.Pc + n) & ^n) - g.cc.Pc
 			g.cc.Pc += i.size
-		case InstFile:
-			i.size = len(*i.Args[1].(*Binary))
+		case InstBlob:
+			i.size = len(i.Args[0].(*Blob).data)
 			g.cc.Pc += i.size
 		default:
 			g.cc.RaiseCompileError(i.ExprTag(), "[BUG] invalid inst kind %v", i)
@@ -294,6 +306,8 @@ func (g *Generator) ValueToAsm(env *Env, v Value) string {
 		return fmt.Sprintf("%d", v)
 	case *Str:
 		return v.Inspect()
+	case *Blob:
+		return v.Inspect()
 	case *Constexpr:
 		s := g.ValueToAsm(v.Env, v.Body)
 		if _, ok := v.Body.(*Vec); ok && s[0] == '(' {
@@ -307,7 +321,7 @@ func (g *Generator) ValueToAsm(env *Env, v Value) string {
 			a = append(a, g.ValueToAsm(env, i))
 		}
 
-		if g.cc.BinOps[op.String()] > 0 && len(a) == 2 {
+		if g.cc.Precs[op.Name] > 0 && len(a) == 2 {
 			return fmt.Sprintf("(%s %s %s)", a[0], op.String(), a[1])
 		}
 		return fmt.Sprintf("%s(%s)", op.String(), strings.Join(a, " "))
@@ -327,13 +341,14 @@ func (g *Generator) ValueToAsm(env *Env, v Value) string {
 
 var listPadding = bytes.Repeat([]byte{' '}, 40)
 
-func (g *Generator) generateList(insts []*Inst, code []byte) []byte {
+func (g *Generator) generateList(insts []*Inst, code []byte) {
 	list := &bytes.Buffer{}
 	enabled := true
+	issub := g.IsSub
 	mode := 1
 	pc := 0
 	pos := 0
-	last := ""
+	last := "+"
 
 	writes := func(s string, v ...any) {
 		if enabled {
@@ -353,7 +368,7 @@ func (g *Generator) generateList(insts []*Inst, code []byte) []byte {
 			for x, i := 0, 0; i == 0 || i < (n+7)/8; i++ {
 				if i > 0 {
 					fmt.Fprintf(list, "%11s", ":")
-				} else if mode > 0 && m > 0 {
+				} else if mode > 0 && m > 0 && !issub {
 					fmt.Fprintf(list, "%06x %04x", pos, pc)
 				} else {
 					fmt.Fprintf(list, "%6s %04x", "-", pc)
@@ -385,7 +400,12 @@ func (g *Generator) generateList(insts []*Inst, code []byte) []byte {
 		}
 	}
 
-	writes("    ; generated by ocala")
+	if issub {
+		writes("")
+		writes("    ; ----------------")
+	} else {
+		writes("    ; generated by ocala")
+	}
 	for _, i := range insts {
 		switch i.Kind {
 		case InstMisc:
@@ -418,7 +438,7 @@ func (g *Generator) generateList(insts []*Inst, code []byte) []byte {
 		case InstLabel:
 			nm := i.Args[0].(*Named)
 			s := g.ValueToAsm(nil, nm.AsmName)
-			if i.Args[1] == KwProc {
+			if nm.Value.(*Label).LinkedToProc() {
 				writes("")
 			}
 			writeh(0, 0, "%s:", s)
@@ -429,6 +449,11 @@ func (g *Generator) generateList(insts []*Inst, code []byte) []byte {
 			if !strings.HasPrefix(a, ".__") {
 				writes("    %s = %s", a, b)
 			}
+		case InstBind:
+			nm := i.Args[0].(*Named)
+			a := g.ValueToAsm(nil, nm.AsmName)
+			b := g.ValueToAsm(nil, nm.Value.(*Label).At)
+			writes("    %s = %s", a, b)
 		case InstCode:
 			kw := i.Args[0]
 			if len(i.Args) > 2 {
@@ -449,21 +474,19 @@ func (g *Generator) generateList(insts []*Inst, code []byte) []byte {
 			a := []string{}
 			for x, i := range *i.Args[2].(*Vec) {
 				s := g.ValueToAsm(nil, i)
-				for _, i := range _asValueSlice(GetCachedValueIfConst(i, g.cc)) {
-					switch i := i.(type) {
-					case Int:
-						a = append(a, s)
-						if m := r * len(a); m == 8 || x == n-1 {
-							writeh(m, m, "%s", d+strings.Join(a, ", "))
-							a = a[:0]
-						}
-					case *Str:
-						if m := r * len(a); m > 0 {
-							writeh(m, m, "%s", d+strings.Join(a, ", "))
-							a = a[:0]
-						}
-						writeh(len(*i), len(*i), "    .byte "+s)
+				switch i := GetCachedValueIfConst(i, g.cc).(type) {
+				case Int:
+					a = append(a, s)
+					if m := r * len(a); m == 8 || x == n-1 {
+						writeh(m, m, "%s", d+strings.Join(a, ", "))
+						a = a[:0]
 					}
+				case *Str:
+					if m := r * len(a); m > 0 {
+						writeh(m, m, "%s", d+strings.Join(a, ", "))
+						a = a[:0]
+					}
+					writeh(len(*i), len(*i), "    .byte "+s)
 				}
 			}
 			if repeat := int(i.Args[1].(Int)); repeat > 1 {
@@ -480,14 +503,19 @@ func (g *Generator) generateList(insts []*Inst, code []byte) []byte {
 			}
 		case InstAlign:
 			writeh(0, i.size, "    .align %d ; (.defb %d)", int(i.Args[0].(Int)), i.size)
-		case InstFile:
-			writeh(0, len(*i.Args[1].(*Binary)), "    .incbin %s", g.ValueToAsm(nil, i.Args[0]))
+		case InstBlob:
+			blob := i.Args[0].(*Blob)
+			s := g.ValueToAsm(nil, NewStr(blob.origPath))
+			if blob.compiled {
+				s = "\"(compiled):" + s[1:]
+			}
+			writeh(0, len(blob.data), "    .incbin %s", s)
 		default:
 			panic("[BUG] cannot happen")
 		}
 	}
 
-	return list.Bytes()
+	g.prependList(list.Bytes())
 }
 
 func (g *Generator) prepareToGenerateBin(insts []*Inst) {
@@ -514,7 +542,7 @@ func (g *Generator) prepareToGenerateBin(insts []*Inst) {
 	g.resolveInsts(insts, true) // verify
 }
 
-func (g *Generator) GenerateBin(insts []*Inst) ([]byte, []byte) {
+func (g *Generator) GenerateBin(insts []*Inst) []byte {
 	g.prepareToGenerateBin(insts)
 
 	pushdat := func(s []byte, v int, w bool) []byte {
@@ -589,13 +617,11 @@ func (g *Generator) GenerateBin(insts []*Inst) ([]byte, []byte) {
 			p := len(seq)
 			w := i.Args[0] == KwWord
 			for _, v := range *i.Args[2].(*Vec) {
-				for _, v := range _asValueSlice(GetCachedValueIfConst(v, g.cc)) {
-					switch v := v.(type) {
-					case Int:
-						seq = pushdat(seq, int(v), w)
-					case *Str:
-						seq = append(seq, []byte(*v)...)
-					}
+				switch v := GetCachedValueIfConst(v, g.cc).(type) {
+				case Int:
+					seq = pushdat(seq, int(v), w)
+				case *Str:
+					seq = append(seq, []byte(*v)...)
 				}
 			}
 			if repeat := int(i.Args[1].(Int)) - 1; repeat > 0 {
@@ -606,18 +632,17 @@ func (g *Generator) GenerateBin(insts []*Inst) ([]byte, []byte) {
 			}
 		case InstDS, InstAlign:
 			seq = append(seq, make([]byte, i.size)...)
-		case InstFile:
-			seq = append(seq, *i.Args[1].(*Binary)...)
-		case InstLabel, InstMisc, InstConst: // NOP
+		case InstBlob:
+			seq = append(seq, i.Args[0].(*Blob).data...)
+		case InstLabel, InstMisc, InstConst, InstBind: // NOP
 		default:
 			panic("[BUG] cannot happen")
 		}
 		g.cc.Pc += i.size
 	}
 
-	list := []byte{}
 	if g.GenList {
-		list = g.generateList(insts[:len(insts)-1], code)
+		g.generateList(insts[:len(insts)-1], code)
 	}
-	return code, list
+	return code
 }
