@@ -13,23 +13,22 @@ func CopyPtr[T any](v *T) *T {
 	return &w
 }
 
-var TypeLabels = map[Value]string{
-	IntT:        "integer",
-	BlobT:       "blob",
-	KeywordT:    "keyword",
-	StrT:        "string",
-	VecT:        "vector",
-	MapT:        "map",
-	IdentifierT: "identifier",
-	ConstexprT:  "constexpr",
-	ConstFnT:    "constfn",
-	BCodeT:      "bcode",
-	OperandT:    "operand",
-	SectionT:    "section",
-	ModuleT:     "module",
-	NamedT:      "named",
-	LabelT:      "label",
-	InlineT:     "inline",
+var typeLabels = map[reflect.Type]string{
+	reflect.TypeOf(IntT):        "integer",
+	reflect.TypeOf(BlobT):       "blob",
+	reflect.TypeOf(KeywordT):    "keyword",
+	reflect.TypeOf(StrT):        "string",
+	reflect.TypeOf(VecT):        "vector",
+	reflect.TypeOf(IdentifierT): "identifier",
+	reflect.TypeOf(ConstexprT):  "constexpr",
+	reflect.TypeOf(LabelT):      "label",
+}
+
+func TypeLabelOf(v Value) string {
+	if s := typeLabels[reflect.TypeOf(v)]; s != "" {
+		return s
+	}
+	return "(internal type)"
 }
 
 type Value interface {
@@ -82,7 +81,7 @@ func (*Undefined) Dup() Value {
 // //////////////////////////////////////////////////////////
 type Int int
 
-var IntT = Int(0)
+var IntT Int
 
 func (v Int) Inspect() string {
 	return fmt.Sprint(v)
@@ -107,7 +106,7 @@ type Blob struct {
 	compiled bool
 }
 
-var BlobT = &Blob{}
+var BlobT *Blob
 
 func (v *Blob) Inspect() string {
 	s := fmt.Sprintf("<Blob:%d:%s", len(v.data), v.origPath)
@@ -126,7 +125,7 @@ func (v *Blob) Dup() Value {
 // //////////////////////////////////////////////////////////
 type Keyword string
 
-var KeywordT = NewKeyword("")
+var KeywordT *Keyword
 
 func (v *Keyword) Inspect() string {
 	return ":" + string(*v)
@@ -149,6 +148,13 @@ func (v *Keyword) ToId(token *Token) *Identifier {
 func (v *Keyword) MatchId(a Value) *Identifier {
 	if a, ok := a.(*Identifier); ok && a.Namespace == nil && v == a.Name {
 		return a
+	}
+	return nil
+}
+
+func (v *Keyword) MatchConstId(a Value) *Identifier {
+	if a, ok := a.(*Constexpr); ok {
+		return v.MatchId(a.Body)
 	}
 	return nil
 }
@@ -185,7 +191,7 @@ func NewKeyword(s string) *Keyword {
 // //////////////////////////////////////////////////////////
 type Str string
 
-var StrT = NewStr("")
+var StrT *Str
 
 func (v *Str) Inspect() string {
 	s := []byte{'"'}
@@ -221,7 +227,7 @@ func NewStr(s string) *Str {
 // //////////////////////////////////////////////////////////
 type Vec []Value
 
-var VecT = &Vec{}
+var VecT *Vec
 
 func (v *Vec) Inspect() string {
 	s := strings.Builder{}
@@ -313,19 +319,6 @@ func NewVec(a []Value) *Vec {
 }
 
 // //////////////////////////////////////////////////////////
-type Map map[Value]Value
-
-var MapT = &Map{}
-
-func (v *Map) Inspect() string {
-	return fmt.Sprint(*v)
-}
-
-func (v *Map) Dup() Value {
-	return v
-}
-
-// //////////////////////////////////////////////////////////
 type Identifier struct {
 	Name        *Keyword
 	Token       *Token
@@ -334,7 +327,7 @@ type Identifier struct {
 	PlaceHolder string
 }
 
-var IdentifierT = &Identifier{}
+var IdentifierT *Identifier
 
 func (v *Identifier) Inspect() string {
 	return v.String()
@@ -430,7 +423,7 @@ type Constexpr struct {
 	Env   *Env
 }
 
-var ConstexprT = &Constexpr{}
+var ConstexprT *Constexpr
 
 func (v *Constexpr) Inspect() string {
 	return fmt.Sprintf("(%v)", v.Body.Inspect())
@@ -452,8 +445,6 @@ type ConstFn struct {
 	Body  Value
 	Env   *Env
 }
-
-var ConstFnT = &Constexpr{}
 
 func (v *ConstFn) Inspect() string {
 	return fmt.Sprintf("%v(%v)", v.Args, v.Body.Inspect())
@@ -501,8 +492,6 @@ const (
 	BcTemp
 )
 
-var BCodeT = BCode{}
-
 func (v BCode) Inspect() string {
 	return fmt.Sprintf("%02x:%02x:%02x:%02x", v.Kind, v.A0, v.A1, v.A2)
 }
@@ -514,13 +503,13 @@ func (v BCode) Dup() Value {
 // //////////////////////////////////////////////////////////
 type Operand struct {
 	Kind *Keyword
+	From Value
 	A0   Value
 	A1   Value
 	A2   Value
 }
 
-var OperandT = &Operand{}
-var NoOperand = &Operand{Kind: KwUndefined}
+var NoOperand = &Operand{}
 var InvalidOperand = &Operand{Kind: NewKeyword("invalid-operand")}
 
 func (v *Operand) Inspect() string {
@@ -586,8 +575,6 @@ type Section struct {
 	Insts []*Inst
 }
 
-var SectionT = &Section{}
-
 func (v *Section) Inspect() string {
 	return fmt.Sprintf("<Section:%s>", v.Name)
 }
@@ -602,8 +589,6 @@ type Module struct {
 	Env      *Env
 	Sections map[*Keyword]*Section
 }
-
-var ModuleT = &Module{}
 
 func (v *Module) Inspect() string {
 	return fmt.Sprintf("<Module:%v>", v)
@@ -660,6 +645,7 @@ const (
 	NmInst
 	NmConst
 	NmLabel
+	NmDatatype
 	NmVar
 	NmSpecial
 	NmInvalid
@@ -674,12 +660,12 @@ var NamedKindLabels = []string{
 	"inst",
 	"const",
 	"label",
+	"datatype",
 	"var",
 	"special",
 	"invalid",
 }
 
-var NamedT = &Named{}
 var namedSerial = 0
 
 func nextNamedSerial() int {
@@ -688,7 +674,7 @@ func nextNamedSerial() int {
 }
 
 func (v *Named) Inspect() string {
-	return fmt.Sprintf("<Named:%s>", v.Name.String())
+	return fmt.Sprintf("<Named:%s>", v.Name)
 }
 
 func (v *Named) Dup() Value {
@@ -703,7 +689,7 @@ type Label struct {
 	Sig  *Sig
 }
 
-var LabelT = &Label{}
+var LabelT *Label
 
 func (v *Label) Inspect() string {
 	return fmt.Sprintf("<Label:%v>", *v)
@@ -736,13 +722,79 @@ type Inline struct {
 	Sig  *Sig
 }
 
-var InlineT = &Inline{}
-
 func (v *Inline) Inspect() string {
 	return fmt.Sprintf("<Inline:%v>", *v)
 }
 
 func (v *Inline) Dup() Value {
+	return CopyPtr(v)
+}
+
+// //////////////////////////////////////////////////////////
+type Datatype struct {
+	Name   *Identifier
+	Map    map[*Keyword]*DatatypeField
+	Fields []*DatatypeField
+	Size   int
+}
+
+type DatatypeField struct {
+	Datatype *Datatype
+	Offset   int
+	Size     int
+}
+
+var ByteType = &Datatype{Size: 1, Name: InternalId(KwByte)}
+var WordType = &Datatype{Size: 2, Name: InternalId(KwWord)}
+
+var BuiltinTypes = map[*Keyword]*Datatype{
+	KwByte: ByteType,
+	KwWord: WordType,
+}
+
+const (
+	DataSizeAuto   = -2
+	DataSizeSingle = -1
+)
+
+func NewDatatype(name *Identifier) *Datatype {
+	return &Datatype{Name: name, Map: map[*Keyword]*DatatypeField{}}
+}
+
+func (v *Datatype) AddField(name *Keyword, t *Datatype, n int) {
+	field := &DatatypeField{Datatype: t, Offset: v.Size, Size: n}
+	v.Fields = append(v.Fields, field)
+	if name != KwUNDER {
+		v.Map[name] = field
+	}
+
+	if n < 0 {
+		n = 1
+	}
+	v.Size += t.Size * n
+}
+
+func (v *Datatype) GetField(name *Keyword) *DatatypeField {
+	return v.Map[name]
+}
+
+func (v *Datatype) IsSimple() bool {
+	return len(v.Fields) == 0
+}
+
+func (v *Datatype) IsStruct() bool {
+	return len(v.Map) > 0
+}
+
+func (v *Datatype) IsArray() bool {
+	return len(v.Map) == 0 && len(v.Fields) == 1
+}
+
+func (v *Datatype) Inspect() string {
+	return fmt.Sprintf("<Datatype:%s>", v.Name)
+}
+
+func (v *Datatype) Dup() Value {
 	return CopyPtr(v)
 }
 
@@ -790,7 +842,7 @@ func (env *Env) Install(nm *Named) *Named {
 		nm.Serial = nextNamedSerial()
 	}
 	if nm.AsmName == nil {
-		nm.AsmName = NewKeyword(fmt.Sprintf(".%s.#%d", nm.Name.String(), nm.Serial))
+		nm.AsmName = NewKeyword(fmt.Sprintf(".%s.#%d", nm.Name, nm.Serial))
 	}
 	if nm.Token == nil {
 		nm.Token = &Token{From: InternalParser}

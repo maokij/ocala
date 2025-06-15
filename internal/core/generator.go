@@ -1,17 +1,34 @@
 package core
 
 import (
+	"fmt"
 	"io"
-	"strings"
+	"runtime"
 )
 
 type InternalError struct {
-	message string
-	token   *Token
+	message   string
+	tag       string
+	at        []Value
+	DebugMode bool
 }
 
-func (e *InternalError) Error() string {
-	return e.message
+func (err *InternalError) Error() string {
+	return err.tag + err.message
+}
+
+func (err *InternalError) With(message string, args ...any) {
+	err.message = fmt.Sprintf(message, args...)
+	if err.DebugMode {
+		for i := 1; ; i++ {
+			if _, file, line, ok := runtime.Caller(i); ok {
+				err.message += fmt.Sprintf("\n-- %s:%d", file, line)
+				continue
+			}
+			break
+		}
+	}
+	raiseError(err)
 }
 
 type Generator struct {
@@ -37,8 +54,16 @@ type Optimizer struct {
 	OptimizeBCode func(*Compiler, *Inst, []BCode, bool) []BCode
 }
 
-func (g *Generator) RaiseGenerateError(message string, args ...any) {
-	g.raiseError(nil, "generate error: ", message, args...)
+func (g *Generator) ErrorAt(values ...Value) *InternalError {
+	return &InternalError{
+		tag:       "generate error: ",
+		at:        values,
+		DebugMode: g.DebugMode,
+	}
+}
+
+func (g *Generator) ErrorWith(message string, args ...any) {
+	g.ErrorAt().With(message, args...)
 }
 
 func (g *Generator) Changed() {
@@ -56,12 +81,46 @@ func (g *Generator) ErrorMessage() string {
 	return ""
 }
 
-func (g *Generator) ErrorMessageWithErrorLine() []byte {
-	message := g.ErrorMessage()
-	if g.Err != nil && g.Err.token != nil {
-		message = FormatErrorLine(g.Err.token, true, message)
+func FindToken(v Value) *Token {
+	switch v := v.(type) {
+	case *Vec:
+		return FindToken(v.AtOrUndef(0))
+	case *Inst:
+		return FindToken(v.From.AtOrUndef(0))
+	case *Operand:
+		return FindToken(v.From)
+	case *Token:
+		return v
+	case *Identifier:
+		return v.Token
+	case *Constexpr:
+		return v.Token
+	case *Named:
+		return v.Token
 	}
-	return []byte(strings.TrimRight(message, "\n") + "\n")
+	return nil
+}
+
+func (g *Generator) FullErrorMessage() []byte {
+	if g.Err == nil {
+		return []byte{}
+	}
+
+	message := g.ErrorMessage() + string('\n')
+	x := 0
+	for _, i := range g.Err.at {
+		if token := FindToken(i); token != nil {
+			message += fmt.Sprintf("[error #%d]\n", x)
+			message += token.FormatAsErrorLine("at")
+			if id, ok := token.Value.(*Identifier); ok {
+				for ; id.ExpandedBy != nil; id = id.ExpandedBy {
+					message += id.ExpandedBy.Token.FormatAsErrorLine("from")
+				}
+			}
+			x++
+		}
+	}
+	return []byte(message)
 }
 
 func (g *Generator) HandlePanic() {
@@ -83,12 +142,12 @@ func (g *Generator) SetCompiler(cc *Compiler) {
 func (g *Generator) SetCompilerFromSource(text []byte) {
 	arch := g.findArchDirective(text)
 	if arch == "" {
-		g.RaiseGenerateError("the first statement must be an `arch` directive unless the `-t` option is specified")
+		g.ErrorWith("the first statement must be an `arch` directive unless the `-t` option is specified")
 	}
 
 	builder, ok := g.Archs[arch]
 	if !ok {
-		g.RaiseGenerateError("unknown arch: %s", arch)
+		g.ErrorWith("unknown arch: %s", arch)
 	}
 	g.SetCompiler(builder())
 }

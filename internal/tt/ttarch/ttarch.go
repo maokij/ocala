@@ -95,26 +95,26 @@ func exprToOperand(cc *Compiler, e Value) *Operand {
 	case *Operand:
 		return e
 	case *Constexpr:
-		return &Operand{Kind: kwImmNN, A0: e}
+		return &Operand{From: e, Kind: kwImmNN, A0: e}
 	case *Identifier:
 		if cc.IsReg(e.Name) || cc.IsCond(e.Name) {
-			return &Operand{Kind: e.Name}
+			return &Operand{From: e, Kind: e.Name}
 		}
 	case *Vec:
 		switch e.ExprTagName() {
 		case KwTpl:
-			return &Operand{Kind: kwRegPQ, A0: e.At(1), A1: e.At(2)}
+			return &Operand{From: e, Kind: kwRegPQ, A0: e.At(1), A1: e.At(2)}
 		case KwMem:
 			if e.Size() > 2 {
 				break
 			}
 			a := e.OperandAt(1)
 			if a.Kind == kwImmNN {
-				return &Operand{Kind: kwMemNN, A0: a.A0}
+				return &Operand{From: e, Kind: kwMemNN, A0: a.A0}
 			} else if a.Kind == kwRegX {
-				return &Operand{Kind: kwMemX, A0: a.A0}
+				return &Operand{From: e, Kind: kwMemX, A0: a.A0}
 			} else if a.Kind == kwRegY {
-				return &Operand{Kind: kwMemY, A0: a.A0}
+				return &Operand{From: e, Kind: kwMemY, A0: a.A0}
 			}
 		}
 	}
@@ -163,13 +163,13 @@ func adjustInline(cc *Compiler, insts []*Inst) {
 			switch i.Args[0] {
 			case kwRET:
 				a := i.ExprTag().Expand(KwEndInline).ToConstexpr(nil)
-				i.Args = []Value{kwJMP, &Operand{Kind: kwImmNN, A0: a}}
+				i.Args = []Value{kwJMP, &Operand{From: i.From, Kind: kwImmNN, A0: a}}
 			}
 		}
 	}
 
 	if !ci.MatchCode(kwJMP) {
-		cc.RaiseCompileError(ci.ExprTag(), "invalid inline proc tail")
+		cc.ErrorAt(ci).With("invalid inline proc tail")
 	}
 	if a := ci.Args[1].(*Operand); a.Kind == kwImmNN &&
 		KwEndInline.MatchId(GetConstBody(a.A0)) != nil {
@@ -186,7 +186,7 @@ func sJump(cc *Compiler, env *Env, e *Vec) Value {
 	etag, _ := CheckExpr(e, 3, 3, CtProc, cc)
 	jump := &Vec{etag.ExpandedBy.Expand(kwJMP), e.At(1)}
 	if e.At(2) != NIL {
-		cc.RaiseCompileError(etag, "conditional jump is not supported")
+		cc.ErrorAt(etag).With("conditional jump is not supported")
 	}
 	return cc.CompileExpr(env, jump)
 }
@@ -196,29 +196,31 @@ func sCall(cc *Compiler, env *Env, e *Vec) Value {
 	etag, _ := CheckExpr(e, 3, 3, CtProc, cc)
 	call := &Vec{etag.ExpandedBy.Expand(kwJSR), e.At(1)}
 	if e.At(2) != NIL {
-		cc.RaiseCompileError(etag, "conditional call is not supported")
+		cc.ErrorAt(etag).With("conditional call is not supported")
 	}
 	return cc.CompileExpr(env, call)
 }
 
 // SYNTAX: (db a)
 func sDb(cc *Compiler, env *Env, e *Vec) Value {
-	CheckExpr(e, 2, -1, CtModule|CtProc, cc)
-	v := &Vec{}
+	etag, _ := CheckExpr(e, 2, -1, CtModule|CtProc, cc)
+	v := &Vec{etag.Expand(KwDataList)}
 	for _, i := range (*e)[1:] {
 		v.Push(cc.CompileExpr(env, i))
 	}
-	return cc.EmitCode(NewInst(e, InstData, KwByte, Int(1), v))
+	inst := NewInst(e, InstData, ByteType, Int(1), NIL, Int(DataSizeAuto), v)
+	return cc.EmitCode(inst)
 }
 
 // SYNTAX: (dw a)
 func sDw(cc *Compiler, env *Env, e *Vec) Value {
-	CheckExpr(e, 2, -1, CtModule|CtProc, cc)
-	v := &Vec{}
+	etag, _ := CheckExpr(e, 2, -1, CtModule|CtProc, cc)
+	v := &Vec{etag.Expand(KwDataList)}
 	for _, i := range (*e)[1:] {
 		v.Push(cc.CompileExpr(env, i))
 	}
-	return cc.EmitCode(NewInst(e, InstData, KwWord, Int(1), v))
+	inst := NewInst(e, InstData, WordType, Int(1), NIL, Int(DataSizeAuto), v)
+	return cc.EmitCode(inst)
 }
 
 // SYNTAX: (ds a)
@@ -227,7 +229,7 @@ func sDs(cc *Compiler, env *Env, e *Vec) Value {
 	e1 := CheckValue(e.At(1), ConstexprT, "count", etag, cc)
 	n := EvalConstAs(e1, env, IntT, "count", etag, cc)
 	if n < 1 {
-		cc.RaiseCompileError(etag, "invalid repeat count %d", n)
+		cc.ErrorAt(etag).With("invalid repeat count %d", n)
 	}
-	return cc.EmitCode(NewInst(e, InstDS, KwByte, n))
+	return cc.EmitCode(NewInst(e, InstDS, ByteType, n))
 }

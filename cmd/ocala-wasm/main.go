@@ -36,6 +36,7 @@ func main() {
 			"z80":     z80.BuildCompiler,
 			"mos6502": mos6502.BuildCompiler,
 		},
+		ListText: &[]byte{},
 	}
 
 	func(src []byte) {

@@ -43,10 +43,10 @@ func exprToOperand(cc *Compiler, e Value) *Operand {
 	case *Operand:
 		return e
 	case *Constexpr:
-		return &Operand{Kind: kwImmNN, A0: e}
+		return &Operand{From: e, Kind: kwImmNN, A0: e}
 	case *Identifier: // REG
 		if cc.IsReg(e.Name) || cc.IsCond(e.Name) {
-			return &Operand{Kind: e.Name}
+			return &Operand{From: e, Kind: e.Name}
 		}
 	case *Vec:
 		if e.ExprTagName() == KwMem && e.Size() <= 3 {
@@ -54,21 +54,21 @@ func exprToOperand(cc *Compiler, e Value) *Operand {
 			b := e.OperandAt(2)
 			if a.Kind == kwImmNN {
 				if b == NoOperand {
-					return &Operand{Kind: kwMemAN, A0: a.A0}
+					return &Operand{From: e, Kind: kwMemAN, A0: a.A0}
 				} else if b.Kind == kwRegX {
-					return &Operand{Kind: kwMemAX, A0: a.A0}
+					return &Operand{From: e, Kind: kwMemAX, A0: a.A0}
 				} else if b.Kind == kwRegY {
-					return &Operand{Kind: kwMemAY, A0: a.A0}
+					return &Operand{From: e, Kind: kwMemAY, A0: a.A0}
 				}
 			} else if a.Kind == kwMemAN {
 				if b == NoOperand {
-					return &Operand{Kind: kwMemIN, A0: a.A0}
+					return &Operand{From: e, Kind: kwMemIN, A0: a.A0}
 				} else if b.Kind == kwRegY {
-					return &Operand{Kind: kwMemIY, A0: a.A0}
+					return &Operand{From: e, Kind: kwMemIY, A0: a.A0}
 				}
 			} else if a.Kind == kwMemAX {
 				if b == NoOperand {
-					return &Operand{Kind: kwMemIX, A0: a.A0}
+					return &Operand{From: e, Kind: kwMemIX, A0: a.A0}
 				}
 			}
 		}
@@ -150,15 +150,15 @@ func adjustInline(cc *Compiler, insts []*Inst) {
 			switch i.Args[0] {
 			case kwRTS:
 				a := i.ExprTag().Expand(KwEndInline).ToConstexpr(nil)
-				i.Args = []Value{kwJMP, &Operand{Kind: kwMemAN, A0: a}}
+				i.Args = []Value{kwJMP, &Operand{From: i.From, Kind: kwMemAN, A0: a}}
 			case kwRTI:
-				cc.RaiseCompileError(i.ExprTag(), "unsupported instruction in inline code")
+				cc.ErrorAt(i).With("unsupported instruction in inline code")
 			}
 		}
 	}
 
 	if !ci.MatchCode(kwJMP) {
-		cc.RaiseCompileError(ci.ExprTag(), "invalid inline proc tail")
+		cc.ErrorAt(ci).With("invalid inline proc tail")
 	}
 	if a := ci.Args[1].(*Operand); a.Kind == kwMemAN &&
 		KwEndInline.MatchId(GetConstBody(a.A0)) != nil {
@@ -175,7 +175,7 @@ func sJump(cc *Compiler, env *Env, e *Vec) Value {
 	etag, _ := CheckExpr(e, 3, 3, CtProc, cc)
 	jump := &Vec{etag.ExpandedBy.Expand(kwJMP), &Vec{etag.ExpandedBy.Expand(KwMem), e.At(1)}}
 	if e.At(2) != NIL {
-		cc.RaiseCompileError(etag, "conditional jump is not supported")
+		cc.ErrorAt(etag).With("conditional jump is not supported")
 	}
 	return cc.CompileExpr(env, jump)
 }
@@ -185,7 +185,7 @@ func sCall(cc *Compiler, env *Env, e *Vec) Value {
 	etag, _ := CheckExpr(e, 3, 3, CtProc, cc)
 	call := &Vec{etag.ExpandedBy.Expand(kwJSR), &Vec{etag.ExpandedBy.Expand(KwMem), e.At(1)}}
 	if e.At(2) != NIL {
-		cc.RaiseCompileError(etag, "conditional call is not supported")
+		cc.ErrorAt(etag).With("conditional call is not supported")
 	}
 	return cc.CompileExpr(env, call)
 }

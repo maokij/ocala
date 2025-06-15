@@ -53,9 +53,9 @@
     "M" "MI?" "minus?"))
 
 (defconst ocala-reserved-words
-  '("module" "macro" "proc" "const" "data" "section" "link" "align"
+  '("module" "macro" "proc" "const" "data" "struct" "section" "link" "align"
     "arch" "include" "incbin" "never-return" "fallthrough" "recur"
-    "if" "else" "loop" "once" "do" "prog" "use-patch" "*patch*"
+    "if" "else" "when" "loop" "once" "do" "prog" "<reserved>" "*patch*"
     "goto" "goto-if" "goto-rel" "goto-rel-if" "return" "return-if"
     "redo" "redo-if" "continue" "continue-if" "break" "break-if"))
 

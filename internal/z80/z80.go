@@ -76,15 +76,15 @@ func exprToOperand(cc *Compiler, e Value) *Operand {
 	case *Operand:
 		return e
 	case *Constexpr:
-		return &Operand{Kind: kwImmNN, A0: e}
+		return &Operand{From: e, Kind: kwImmNN, A0: e}
 	case *Identifier: // REG
 		if cc.IsReg(e.Name) || cc.IsCond(e.Name) {
-			return &Operand{Kind: e.Name}
+			return &Operand{From: e, Kind: e.Name}
 		}
 	case *Vec:
 		switch e.ExprTagName() {
 		case KwTpl: // (tpl ...)
-			return &Operand{Kind: kwRegPQ, A0: e.At(1), A1: e.At(2)}
+			return &Operand{From: e, Kind: kwRegPQ, A0: e.At(1), A1: e.At(2)}
 		case KwMem:
 			if e.Size() > 3 {
 				break
@@ -93,17 +93,17 @@ func exprToOperand(cc *Compiler, e Value) *Operand {
 			b := e.OperandAt(2)
 			if a.Kind == kwImmNN {
 				if b == NoOperand {
-					return &Operand{Kind: kwMemNN, A0: a.A0}
+					return &Operand{From: e, Kind: kwMemNN, A0: a.A0}
 				}
 			} else if k := toMemReg(a.Kind); k != nil {
 				if k == kwMemIX || k == kwMemIY {
 					if b == NoOperand {
-						return &Operand{Kind: k, A0: InternalConstexpr(Int(0))}
+						return &Operand{From: e, Kind: k, A0: InternalConstexpr(Int(0))}
 					} else if b.Kind == kwImmNN {
-						return &Operand{Kind: k, A0: b.A0}
+						return &Operand{From: e, Kind: k, A0: b.A0}
 					}
 				} else if b == NoOperand {
-					return &Operand{Kind: k}
+					return &Operand{From: e, Kind: k}
 				}
 			}
 		}
@@ -171,16 +171,16 @@ func adjustInline(cc *Compiler, insts []*Inst) {
 			switch i.Args[0] {
 			case kwRET:
 				a := i.ExprTag().Expand(KwEndInline).ToConstexpr(nil)
-				i.Args = append(i.Args, &Operand{Kind: kwImmNN, A0: a})
+				i.Args = append(i.Args, &Operand{From: i.From, Kind: kwImmNN, A0: a})
 				i.Args[0] = kwJP
 			case kwRETI, kwRETN:
-				cc.RaiseCompileError(i.ExprTag(), "unsupported instruction in inline code")
+				cc.ErrorAt(i).With("unsupported instruction in inline code")
 			}
 		}
 	}
 
 	if !ci.MatchCode(kwJP, kwJR) {
-		cc.RaiseCompileError(ci.ExprTag(), "invalid inline proc tail")
+		cc.ErrorAt(ci).With("invalid inline proc tail")
 	}
 	if a := ci.Args[1].(*Operand); a.Kind == kwImmNN &&
 		KwEndInline.MatchId(GetConstBody(a.A0)) != nil {
@@ -282,7 +282,7 @@ func sOptimize(cc *Compiler, env *Env, e *Vec) Value {
 	case kwNearJump:
 		optimizer.OptimizeBCode = optimizeBCode
 	default:
-		cc.RaiseCompileError(etag, "unknown optimizer: %s", k.String())
+		cc.ErrorAt(etag).With("unknown optimizer: %s", k)
 	}
 	return NIL
 }
@@ -308,6 +308,6 @@ func sLdp(cc *Compiler, env *Env, e *Vec) Value {
 			return NIL
 		}
 	}
-	cc.RaiseCompileError(etag, "invalid operands for LDP(#1 = %s, #2 = %s)", a.Kind, b.Kind)
+	cc.ErrorAt(etag).With("invalid operands for LDP(#1 = %s, #2 = %s)", a.Kind, b.Kind)
 	return NIL
 }

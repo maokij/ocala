@@ -7,23 +7,13 @@ import (
 	"strings"
 )
 
-func _sizeof(v Value) int {
-	switch v {
-	case KwByte:
-		return 1
-	case KwWord:
-		return 2
-	}
-	panic("invalid type")
-}
-
 func (g *Generator) validateProcTail(inst *Inst) {
 	if (inst.Kind == InstCode && g.cc.IsValidProcTail(g.cc, inst)) ||
 		(inst.Kind == InstMisc && inst.Args[0] == KwFallthrough) {
 		return
 	}
-	g.cc.RaiseCompileError(inst.ExprTag(),
-		"the last instruction must be a return/fallthrough within the proc")
+	g.cc.ErrorAt(inst).
+		With("the last instruction must be a return/fallthrough within the proc")
 }
 
 func (g *Generator) validateFallthrough(insts []*Inst) {
@@ -33,8 +23,7 @@ func (g *Generator) validateFallthrough(insts []*Inst) {
 		} else if i.Kind == InstLabel && GetNamedValue(i.Args[0], LabelT).LinkedToProc() {
 			break // OK
 		}
-		g.cc.RaiseCompileError(i.ExprTag(),
-			"the fallthrough must be followed by a proc")
+		g.cc.ErrorAt(i).With("the fallthrough must be followed by a proc")
 	}
 }
 
@@ -43,7 +32,7 @@ func (g *Generator) validateCallproc(inst *Inst) {
 	id := c.Body.(*Identifier)
 	nm := g.cc.LookupNamed(c.Env, id)
 	if nm == nil {
-		g.cc.RaiseCompileError(inst.ExprTag(), "undefined proc %s", id)
+		g.cc.ErrorAt(inst).With("undefined proc %s", id)
 	}
 
 	var a *Sig
@@ -54,12 +43,12 @@ func (g *Generator) validateCallproc(inst *Inst) {
 		a = nm.Value.(*Inline).Sig
 	}
 	if a == nil {
-		g.cc.RaiseCompileError(inst.ExprTag(), "%s is not a proc", id)
+		g.cc.ErrorAt(inst).With("%s is not a proc", id)
 	}
 
 	b := inst.Args[2].(*Sig)
 	if !a.Equals(b) {
-		g.cc.RaiseCompileError(inst.ExprTag(), "proc signature mismatch: %s.\n"+
+		g.cc.ErrorAt(inst).With("proc signature mismatch: %s.\n"+
 			"  expected %v,\n"+
 			"  given    %v", id, a, b)
 	}
@@ -100,8 +89,8 @@ func (g *Generator) validateInsts(insts []*Inst) {
 			case KwEndProc:
 				tail := insts[s.to]
 				if s.inner > 0 && s.to > s.inner {
-					g.cc.RaiseCompileError(tail.ExprTag(),
-						"the last instruction must be placed before inner procs")
+					g.cc.ErrorAt(tail).
+						With("the last instruction must be placed before inner procs")
 				}
 
 				g.validateProcTail(tail)
@@ -121,7 +110,7 @@ func (g *Generator) findInstBody(inst *Inst, adjust bool) []BCode {
 
 	m, ok := g.cc.InstMap[op]
 	if !ok {
-		g.cc.RaiseCompileError(etag, "[BUG] unknown instruction: %s", op)
+		g.cc.ErrorAt(etag).With("[BUG] unknown instruction: %s", op)
 	}
 
 	p := m.(InstPat)
@@ -132,13 +121,13 @@ func (g *Generator) findInstBody(inst *Inst, adjust bool) []BCode {
 		}
 		p, ok = p[i.Kind].(InstPat)
 		if !ok {
-			g.cc.RaiseCompileError(etag, "cannot use %s as operand#%d for %s", i.Kind, x+1, op)
+			g.cc.ErrorAt(i, etag).With("cannot use %s as operand#%d for %s", i.Kind, x+1, op)
 		}
 	}
 
 	body, ok := p[nil].(InstDat)
 	if !ok || (!adjust && body[0].Kind == BcTemp) {
-		g.cc.RaiseCompileError(etag, "invalid operands for %s. "+
+		g.cc.ErrorAt(etag).With("invalid operands for %s. "+
 			"some operand values may be out of range", op)
 	}
 
@@ -154,6 +143,101 @@ func (g *Generator) resolveInstsWithoutOptimize(insts []*Inst, verify bool) int 
 	codeSize := g.resolveInsts(insts, false)
 	g.Optimizer.OptimizeBCode = optimize
 	return codeSize
+}
+
+// Resolve and flatten nested data using the datatype.
+// The flattened data contains the followind elements:
+//
+//	*Datatype  change single value size(".byte" or ".word")
+//	Int        padding byte size
+//	*Constexpr value(int or string)
+//
+// for examples:
+//
+//	byte [0 1 2] ==> {ByteType (0) (1) (2)}
+//	[4]byte [0 1 2] ==> {ByteType (0) (1) (2) 1}
+//	[2]struct{ a byte b word } [[0 1] [2]] ==> {ByteType (0) WordType (1) ByteType (2) 2 6}
+func (g *Generator) resolveInstData(inst *Inst) {
+	acc := []Value{NIL}
+	s := &Datatype{}
+
+	checkAndPad := func(size int, next int, etag *Identifier) {
+		if size > 0 && g.cc.Pc > next {
+			g.cc.ErrorAt(etag).With("too many elements")
+		} else if g.cc.Pc < next {
+			d := Int(next - g.cc.Pc) // padding size
+			if n, ok := acc[len(acc)-1].(Int); ok {
+				d += n // merge padding
+				acc = acc[:len(acc)-1]
+			}
+			acc = append(acc, d)
+			g.cc.Pc = next
+		}
+	}
+
+	var traverse func(Value, *Identifier, *Datatype, int, int)
+	traverse = func(v Value, etag *Identifier, t *Datatype, size int, limit int) {
+		if size != DataSizeSingle {
+			e := KwDataList.MatchExpr(v)
+			if e == nil {
+				g.cc.ErrorAt(v, etag).With("data list required")
+			}
+
+			etag := e.At(0).(*Identifier)
+			next := g.cc.Pc + t.Size*size
+			for _, i := range (*e)[1:] {
+				traverse(i, etag, t, DataSizeSingle, limit)
+			}
+			checkAndPad(size, next, etag)
+		} else if t.IsArray() {
+			field := t.Fields[0]
+			traverse(v, etag, field.Datatype, field.Size, field.Size)
+		} else if t.IsStruct() {
+			e := KwStructData.MatchExpr(v)
+			if e == nil {
+				g.cc.ErrorAt(v, etag).With("struct data required")
+			}
+
+			etag := e.At(0).(*Identifier)
+			next := g.cc.Pc + t.Size
+			for x, i := range (*e)[1:] {
+				field := t.Fields[x]
+				limit := field.Size
+				if limit == DataSizeSingle {
+					limit = 1
+				}
+				traverse(i, etag, field.Datatype, field.Size, limit)
+			}
+			checkAndPad(size, next, etag)
+		} else {
+			e := CheckValue(v, ConstexprT, "element", etag, g.cc)
+			if t != s {
+				s = t
+				acc = append(acc, s)
+			}
+
+			switch v := EvalAndCacheIfConst(e, g.cc).(type) {
+			case Int:
+				g.cc.Pc += t.Size
+			case *Str:
+				if t != ByteType {
+					g.cc.ErrorAt(v, etag).With("strings are only allowed as byte data")
+				}
+				if limit > -1 && len(*v) > limit {
+					g.cc.ErrorAt(v, etag).With("the string too long")
+				}
+				g.cc.Pc += len(*v)
+			default:
+				g.cc.ErrorAt(v, etag).With("invalid data value")
+			}
+			acc = append(acc, e)
+		}
+	}
+
+	t := inst.Args[0].(*Datatype)
+	size := int(inst.Args[3].(Int))
+	traverse(inst.Args[4], inst.ExprTag(), t, size, size)
+	inst.Args[2] = NewVec(acc[1:])
 }
 
 func (g *Generator) resolveInsts(insts []*Inst, verify bool) int {
@@ -189,7 +273,7 @@ func (g *Generator) resolveInsts(insts []*Inst, verify bool) int {
 			EvalAndCacheIfConst(GetNamedValue(i.Args[0], LabelT).At, g.cc)
 		case InstOrg:
 			if n := g.cc.Pc - org; verify && limit > 0 && n > limit {
-				g.cc.RaiseCompileError(i.ExprTag(), "size limit exceeded(%d/%d)", n, limit)
+				g.cc.ErrorAt(i).With("size limit exceeded(%d/%d)", n, limit)
 			}
 			if addr := int(i.Args[0].(Int)); addr >= 0 {
 				org = addr
@@ -202,38 +286,25 @@ func (g *Generator) resolveInsts(insts []*Inst, verify bool) int {
 			g.cc.Pc += i.size
 			codeSize += i.size
 		case InstData:
-			n := _sizeof(i.Args[0])
 			pc := g.cc.Pc // increment the field directly on each iteration for __PC__
-			for _, v := range *i.Args[2].(*Vec) {
-				switch v := EvalAndCacheIfConst(v, g.cc).(type) {
-				case Int:
-					g.cc.Pc += n
-				case *Str:
-					if n != 1 {
-						g.cc.RaiseCompileError(i.ExprTag(), "word type data cannot contain byte strings")
-					}
-					g.cc.Pc += len(*v)
-				default:
-					g.cc.RaiseCompileError(i.ExprTag(), "invalid data value")
-				}
-			}
+			g.resolveInstData(i)
 			i.size = (g.cc.Pc - pc) * int(i.Args[1].(Int))
 			g.cc.Pc = pc + i.size
 		case InstDS:
-			i.size = _sizeof(i.Args[0]) * int(i.Args[1].(Int))
+			i.size = i.Args[0].(*Datatype).Size * int(i.Args[1].(Int))
 			g.cc.Pc += i.size
 		case InstAlign:
 			n := int(i.Args[0].(Int)) - 1
 			if n < 0 || (n&(n+1)) != 0 {
-				g.cc.RaiseCompileError(i.ExprTag(), "the alignment size must be power of 2")
+				g.cc.ErrorAt(i).With("the alignment size must be power of 2")
 			}
 			i.size = ((g.cc.Pc + n) & ^n) - g.cc.Pc
 			g.cc.Pc += i.size
 		case InstBlob:
-			i.size = len(i.Args[0].(*Blob).data)
+			i.size = len(i.Args[2].(*Blob).data)
 			g.cc.Pc += i.size
 		default:
-			g.cc.RaiseCompileError(i.ExprTag(), "[BUG] invalid inst kind %v", i)
+			g.cc.ErrorAt(i).With("[BUG] invalid inst kind %v", i)
 		}
 
 		if size != i.size {
@@ -241,8 +312,7 @@ func (g *Generator) resolveInsts(insts []*Inst, verify bool) int {
 		}
 
 		if verify && g.changes > 0 {
-			fmt.Println(size, i.size)
-			g.cc.RaiseCompileError(i.ExprTag(), "cannot determine the size of the instruction")
+			g.cc.ErrorAt(i).With("cannot determine the size of the instruction(%d or %d)", size, i.size)
 		}
 	}
 
@@ -267,7 +337,7 @@ func (g *Generator) expandBCode(c BCode, ab []*Operand, pc int) byte {
 		d := int(v) - pc + int(int8(c.A1))
 		if (c.A2 == 1 && (d < -0x80 || d > 0x7f)) ||
 			(c.A2 == 2 && (d < -0x8000 || d > 0x7fff)) {
-			g.cc.RaiseCompileError(e.Token.TagId(), "the relative address is out of range")
+			g.cc.ErrorAt(e).With("the relative address is out of range")
 		}
 		return byte(d)
 	case BcRhigh:
@@ -276,7 +346,7 @@ func (g *Generator) expandBCode(c BCode, ab []*Operand, pc int) byte {
 		d := int(v) - pc + int(int8(c.A1))
 		if (c.A2 == 1 && (d < -0x80 || d > 0x7f)) ||
 			(c.A2 == 2 && (d < -0x8000 || d > 0x7fff)) {
-			g.cc.RaiseCompileError(e.Token.TagId(), "the relative address is out of range")
+			g.cc.ErrorAt(e).With("the relative address is out of range")
 		}
 		return byte(d >> 8)
 	case BcImp:
@@ -284,7 +354,7 @@ func (g *Generator) expandBCode(c BCode, ab []*Operand, pc int) byte {
 		v := g.cc.Constvals[e].(Int)
 		base, mask, shift := c.A1, c.A2, c.A3
 		if v < 0 || v > Int(mask) {
-			g.cc.RaiseCompileError(e.Token.TagId(), "the operand only accepts 0..%d", mask)
+			g.cc.ErrorAt(e).With("the operand only accepts 0..%d", mask)
 		}
 		return base | ((byte(v) & mask) << shift)
 	case BcMap:
@@ -293,7 +363,7 @@ func (g *Generator) expandBCode(c BCode, ab []*Operand, pc int) byte {
 		m := g.cc.BMaps[c.A1]
 		mask, min, max, items := m[0], m[1], m[2], m[3:]
 		if v < Int(min) || v > Int(max) {
-			g.cc.RaiseCompileError(e.Token.TagId(), "the operand only accepts %d..%d", min, max)
+			g.cc.ErrorAt(e).With("the operand only accepts %d..%d", min, max)
 		}
 		return items[(byte(v)-min)&mask]
 	}
@@ -322,9 +392,9 @@ func (g *Generator) ValueToAsm(env *Env, v Value) string {
 		}
 
 		if g.cc.Precs[op.Name] > 0 && len(a) == 2 {
-			return fmt.Sprintf("(%s %s %s)", a[0], op.String(), a[1])
+			return fmt.Sprintf("(%s %s %s)", a[0], op, a[1])
 		}
-		return fmt.Sprintf("%s(%s)", op.String(), strings.Join(a, " "))
+		return fmt.Sprintf("%s(%s)", op, strings.Join(a, " "))
 	case *Operand:
 		return g.cc.OperandToAsm(g, v)
 	case *Keyword:
@@ -335,7 +405,7 @@ func (g *Generator) ValueToAsm(env *Env, v Value) string {
 		}
 		return v.String()
 	}
-	g.RaiseGenerateError("[BUG] invalid value: %T %s", v, v.Inspect())
+	g.ErrorAt(v).With("[BUG] invalid value: %T %s", v, v.Inspect())
 	return "!"
 }
 
@@ -399,6 +469,14 @@ func (g *Generator) generateList(insts []*Inst, code []byte) {
 			pos += m
 		}
 	}
+	flushdataif := func(cond bool, a []string, t *Datatype) []string {
+		if cond {
+			m := t.Size * len(a)
+			writeh(m, m, "    .%s %s", t.Name, strings.Join(a, ", "))
+			a = a[:0]
+		}
+		return a
+	}
 
 	if issub {
 		writes("")
@@ -418,7 +496,7 @@ func (g *Generator) generateList(insts []*Inst, code []byte) {
 					i := GetCachedValueIfConst(i, g.cc)
 					s += " " + g.ValueToAsm(nil, i)
 				}
-				writes("    ; %s%s", i.Args[1].(*Str).String(), s)
+				writes("    ; %s%s", i.Args[1].(*Str), s)
 			case KwEndProc:
 				writes("")
 			}
@@ -468,27 +546,30 @@ func (g *Generator) generateList(insts []*Inst, code []byte) {
 			}
 		case InstData:
 			p := pc
-			d := fmt.Sprintf("    .%s ", i.Args[0].(*Keyword).String())
-			r := _sizeof(i.Args[0])
-			n := i.Args[2].(*Vec).Size()
+			t := ByteType
 			a := []string{}
-			for x, i := range *i.Args[2].(*Vec) {
-				s := g.ValueToAsm(nil, i)
-				switch i := GetCachedValueIfConst(i, g.cc).(type) {
+			for _, i := range *i.Args[2].(*Vec) {
+				switch v := i.(type) {
 				case Int:
-					a = append(a, s)
-					if m := r * len(a); m == 8 || x == n-1 {
-						writeh(m, m, "%s", d+strings.Join(a, ", "))
-						a = a[:0]
+					a = flushdataif(len(a) > 0, a, t)
+					writeh(0, int(v), "    .defb %d", v)
+				case *Datatype:
+					a = flushdataif(len(a) > 0, a, t)
+					t = v
+				case *Constexpr:
+					s := g.ValueToAsm(nil, i)
+					switch i := GetCachedValueIfConst(i, g.cc).(type) {
+					case Int:
+						a = append(a, s)
+						a = flushdataif(len(a)*t.Size == 8, a, t)
+					case *Str:
+						a = flushdataif(len(a) > 0, a, t)
+						writeh(len(*i), len(*i), "    .byte "+s)
 					}
-				case *Str:
-					if m := r * len(a); m > 0 {
-						writeh(m, m, "%s", d+strings.Join(a, ", "))
-						a = a[:0]
-					}
-					writeh(len(*i), len(*i), "    .byte "+s)
 				}
 			}
+			flushdataif(len(a) > 0, a, t)
+
 			if repeat := int(i.Args[1].(Int)); repeat > 1 {
 				m := pc - p
 				for i := 1; i < repeat; i++ {
@@ -496,15 +577,15 @@ func (g *Generator) generateList(insts []*Inst, code []byte) {
 				}
 			}
 		case InstDS:
-			if i.Args[0] == KwWord {
-				writeh(0, i.size, "    .defw %d", int(i.Args[1].(Int)))
+			if i.Args[0] == WordType {
+				writeh(0, i.size, "    .defw %d", int(i.size/2))
 			} else {
-				writeh(0, i.size, "    .defb %d", int(i.Args[1].(Int)))
+				writeh(0, i.size, "    .defb %d", int(i.size))
 			}
 		case InstAlign:
 			writeh(0, i.size, "    .align %d ; (.defb %d)", int(i.Args[0].(Int)), i.size)
 		case InstBlob:
-			blob := i.Args[0].(*Blob)
+			blob := i.Args[2].(*Blob)
 			s := g.ValueToAsm(nil, NewStr(blob.origPath))
 			if blob.compiled {
 				s = "\"(compiled):" + s[1:]
@@ -545,8 +626,8 @@ func (g *Generator) prepareToGenerateBin(insts []*Inst) {
 func (g *Generator) GenerateBin(insts []*Inst) []byte {
 	g.prepareToGenerateBin(insts)
 
-	pushdat := func(s []byte, v int, w bool) []byte {
-		if w {
+	pushdat := func(s []byte, v int, t *Datatype) []byte {
+		if t == WordType {
 			v := uint16(v)
 			return append(s, byte(v), byte((v&0xff00)>>8))
 		}
@@ -564,7 +645,7 @@ func (g *Generator) GenerateBin(insts []*Inst) []byte {
 		case InstAssert:
 			v := GetCachedValueIfConst(i.Args[0], g.cc)
 			if v == Int(0) {
-				g.cc.RaiseCompileError(i.ExprTag(), i.Args[1].(*Str).String())
+				g.cc.ErrorAt(i).With("%s", i.Args[1].(*Str))
 			}
 		case InstOrg:
 			// mode -- 0: noload, 1: load, 2: fill, 3: +noload, 4: +load
@@ -575,23 +656,23 @@ func (g *Generator) GenerateBin(insts []*Inst) []byte {
 
 			size := len(code) - anchor
 			if limit > 0 && size > limit {
-				g.cc.RaiseCompileError(i.ExprTag(), "size limit exceeded(%d/%d)", size, limit)
+				g.cc.ErrorAt(i).With("size limit exceeded(%d/%d)", size, limit)
 			}
 
 			addr := int(i.Args[0].(Int))
 			mode = int(i.Args[2].(Int))
 			if mode < 0 || mode >= 5 {
-				g.cc.RaiseCompileError(i.ExprTag(), "invalid org mode")
+				g.cc.ErrorAt(i).With("invalid org mode")
 			} else if mode >= 3 { // mode 3/4
 				mode -= 3
 				if limit == 0 {
-					g.cc.RaiseCompileError(i.ExprTag(), "a pack mode must follow a fill/pack mode")
+					g.cc.ErrorAt(i).With("a pack mode must follow a fill/pack mode")
 				}
 			} else { // mode 0/1/2
 				if limit > 0 {
 					code = append(code, make([]byte, limit-size)...)
 					if addr < 0 {
-						g.cc.RaiseCompileError(i.ExprTag(), "the orgin address required")
+						g.cc.ErrorAt(i).With("the orgin address required")
 					}
 				}
 				limit = 0
@@ -615,13 +696,20 @@ func (g *Generator) GenerateBin(insts []*Inst) []byte {
 			}
 		case InstData:
 			p := len(seq)
-			w := i.Args[0] == KwWord
+			t := ByteType
 			for _, v := range *i.Args[2].(*Vec) {
-				switch v := GetCachedValueIfConst(v, g.cc).(type) {
+				switch v := v.(type) {
 				case Int:
-					seq = pushdat(seq, int(v), w)
-				case *Str:
-					seq = append(seq, []byte(*v)...)
+					seq = append(seq, make([]byte, int(v))...)
+				case *Datatype:
+					t = v
+				case *Constexpr:
+					switch v := GetCachedValueIfConst(v, g.cc).(type) {
+					case Int:
+						seq = pushdat(seq, int(v), t)
+					case *Str:
+						seq = append(seq, []byte(*v)...)
+					}
 				}
 			}
 			if repeat := int(i.Args[1].(Int)) - 1; repeat > 0 {
@@ -633,7 +721,7 @@ func (g *Generator) GenerateBin(insts []*Inst) []byte {
 		case InstDS, InstAlign:
 			seq = append(seq, make([]byte, i.size)...)
 		case InstBlob:
-			seq = append(seq, i.Args[0].(*Blob).data...)
+			seq = append(seq, i.Args[2].(*Blob).data...)
 		case InstLabel, InstMisc, InstConst, InstBind: // NOP
 		default:
 			panic("[BUG] cannot happen")

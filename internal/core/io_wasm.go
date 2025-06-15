@@ -3,7 +3,6 @@
 package core
 
 import (
-	"fmt"
 	"strings"
 	"syscall/js"
 )
@@ -11,12 +10,8 @@ import (
 var IncMap map[string][]byte
 var OnComplete js.Value
 
-func (g *Generator) raiseError(token *Token, tag string, message string, args ...any) {
-	message = tag + fmt.Sprintf(message, args...)
-	if token != nil {
-		message = FormatErrorLine(token, true, message)
-	}
-	OnComplete.Invoke("", strings.TrimRight(message, "\n")+"\n")
+func raiseError(err error) {
+	OnComplete.Invoke("", strings.TrimRight(err.Error(), "\n")+"\n")
 	panic("error")
 }
 
@@ -31,7 +26,7 @@ func (g *Generator) CompileAndGenerate(path string) bool {
 // SPECIAL: (__FILE__)
 func (cc *Compiler) sFilename(env *Env, e *Vec) Value {
 	etag, _ := CheckExpr(e, 1, 1, CtConstexpr, cc)
-	cc.RaiseCompileError(etag, "not supported for browser wasm")
+	cc.ErrorAt(etag).With("not supported for browser wasm")
 	return NIL
 }
 
@@ -43,7 +38,7 @@ func (cc *Compiler) sInclude(env *Env, e *Vec) Value {
 	rpath := path.String()
 	text, ok := IncMap[rpath]
 	if !ok {
-		cc.RaiseCompileError(etag, "`%s` not found", rpath)
+		cc.ErrorAt(etag).With("`%s` not found", rpath)
 	}
 
 	return cc.CompileIncluded(rpath, text)
@@ -52,13 +47,13 @@ func (cc *Compiler) sInclude(env *Env, e *Vec) Value {
 // SYNTAX: (load-file path)
 func (cc *Compiler) sLoadFile(env *Env, e *Vec) Value {
 	etag, _ := CheckExpr(e, 2, 2, CtConstexpr, cc)
-	cc.RaiseCompileError(etag, "not supported for browser wasm")
+	cc.ErrorAt(etag).With("not supported for browser wasm")
 	return NIL
 }
 
 // SYNTAX: (compile-file path)
 func sCompileFile(cc *Compiler, env *Env, e *Vec) Value {
 	etag, _ := CheckExpr(e, 2, 2, CtConstexpr, cc)
-	cc.RaiseCompileError(etag, "not supported for browser wasm")
+	cc.ErrorAt(etag).With("not supported for browser wasm")
 	return NIL
 }

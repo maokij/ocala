@@ -2,6 +2,7 @@ package core
 
 import (
 	"fmt"
+	"slices"
 )
 
 // SPECIAL: (__PC__)
@@ -28,7 +29,7 @@ func (cc *Compiler) sLoadedAsMain(env *Env, e *Vec) Value {
 // SPECIAL: (<reserved>)
 func (cc *Compiler) sReserved(env *Env, e *Vec) Value {
 	etag, _ := CheckExpr(e, 1, 1, CtConstexpr, cc)
-	cc.RaiseCompileError(etag, "reserved but undefined")
+	cc.ErrorAt(etag).With("reserved but undefined")
 	return NIL
 }
 
@@ -48,7 +49,7 @@ func (cc *Compiler) sArch(env *Env, e *Vec) Value {
 
 	CheckToplevelEnv(env, etag, cc)
 	if cc.Arch != arch.String() {
-		cc.RaiseCompileError(etag, "current target arch is %s", cc.Arch)
+		cc.ErrorAt(arch, etag).With("current target arch is %s", cc.Arch)
 	}
 	return NIL
 }
@@ -83,7 +84,7 @@ func (cc *Compiler) sBlock(env *Env, e *Vec) Value {
 	etag, _ := CheckExpr(e, 1, -1, 0, cc)
 	for _, i := range (*e)[1:] {
 		if _, ok := i.(*Vec); !ok {
-			cc.RaiseCompileError(etag, "invalid do form(%T)", i)
+			cc.ErrorAt(i, etag).With("invalid do form(%T)", i)
 		}
 		cc.CompileExpr(env, i)
 	}
@@ -103,7 +104,7 @@ func (cc *Compiler) sVolatile(env *Env, e *Vec) Value {
 	op := CheckConst(e.At(1), IdentifierT, "op", etag, cc)
 	nm := cc.LookupNamed(env, op)
 	if nm == nil || nm.Kind != NmInst {
-		cc.RaiseCompileError(etag, "unknown inst name %s", op)
+		cc.ErrorAt(op, etag).With("unknown inst name %s", op)
 	}
 
 	cc.CompileExpr(env, NewVec(append([]Value{op}, (*e)[2:]...)))
@@ -147,10 +148,10 @@ func (cc *Compiler) sIfCond(env *Env, e *Vec) Value {
 	thenBody := CheckBlockForm(e.At(2), "body", etag, cc)
 
 	if !cc.IsCond(cond.Name) {
-		cc.RaiseCompileError(cond, "invalid condition")
+		cc.ErrorAt(cond, etag).With("invalid condition")
 	}
 
-	endThenId := Gensym("end-then").ToId(etag.Token)
+	endThenId := etag.Expand(Gensym("end-then"))
 	endThenNm := cc.InstallNamed(env, endThenId, NmLabel, &Label{})
 	cc.CompileExpr(env, &Vec{
 		etag.Expand(KwWith),
@@ -164,13 +165,13 @@ func (cc *Compiler) sIfCond(env *Env, e *Vec) Value {
 
 	elseTag := CheckConst(e.At(3), IdentifierT, "else", etag, cc)
 	if KwElse.MatchId(elseTag) == nil {
-		cc.RaiseCompileError(elseTag, "invalid if form, expected `else`")
+		cc.ErrorAt(elseTag, etag).With("invalid if form, expected `else`")
 	} else if n != 5 {
-		cc.RaiseCompileError(elseTag, "invalid if form, else body required")
+		cc.ErrorAt(elseTag, etag).With("invalid if form, else body required")
 	}
 	elseBody := CheckBlockForm(e.At(4), "body", etag, cc)
 
-	endElseId := Gensym("end-else").ToId(etag.Token)
+	endElseId := etag.Expand(Gensym("end-else"))
 	endElseNm := cc.InstallNamed(env, endElseId, NmLabel, &Label{})
 	cc.CompileExpr(env, &Vec{etag.Expand(KwJump), endElseId.ToConstexpr(env), NIL})
 	cc.EmitCode(NewInst(e, InstLabel, endThenNm))
@@ -193,33 +194,30 @@ func (cc *Compiler) sIf(env *Env, e *Vec) Value {
 	}
 
 	for v := (*e)[3:]; len(v) > 0; { // else {} ... | else if {} ...
-		etag := CheckConst(v[0], IdentifierT, "else", etag, cc)
-		if KwElse.MatchId(etag) == nil {
-			cc.RaiseCompileError(etag, "invalid if form, expected `else`")
+		elseTag := CheckConst(v[0], IdentifierT, "else", etag, cc)
+		if KwElse.MatchId(elseTag) == nil {
+			cc.ErrorAt(elseTag, etag).With("invalid if form, expected `else`")
 		} else if len(v) < 2 {
-			cc.RaiseCompileError(etag, "invalid if form, else body required")
-		}
-
-		if elif, ok := v[1].(*Constexpr); ok && KwIf.MatchId(elif.Body) != nil {
+			cc.ErrorAt(elseTag, etag).With("invalid if form, else body required")
+		} else if elseIfTag := KwIf.MatchConstId(v[1]); elseIfTag != nil {
 			if len(v) < 4 {
-				cc.RaiseCompileError(etag, "invalid else-if form")
+				cc.ErrorAt(elseIfTag, etag).With("invalid else-if form")
 			}
-
-			cond := CheckValue(v[2], ConstexprT, "cond", etag, cc)
-			body := CheckBlockForm(v[3], "then-body", etag, cc)
-			if matched == nil && EvalConstAs(cond, env, IntT, "cond", etag, cc) != Int(0) {
+			cond := CheckValue(v[2], ConstexprT, "cond", elseIfTag, cc)
+			body := CheckBlockForm(v[3], "then-body", elseIfTag, cc)
+			if matched == nil && EvalConstAs(cond, env, IntT, "cond", elseIfTag, cc) != Int(0) {
 				matched = body
 			}
 			v = v[4:]
-			continue
 		} else if len(v) == 2 {
 			body := CheckBlockForm(v[1], "else-body", etag, cc)
 			if matched == nil {
 				matched = body
 			}
-			break
+			v = v[:0]
+		} else {
+			cc.ErrorAt(elseTag, etag).With("invalid if-else form")
 		}
-		cc.RaiseCompileError(etag, "invalid if-else form")
 	}
 
 	if matched != nil { // ok
@@ -235,31 +233,32 @@ func (cc *Compiler) sCase(env *Env, e *Vec) Value {
 
 	var matched Value
 	for v := (*e)[2:]; len(v) > 0; {
-		etag := CheckConst(v[0], IdentifierT, "when/else", etag, cc)
-		if KwWhen.MatchId(etag) != nil {
+		clauseTag := CheckConstPlainId(v[0], "clause tag", etag, cc)
+		switch clauseTag.Name {
+		case KwWhen:
 			if len(v) < 3 {
-				cc.RaiseCompileError(etag, "invalid case-when form")
+				cc.ErrorAt(clauseTag, etag).With("invalid case-when form")
 			}
 
-			b := CheckValue(v[1], ConstexprT, "pattern", etag, cc)
-			body := CheckBlockForm(v[2], "when-body", etag, cc)
-			if matched == nil && equalValue(a, EvalConst(b, env, etag, cc)) {
+			b := CheckValue(v[1], ConstexprT, "pattern", clauseTag, cc)
+			body := CheckBlockForm(v[2], "when-body", clauseTag, cc)
+			if matched == nil && equalValue(a, EvalConst(b, env, clauseTag, cc)) {
 				matched = body
 			}
 			v = v[3:]
-			continue
-		} else if KwElse.MatchId(etag) != nil {
+		case KwElse:
 			if len(v) != 2 {
-				cc.RaiseCompileError(etag, "invalid case-else form")
+				cc.ErrorAt(clauseTag, etag).With("invalid case-else form")
 			}
 
 			body := CheckBlockForm(v[1], "else-body", etag, cc)
 			if matched == nil {
 				matched = body
 			}
-			break
+			v = v[:0]
+		default:
+			cc.ErrorAt(clauseTag, etag).With("invalid case form. when/else required")
 		}
-		cc.RaiseCompileError(etag, "invalid case form. when/else required")
 	}
 
 	if matched != nil {
@@ -275,13 +274,13 @@ func (cc *Compiler) sWhen(env *Env, e *Vec) Value {
 
 	thenTag := CheckConst(e.At(2), IdentifierT, "then", etag, cc)
 	if KwThen.MatchId(thenTag) == nil {
-		cc.RaiseCompileError(thenTag, "invalid when form, expected `then`")
+		cc.ErrorAt(thenTag, etag).With("invalid when form, expected `then`")
 	}
-	thenBody := CheckBlockForm(e.At(3), "body", etag, cc)
+	thenBody := CheckBlockForm(e.At(3), "then-body", etag, cc)
 
-	thenId := Gensym("then").ToId(etag.Token)
+	thenId := etag.Expand(Gensym("then"))
 	thenNm := cc.InstallNamed(env, thenId, NmLabel, &Label{})
-	endThenId := Gensym("end-then").ToId(etag.Token)
+	endThenId := etag.Expand(Gensym("end-then"))
 	endThenNm := cc.InstallNamed(env, endThenId, NmLabel, &Label{})
 
 	{ // cond part
@@ -310,9 +309,9 @@ func (cc *Compiler) sWhen(env *Env, e *Vec) Value {
 
 		n := condBody.Size()
 		if n == 1 {
-			cc.RaiseCompileError(etag, "at least one condition required")
-		} else if KwWhenAnd.MatchExpr(condBody.At(n-1)) == nil {
-			cc.RaiseCompileError(etag, "the last condition must be an AND expression")
+			cc.ErrorAt(condBody, etag).With("at least one condition required")
+		} else if tail := condBody.At(n - 1); KwWhenAnd.MatchExpr(tail) == nil {
+			cc.ErrorAt(tail, etag).With("the last condition must be an AND expression")
 		}
 		cc.CompileExpr(env, condBody)
 	}
@@ -325,13 +324,13 @@ func (cc *Compiler) sWhen(env *Env, e *Vec) Value {
 
 	elseTag := CheckConst(e.At(4), IdentifierT, "else", etag, cc)
 	if KwElse.MatchId(elseTag) == nil {
-		cc.RaiseCompileError(elseTag, "invalid when form, expected `else`")
+		cc.ErrorAt(elseTag, etag).With("invalid when form, expected `else`")
 	} else if n != 6 {
-		cc.RaiseCompileError(elseTag, "invalid when form, else body required")
+		cc.ErrorAt(elseTag, etag).With("invalid when form, else body required")
 	}
-	elseBody := CheckBlockForm(e.At(5), "body", etag, cc)
+	elseBody := CheckBlockForm(e.At(5), "else-body", etag, cc)
 
-	endElseId := Gensym("end-else").ToId(etag.Token)
+	endElseId := etag.Expand(Gensym("end-else"))
 	endElseNm := cc.InstallNamed(env, endElseId, NmLabel, &Label{})
 	cc.CompileExpr(env, &Vec{etag.Expand(KwJump), endElseId.ToConstexpr(env), NIL})
 	cc.EmitCode(NewInst(e, InstLabel, endThenNm))
@@ -347,9 +346,9 @@ func (cc *Compiler) sAlias(env *Env, e *Vec) Value {
 
 	nm := cc.LookupNamed(env, old)
 	if nm == nil {
-		cc.RaiseCompileError(etag, "unknown name %s", old.String())
+		cc.ErrorAt(old, etag).With("unknown name %s", old)
 	} else if nm.Kind != NmMacro && nm.Kind != NmInline && nm.Kind != NmLabel {
-		cc.RaiseCompileError(etag, "aliases are not allowed for this type(%s)", NamedKindLabels[nm.Kind])
+		cc.ErrorAt(old, etag).With("aliases are not allowed for this type(%s)", NamedKindLabels[nm.Kind])
 	}
 	cc.InstallNamed(env, new, nm.Kind, nm.Value)
 
@@ -408,7 +407,7 @@ func (cc *Compiler) sLink(env *Env, e *Vec) Value {
 
 	CheckToplevelEnv(env, etag, cc)
 	if cc.link != nil {
-		cc.RaiseCompileError(etag, "link is already registered")
+		cc.ErrorAt(etag).With("link is already registered")
 	}
 	cc.link = body
 	return NIL
@@ -456,7 +455,7 @@ func (cc *Compiler) sPragma(env *Env, e *Vec) Value {
 		}
 		cc.EmitCode(NewInst(e, InstMisc, r...))
 	default:
-		cc.RaiseCompileError(etag, "unknown pragma: %s", k.String())
+		cc.ErrorAt(k, etag).With("unknown pragma: %s", k)
 	}
 	return NIL
 }
@@ -471,7 +470,7 @@ func (cc *Compiler) sMacro(env *Env, e *Vec) Value {
 	body := CheckBlockForm(e.At(5), "macro body", etag, cc)
 
 	if as.Size() == 0 && rest {
-		cc.RaiseCompileError(etag, "rest parameter name required")
+		cc.ErrorAt(e.At(4), etag).With("rest parameter name required")
 	}
 
 	opts := []Value{}
@@ -482,14 +481,17 @@ func (cc *Compiler) sMacro(env *Env, e *Vec) Value {
 		v := a.At(1)
 		if rest && x == len(*as)-1 {
 			if v != NIL {
-				cc.RaiseCompileError(k, "the rest parameter cannot have default value")
+				cc.ErrorAt(k, etag).With("the rest parameter cannot have default value")
 			}
 			opts = append(opts, v)
 		} else if len(opts) > 0 && v == NIL {
-			cc.RaiseCompileError(k, "default value required")
+			cc.ErrorAt(k, etag).With("default value required")
 		}
 		if v != NIL {
 			opts = append(opts, v)
+		}
+		if slices.Index(args, k.Name) > -1 {
+			cc.ErrorAt(k, etag).With("parameter %s is already defined", k.Name)
 		}
 		args = append(args, k.Name)
 	}
@@ -500,6 +502,9 @@ func (cc *Compiler) sMacro(env *Env, e *Vec) Value {
 		v := (*vs)[x+1]
 		if v != NIL {
 			CheckValue(v, ConstexprT, "macro variable body", etag, cc)
+		}
+		if slices.Index(args, k.Name) > -1 || slices.Index(vars, Value(k.Name)) > -1 {
+			cc.ErrorAt(k, etag).With("variable %s is already defined", k.Name)
 		}
 		vars = append(vars, k.Name, v)
 	}
@@ -518,7 +523,7 @@ func (cc *Compiler) sProc(env *Env, e *Vec) Value {
 
 	if addr, ok := e.At(3).(*Constexpr); ok {
 		if sig.IsInline {
-			cc.RaiseCompileError(etag, "cannot bind inline proc")
+			cc.ErrorAt(addr, etag).With("cannot bind inline proc")
 		}
 		addr = cc.CompileExpr(env, addr).(*Constexpr)
 		nm := cc.InstallNamed(env, name, NmLabel, &Label{Sig: sig, At: addr})
@@ -581,15 +586,15 @@ func (cc *Compiler) sTco(env *Env, e *Vec) Value {
 	body := CheckBlockForm(e.At(1), "body", etag, cc)
 
 	if body.Size() != 2 {
-		cc.RaiseCompileError(etag, "only one statement is allowed within the tco form")
+		cc.ErrorAt(body, etag).With("only one statement is allowed within the tco form")
 	}
 
 	call := KwCallproc.MatchExpr(body.At(1))
 	if call == nil {
-		cc.RaiseCompileError(etag, "proc call required")
+		cc.ErrorAt(body.At(1), etag).With("proc call required")
 	}
-	if call.At(2) != NIL {
-		cc.RaiseCompileError(etag, "the conditional call is not a tail call")
+	if cond := call.At(2); cond != NIL {
+		cc.ErrorAt(cond, etag).With("the conditional call is not a tail call")
 	}
 	call.SetAt(4, KwJump) // original is KwCall
 	return cc.CompileExpr(env, call)
@@ -611,7 +616,7 @@ func (cc *Compiler) sConst(env *Env, e *Vec) Value {
 
 			v := a.At(1)
 			if len(opts) > 0 && v == NIL {
-				cc.RaiseCompileError(k, "default value required")
+				cc.ErrorAt(k, name).With("default value required")
 			}
 			if v != NIL {
 				opts = append(opts, cc.CompileExpr(env, v))
@@ -640,25 +645,38 @@ func (cc *Compiler) sData(env *Env, e *Vec) Value {
 		cc.EmitCode(NewInst(e, InstLabel, nm))
 	}
 
-	t := CheckConstPlainId(e.At(2), "data type", etag, cc).Name
-	if t != KwByte && t != KwWord {
-		cc.RaiseCompileError(etag, "invalid data type %s", t.String())
-	}
-
 	body := CheckValue(e.At(3), VecT, "data body", etag, cc)
-	// op := CheckConstAs(body.At(1), env, IdentifierT, "op", etag, cc)
-	n := CheckAndEvalConstAs(body.At(2), env, IntT, "count", etag, cc)
-	if n < 1 {
-		cc.RaiseCompileError(etag, "invalid repeat count %d", n)
+	if KwMulOp.MatchId(body.At(1)) == nil {
+		cc.ErrorAt(body.At(1), etag).With("repeat operator must be `*`")
+	}
+	repeat := CheckAndEvalConstAs(body.At(2), env, IntT, "repeat count", etag, cc)
+	if repeat < 1 {
+		cc.ErrorAt(body.At(2), etag).With("invalid repeat count %d", repeat)
 	}
 
-	switch values := body.At(0).(type) {
+	values := body.At(0)
+	switch values := values.(type) {
 	case *Constexpr:
-		info.Link = NewInst(e, InstBlob, EvalConstAs(values, env, BlobT, "blob", etag, cc))
+		t, size := cc.evaluateType(env, e.At(2), DataSizeAuto, etag)
+		if t != ByteType || size != DataSizeAuto {
+			cc.ErrorAt(e.At(2), etag).With("invalid blob type")
+		}
+		v := EvalConstAs(values, env, BlobT, "blob", etag, cc)
+		info.Link = NewInst(e, InstBlob, ByteType, NIL, v)
 	case *Vec:
-		info.Link = NewInst(e, InstData, t, n, cc.sVec(env, values))
-	default:
-		info.Link = NewInst(e, InstDS, t, n)
+		defaultSize := DataSizeSingle
+		if KwDataList.MatchId(values.At(0)) != nil {
+			defaultSize = DataSizeAuto
+		}
+		t, size := cc.evaluateType(env, e.At(2), defaultSize, etag)
+		v := cc.CompileExpr(env, values)
+		info.Link = NewInst(e, InstData, t, repeat, NIL, Int(size), v)
+	default: // NIL
+		t, size := cc.evaluateType(env, e.At(2), DataSizeSingle, etag)
+		if size > 1 {
+			repeat *= Int(size)
+		}
+		info.Link = NewInst(e, InstDS, t, repeat, NIL)
 	}
 	cc.EmitCode(info.Link)
 
@@ -668,10 +686,10 @@ func (cc *Compiler) sData(env *Env, e *Vec) Value {
 		cc.EmitCodeToSection(section, cc.LeaveCodeBlock()...)
 	} else if body.At(4) != NIL {
 		if nm == nil {
-			cc.RaiseCompileError(etag, "data name required")
+			cc.ErrorAt(body.At(4), etag).With("the addressed data must be named")
 		}
 		if info.Link.Kind != InstDS {
-			cc.RaiseCompileError(etag, "the addressed data cannot contain any elements")
+			cc.ErrorAt(values, etag).With("the addressed data cannot contain any elements")
 		}
 
 		addr := CheckValue(body.At(4), ConstexprT, "data address", etag, cc)
@@ -682,23 +700,70 @@ func (cc *Compiler) sData(env *Env, e *Vec) Value {
 		cc.EmitCode(cc.LeaveCodeBlock()...)
 	}
 
-	return e
+	return info
 }
 
-// SYNTAX: (#.vec ...)
-func (cc *Compiler) sVec(env *Env, e *Vec) Value {
-	CheckExpr(e, 1, -1, CtModule|CtProc, cc)
-
-	r := &Vec{}
+// SYNTAX: (#.datalist ...)
+func (cc *Compiler) sDataList(env *Env, e *Vec) Value {
+	etag, _ := CheckExpr(e, 1, -1, CtModule|CtProc, cc)
+	r := &Vec{etag}
 	for _, i := range (*e)[1:] {
-		i := cc.CompileExpr(env, i)
-		if v, ok := i.(*Vec); ok {
-			r.Push([]Value(*v)...)
-		} else {
-			r.Push(i)
-		}
+		r.Push(cc.CompileExpr(env, i))
 	}
 	return r
+}
+
+// SYNTAX: (#.structdata ...)
+func (cc *Compiler) sStructData(env *Env, e *Vec) Value {
+	return cc.sDataList(env, e)
+}
+
+// SYNTAX: (#.struct isinner name field ...)
+func (cc *Compiler) sStruct(env *Env, e *Vec) Value {
+	etag, _ := CheckExpr(e, 3, -1, CtModule|CtProc, cc)
+
+	t := NewDatatype(nil)
+	if e.At(1) == NIL {
+		t.Name = CheckConstPlainId(e.At(2), "struct name", etag, cc)
+		cc.InstallNamed(env, t.Name, NmDatatype, t)
+	} else {
+		if e.At(2) != NIL {
+			cc.ErrorAt(e.At(2), etag).With("named inner struct is not allowed")
+		}
+		t.Name = etag.Expand(Gensym("struct"))
+	}
+
+	for _, i := range (*e)[3:] {
+		i := i.(*Vec)
+		id := CheckConstPlainId(i.At(0), "field name", etag, cc)
+		if t.Map[id.Name] != nil {
+			cc.ErrorAt(id, etag).With("the field %s is already defined", id)
+		}
+
+		u, size := cc.evaluateType(env, i.At(1), DataSizeSingle, id)
+		t.AddField(id.Name, u, size)
+	}
+	return t
+}
+
+// SYNTAX: (#.array base size)
+func (cc *Compiler) sArray(env *Env, e *Vec) Value {
+	etag, _ := CheckExpr(e, 3, 3, CtModule|CtProc, cc)
+	id := CheckConstPlainId(e.At(1), "element type", etag, cc)
+
+	u := GetBuiltinTypeById(id)
+	if u == nil {
+		cc.ErrorAt(id, etag).With("only builtin types can be used as array element types")
+	}
+
+	n := CheckAndEvalConstAs(e.At(2), env, IntT, "size", etag, cc)
+	if n <= 0 {
+		cc.ErrorAt(e.At(2), etag).With("invalid data length")
+	}
+
+	t := NewDatatype(etag.Expand(Gensym("array")))
+	t.AddField(KwUNDER, u, int(n))
+	return t
 }
 
 // SYNTAX: (#.BYTE n)
@@ -708,7 +773,7 @@ func (cc *Compiler) sByte(env *Env, e *Vec) Value {
 	if v, ok := a.(*Operand); ok {
 		a = v.A0
 	}
-	return cc.EmitCode(NewInst(e, InstData, KwByte, Int(1), &Vec{a}))
+	return cc.EmitCode(NewInst(e, InstData, ByteType, Int(1), NIL, Int(DataSizeSingle), a))
 }
 
 // SYNTAX: (#.REP n body)
@@ -726,7 +791,7 @@ func (cc *Compiler) sRep(env *Env, e *Vec) Value {
 // SYNTAX: (#.INVALID ...)
 func (cc *Compiler) sInvalid(env *Env, e *Vec) Value {
 	etag, _ := CheckExpr(e, 2, 2, CtProc, cc)
-	cc.RaiseCompileError(etag, "invalid operands")
+	cc.ErrorAt(etag).With("invalid operands")
 	return NIL
 }
 
@@ -754,11 +819,39 @@ func (cc *Compiler) sValueOf(env *Env, e *Vec) Value {
 	return v
 }
 
-// SYNTAX: (#.field a b)
-func (cc *Compiler) sField(env *Env, e *Vec) Value {
-	etag, _ := CheckExpr(e, 1, -1, CtConstexpr, cc)
-	cc.RaiseCompileError(etag, "<field> form not implemented yet")
-	return NIL
+// SYNTAX: (#.field a ...)
+func (cc *Compiler) sFieldOffset(env *Env, e *Vec) Value {
+	etag, _ := CheckExpr(e, 2, -1, CtConstexpr, cc)
+	id := CheckValue(e.At(1), IdentifierT, "base", etag, cc)
+
+	offset := 0
+	nm := cc.LookupNamed(env, id)
+	var t *Datatype
+	switch nm.Kind {
+	case NmDatatype:
+		t = nm.Value.(*Datatype)
+	case NmLabel:
+		if v := nm.Value.(*Label); v.LinkedToData() {
+			t = v.Link.Args[0].(*Datatype)
+			offset = int(EvalConstAs(e.At(1), env, IntT, "data", etag, cc))
+		}
+	}
+
+	for _, v := range (*e)[2:] {
+		if t == nil || len(t.Map) == 0 {
+			cc.ErrorAt(id).With("%s is not a struct type", id)
+		}
+
+		id = CheckValue(v, IdentifierT, "field name", etag, cc)
+		field := t.GetField(id.Name)
+		if field == nil {
+			cc.ErrorAt(id).With("unknown field %s", id)
+		}
+
+		offset += field.Offset
+		t = field.Datatype
+	}
+	return Int(offset)
 }
 
 func expandOperatorTemplate(op *Identifier, arg []*Operand, e *Vec) Value {
@@ -800,7 +893,7 @@ func (cc *Compiler) sWith(env *Env, e *Vec) Value {
 		i := i.(*Vec)
 		op := CheckValue(i.At(0), IdentifierT, "operator", etag, cc)
 
-		u := &Operand{Kind: nil}
+		u := NoOperand
 		if op.Name == KwDot {
 			cc.CompileExpr(env, i.At(1))
 			continue
@@ -810,7 +903,7 @@ func (cc *Compiler) sWith(env *Env, e *Vec) Value {
 
 		m1 := cc.CtxOpMap[op.Name]
 		if m1 == nil {
-			cc.RaiseCompileError(op, "unknown operator: %s", op)
+			cc.ErrorAt(op).With("unknown operator: %s", op)
 		}
 
 		m2 := m1[t.Kind]
@@ -818,7 +911,7 @@ func (cc *Compiler) sWith(env *Env, e *Vec) Value {
 			m2 = m1[KwAny]
 		}
 		if m2 == nil {
-			cc.RaiseCompileError(op, "cannot use %s as first operand for '%s'", t.Kind, op)
+			cc.ErrorAt(t, op).With("cannot use %s as first operand for '%s'", t.Kind, op)
 		}
 
 		body := m2[u.Kind]
@@ -827,9 +920,9 @@ func (cc *Compiler) sWith(env *Env, e *Vec) Value {
 		}
 		if body == nil {
 			if u == nil {
-				cc.RaiseCompileError(op, "[BUG] %s require second operand", op)
+				cc.ErrorAt(u, op).With("[BUG] %s require second operand", op)
 			} else {
-				cc.RaiseCompileError(op, "cannot use %s as second operand for '%s'", u.Kind, op)
+				cc.ErrorAt(u, op).With("cannot use %s as second operand for '%s'", u.Kind, op)
 			}
 		}
 
@@ -848,7 +941,7 @@ func (cc *Compiler) sCompileError(env *Env, e *Vec) Value {
 	if etag.ExpandedBy != nil {
 		etag = etag.ExpandedBy
 	}
-	cc.RaiseCompileError(etag, s.String())
+	cc.ErrorAt(etag).With("%s", s)
 	return NIL
 }
 
@@ -873,7 +966,7 @@ func (cc *Compiler) sImport(env *Env, e *Vec) Value {
 
 	mod := cc.FindModule(env, id.Name, id)
 	if mod == nil {
-		cc.RaiseCompileError(id, "unknown namespace %s", id.String())
+		cc.ErrorAt(id, etag).With("unknown namespace %s", id)
 	}
 	env.InsertEnv(mod.Env)
 	return NIL
@@ -902,14 +995,15 @@ func (cc *Compiler) sPatch(env *Env, e *Vec) Value {
 	delta := Value(Int(0))
 	if n == 3 {
 		delta = CheckValue(e.At(2), ConstexprT, "delta", etag, cc).Body
-		if KwByte.MatchId(delta) != nil {
-			delta = Int(-1)
-		} else if KwWord.MatchId(delta) != nil {
-			delta = Int(-2)
+		if id, ok := delta.(*Identifier); ok {
+			if t := GetBuiltinTypeById(id); t != nil {
+				delta = Int(-t.Size)
+			}
 		}
+		CheckValue(delta, IntT, "delta", etag, cc)
 	}
 
-	id := Gensym("patch." + name.String()).ToId(etag.Token)
+	id := etag.Expand(Gensym("patch." + name.String()))
 	label := cc.InstallNamed(env, id, NmLabel, &Label{})
 
 	nm.Value.(*Label).At = &Constexpr{Env: env, Body: &Vec{etag.Expand(KwPlusOp), id, delta}}
@@ -929,14 +1023,14 @@ func (cc *Compiler) sMakeCounter(env *Env, e *Vec) Value {
 	})
 	cc.InstallNamed(env, name, NmSpecial, getter)
 
-	fname := Gensym("make-counter").ToId(etag.Token)
+	fname := etag.Expand(Gensym("make-counter"))
 	resetter := SyntaxFn(func(cc *Compiler, env *Env, e *Vec) Value {
 		value = e.At(2).(Int)
 		return value
 	})
 	cc.InstallNamed(env, fname, NmFunc, resetter)
 
-	lhs := Gensym("counter").ToId(etag.Token)
+	lhs := etag.Expand(Gensym("counter"))
 	rhs := &Constexpr{Token: etag.Token, Body: &Vec{fname, name, value}, Env: env}
 	nm := cc.InstallNamed(env, lhs, NmConst, rhs)
 	return cc.EmitCodeByEnv(env, NewInst(e, InstConst, nm))
@@ -970,7 +1064,7 @@ func (cc *Compiler) sExprdata(env *Env, e *Vec) Value {
 // SYNTAX: (#.invalid-expansion ...)
 func (cc *Compiler) sInvalidExpansion(env *Env, e *Vec) Value {
 	etag, _ := CheckExpr(e, 1, 1, CtConstexpr, cc)
-	cc.RaiseCompileError(etag, "invalid expansion")
+	cc.ErrorAt(etag).With("invalid expansion")
 	return NIL
 }
 
@@ -1003,12 +1097,12 @@ func (cc *Compiler) sSizeof(env *Env, e *Vec) Value {
 
 	nm := cc.LookupNamed(env, name)
 	if nm == nil || nm.Kind != NmLabel {
-		cc.RaiseCompileError(etag, "unknown label name %s", name.String())
+		cc.ErrorAt(name, etag).With("unknown label name %s", name)
 	}
 
 	v := nm.Value.(*Label)
 	if !v.LinkedToData() {
-		cc.RaiseCompileError(etag, "%s is not a data", name.String())
+		cc.ErrorAt(name, etag).With("%s is not a data", name)
 	}
 	return Int(v.Link.size)
 }
@@ -1027,7 +1121,7 @@ func (cc *Compiler) sNametypeof(env *Env, e *Vec) Value {
 
 	nm := cc.LookupNamed(env, name)
 	if nm == nil {
-		cc.RaiseCompileError(etag, "unknown name %s", name.String())
+		cc.ErrorAt(name, etag).With("unknown name %s", name)
 	}
 	return NewStr(NamedKindLabels[nm.Kind])
 }
@@ -1073,13 +1167,13 @@ func (cc *Compiler) fMakeId(env *Env, e *Vec) Value {
 			case *Str:
 				s += string(*i)
 			default:
-				cc.RaiseCompileError(etag, "invalid fragment")
+				cc.ErrorAt(etag).With("invalid fragment")
 			}
 		default:
-			cc.RaiseCompileError(etag, "[BUG] invalid fragment")
+			cc.ErrorAt(etag).With("[BUG] invalid fragment")
 		}
 	}
-	return Intern(s).ToId(etag.Token)
+	return etag.Expand(Intern(s))
 }
 
 // FUN: (* a b)
@@ -1251,7 +1345,7 @@ func (cc *Compiler) fXor(env *Env, e *Vec) Value {
 // FUN: (~ a)
 func (cc *Compiler) fNot(env *Env, e *Vec) Value {
 	etag, _ := CheckExpr(e, 2, 2, CtConstexpr, cc)
-	a := CheckValue(e.At(1), IntT, "left value", etag, cc)
+	a := CheckValue(e.At(1), IntT, "value", etag, cc)
 
 	return ^a
 }
@@ -1259,7 +1353,7 @@ func (cc *Compiler) fNot(env *Env, e *Vec) Value {
 // FUN: (! a)
 func (cc *Compiler) fLogicalNot(env *Env, e *Vec) Value {
 	etag, _ := CheckExpr(e, 2, 2, CtConstexpr, cc)
-	a := CheckValue(e.At(1), IntT, "left value", etag, cc)
+	a := CheckValue(e.At(1), IntT, "value", etag, cc)
 
 	return BoolInt(a == Int(0))
 }
