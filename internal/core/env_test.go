@@ -251,8 +251,66 @@ func TestInline(t *testing.T) {
 	tt.True(t, Value(a) != a.Dup())
 }
 
+func TestDatatype(t *testing.T) {
+	tt.True(t, ByteType.IsSimple())
+	tt.True(t, !ByteType.IsStruct())
+	tt.True(t, !ByteType.IsArray())
+
+	a := NewDatatype(InternalId(Intern("NamedTypeA")))
+	tt.Eq(t, "<Datatype:NamedTypeA>", a.Inspect())
+	tt.True(t, Value(a) != a.Dup())
+
+	a.AddField(Intern("field1"), WordType, 1)
+	a.AddField(Intern("field2"), ByteType, 1)
+	tt.Eq(t, a.GetField(Intern("field1")).Offset, 0)
+	tt.Eq(t, a.GetField(Intern("field2")).Offset, 2)
+	tt.Eq(t, a.GetField(Intern("field3")), nil)
+	tt.True(t, a.IsStruct())
+	tt.True(t, !a.IsSimple())
+	tt.True(t, !a.IsArray())
+
+	b := NewDatatype(InternalId(Intern("NamedTypeB")))
+	b.AddField(KwUNDER, ByteType, 8)
+	tt.True(t, b.IsArray())
+	tt.True(t, !b.IsSimple())
+	tt.True(t, !b.IsStruct())
+}
+
 func TestEnv(t *testing.T) {
 	a := NewEnv(nil)
 	tt.Prefix(t, "<Env:", a.Inspect())
 	tt.Eq(t, Value(a), a.Dup())
+
+	b := a.Enter()
+	tt.Eq(t, a, b.Outer())
+}
+
+func TestTypeLabelOf(t *testing.T) {
+	tt.Eq(t, "integer", TypeLabelOf(Int(1)))
+	tt.Eq(t, "blob", TypeLabelOf(&Blob{}))
+	tt.Eq(t, "keyword", TypeLabelOf(NewKeyword("kw")))
+	tt.Eq(t, "string", TypeLabelOf(NewStr("str")))
+	tt.Eq(t, "vector", TypeLabelOf(&Vec{}))
+	tt.Eq(t, "identifier", TypeLabelOf(&Identifier{}))
+	tt.Eq(t, "constexpr", TypeLabelOf(&Constexpr{}))
+	tt.Eq(t, "label", TypeLabelOf(&Label{}))
+	tt.Eq(t, "(internal type)", TypeLabelOf(&Inst{}))
+}
+
+func TestFindToken(t *testing.T) {
+	token := &Token{From: InternalParser}
+	e := &Vec{&Identifier{Token: token}}
+	tt.Eq(t, token, FindToken(token))
+	tt.Eq(t, token, FindToken(e.At(0)))
+	tt.Eq(t, token, FindToken(e))
+	tt.Eq(t, token, FindToken(NewInst(e, InstDS)))
+	tt.Eq(t, token, FindToken(&Operand{From: e}))
+	tt.Eq(t, token, FindToken(&Constexpr{Token: token}))
+	tt.Eq(t, token, FindToken(&Named{Token: token}))
+
+	tt.Eq(t, nil, FindToken(&Identifier{}))
+	tt.Eq(t, nil, FindToken(&Vec{}))
+	tt.Eq(t, nil, FindToken(&Constexpr{}))
+	tt.Eq(t, nil, FindToken(Int(0)))
+	tt.Eq(t, nil, FindToken(NewStr("")))
 }

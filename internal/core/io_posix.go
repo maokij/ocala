@@ -12,6 +12,10 @@ import (
 	"strings"
 )
 
+func raiseError(err error) {
+	panic(err)
+}
+
 func replacePathExt(path, ext string) string {
 	return path[:len(path)-len(filepath.Ext(path))] + ext
 }
@@ -36,11 +40,6 @@ func regularizePath(s, dir string, paths []string) (string, error) {
 	return "", fmt.Errorf("the file `%s` not found", s)
 }
 
-func (g *Generator) raiseError(token *Token, tag string, message string, args ...any) {
-	err := &InternalError{message: tag + fmt.Sprintf(message, args...), token: token}
-	panic(err)
-}
-
 func (g *Generator) AppendIncPath(path string) error {
 	a, err := filepath.Abs(path)
 	if err != nil {
@@ -63,23 +62,24 @@ func (g *Generator) CompileAndGenerate(path string) bool {
 		if err == nil {
 			text, err = os.ReadFile(path)
 		}
-		if err == nil && g.OutPath == "" && strings.HasSuffix(path, ".oc") {
-			g.OutPath = replacePathExt(path, ".bin")
-		}
 	}
 	if err != nil {
-		g.RaiseGenerateError(err.Error())
+		g.ErrorWith(err.Error())
 	}
 
 	if g.OutPath == "" {
-		g.RaiseGenerateError("output file name required")
+		if strings.HasSuffix(path, ".oc") {
+			g.OutPath = replacePathExt(path, ".bin")
+		} else {
+			g.ErrorWith("output file name required")
+		}
 	}
 
 	if g.GenList && g.ListPath == "" {
 		if strings.HasSuffix(path, ".oc") {
 			g.ListPath = replacePathExt(path, ".lst")
 		} else {
-			g.RaiseGenerateError("list file name required")
+			g.ErrorWith("list file name required")
 		}
 	}
 
@@ -97,7 +97,7 @@ func (g *Generator) CompileAndGenerate(path string) bool {
 		err = os.WriteFile(g.ListPath, *g.ListText, 0o644)
 	}
 	if err != nil {
-		g.RaiseGenerateError(err.Error())
+		g.ErrorWith(err.Error())
 	}
 	return true
 }
@@ -122,7 +122,7 @@ func (cc *Compiler) sInclude(env *Env, e *Vec) Value {
 	CheckToplevelEnvIfCtProc(env, etag, cc)
 	rpath, err := regularizePath(string(*path), filepath.Dir(cc.InPath), cc.g.IncPaths)
 	if err != nil {
-		cc.RaiseCompileError(etag, err.Error())
+		cc.ErrorAt(etag).With(err.Error())
 	}
 
 	if slices.Index(cc.loaded, rpath) > -1 {
@@ -132,7 +132,7 @@ func (cc *Compiler) sInclude(env *Env, e *Vec) Value {
 
 	text, err := os.ReadFile(rpath)
 	if err != nil {
-		cc.RaiseCompileError(etag, err.Error())
+		cc.ErrorAt(etag).With(err.Error())
 	}
 
 	return cc.CompileIncluded(rpath, text)
@@ -146,12 +146,12 @@ func (cc *Compiler) sLoadFile(env *Env, e *Vec) Value {
 
 	rpath, err := regularizePath(string(*path), filepath.Dir(cc.InPath), cc.g.IncPaths)
 	if err != nil {
-		cc.RaiseCompileError(etag, err.Error())
+		cc.ErrorAt(etag).With(err.Error())
 	}
 
 	data, err := os.ReadFile(rpath)
 	if err != nil {
-		cc.RaiseCompileError(etag, err.Error())
+		cc.ErrorAt(etag).With(err.Error())
 	}
 
 	return &Blob{data: data, path: rpath, origPath: string(*path)}

@@ -2,7 +2,7 @@ package core
 
 /**:rules
   %options package: core
-  program:       ^{ v := &Vec{KwBlock.ToId(_here(p))} }!
+  program:       ^{ v := &Vec{_markerid(p, KwBlock)} }!
     stmt?         { if _1 != nil { v.Push(_1) } }!
       ( ';' stmt? { if _2 != nil { v.Push(_2) } }!
       )*          { RET v }!
@@ -27,31 +27,36 @@ package core
               | label ':' dataexpr     { v.Push(&Vec{_1, _3}) }!
               )* ')'                   { RET _1 }!
       ) '=' dataexpr                   { RET &Vec{KwConst.ToId(_1), _2, v, _4} }!
-  | DATA                               { v := Value(NIL); var w Value }!
-      ( identifier                     { w = _1 }!
-          ( '=' ( identifier           { v = w; w = _1 }!
-                | struct               { v = w; w = _1 }!
-                ) )?
-      | struct                         { w = _1 }!
-      ) databody                       { RET &Vec{KwData.ToId(_1), v, w, _3} }!
+  | DATA datatype                      { v := Value(NIL); w := _2 }!
+      ( '=' datatype                   { v = w; w = _2 }!
+      )? databody                      { RET &Vec{KwData.ToId(_1), v, w, _4} }!
   | MODULE identifier block            { RET &Vec{KwModule.ToId(_1), _2, _3} }!
   | label ':'                          { RET &Vec{KwLabel.ToId(_2), _1}; p.state = pstNl }!
+  | struct                             { v := _1.(*Vec); v.SetAt(1, NIL); RET v }!
   | expr                               { RET _1 }!
   ;
   struct:
-    STRUCT identifier? '{'             { v := &Vec{} }!
-       labeleddata?                    { if _2 != nil { v.Push(_2) } }!
-       ( ';' labeleddata?              { if _2 != nil { v.Push(_2) } }!
-       )* '}'                          { RET v }!
+    STRUCT                             { v := &Vec{KwStruct.ToId(_1), Int(1), NIL} }!
+      identifier?                      { if _2 != nil { v.SetAt(2, _2) } }!
+      '{' structfield?                 { if _4 != nil { v.Push(_4) } }!
+          ( ';' structfield?           { if _2 != nil { v.Push(_2) } }!
+          )* '}'                       { RET v }!
   ;
-  labeleddata:
-    label ':' identifier databody      { RET &Vec{_1, _3, _4} }!
+  structfield:
+    identifier datatype                { RET &Vec{_1, _2} }!
   ;
-  databody:                           ^{ here := _here(p); alloc := Value(KwMulOp.ToId(here))
-                                         size := _constexpr(Int(1), here); values := Value(NIL) }!
+  datatype:
+    '['                                { v := Value(NIL) }!
+      ( constexpr                      { v = _1 }!
+      )? ']' datatype                  { RET &Vec{KwArray.ToId(_1), _4, v} }!
+  | identifier                         { RET _1 }!
+  | struct                             { RET _1 }!
+  ;
+  databody:                           ^{ values := Value(NIL); }!
     ( datalist                         { values = _1 }!
     | constval                         { values = _1 }!
-    )?
+    )?                                 { alloc := Value(idMulOp);
+                                         size := Value(InternalConstexpr(Int(1))) }!
       ( BOP dataval                    { alloc = _1.Value; size = _2 }!
       )?                               { section := Value(NIL); addr := Value(NIL) }!
       ( ':' identifier                 { section = _2 }!
@@ -59,10 +64,15 @@ package core
       )?                               { RET &Vec{values, alloc, size, section, addr } }!
   ;
   datalist:
-    '['                                { v := &Vec{KwVec.ToId(_1)} }!
+    '['                                { v := &Vec{KwDataList.ToId(_1)} }!
         ( dataexpr                     { v.Push(_1) }!
         | datalist                     { v.Push(_1) }!
         )* ']'                         { RET v }!
+  | '{'                                { v := &Vec{KwStructData.ToId(_1)}
+                                         p.contexts = append(p.contexts, '#')}!
+        ( dataexpr                     { v.Push(_1) }!
+        | datalist                     { v.Push(_1) }!
+        )* '}'                         { RET v }!
   ;
   dataexpr:
     constexpr         { RET _1 }!
@@ -110,7 +120,7 @@ package core
       identifierp
       '(' sig ')'       { RET &Vec{KwCallproc.ToId(_3), _2, _1.Value, _4, KwCall} }!
   ;
-  contextexpr:         ^{ v := &Vec{KwWith.ToId(_here(p))} }!
+  contextexpr:         ^{ v := &Vec{_markerid(p, KwWith)} }!
     ( regld             { v = _1.(*Vec) }!
     | mem               { v.Push(_1) }!
     | explicitval       { v.Push(_1) }!
@@ -153,10 +163,10 @@ package core
     '$-' constval     { RET _2 }!
   | '$$-' constval    { RET &Vec{KwValueOf.ToId(_1), _2} }!
   ;
-  constexpr:         ^{ here := _here(p) }!
+  constexpr:         ^{ here := _marker(p) }!
     iexpr             { RET _constexpr(_1, here) }!
   ;
-  constval:          ^{ here := _here(p) }!
+  constval:          ^{ here := _marker(p) }!
     ival              { RET _constexpr(_1, here) }!
   ;
   iexpr:
@@ -165,17 +175,19 @@ package core
       )*              { RET p.cc.orderByPrec(v, idOpLast, nil)[0] }!
   ;
   ival:
-    INTEGER              { RET _1.Value }!
-  | STRING               { RET _1.Value }!
-  | RESERVED             { RET _1.Value }!
-  | IDENTIFIER           { v := _1.Value }!
-      ( '.-' IDENTIFIER  { v = &Vec{KwField.ToId(_1), v, _2.Value} }!
-      )*                 { RET v }!
-  | IDENTIFIERP          { v := &Vec{ _1.Value } }!
-      '(' ( iexpr        { v.Push(_1) }!
-          )* ')'         { RET v }!
-  | '(' iexpr ')'        { RET _2 }!
-  | AOP ival             { RET &Vec{ _1.Value, _2 } }!
+    INTEGER                { RET _1.Value }!
+  | STRING                 { RET _1.Value }!
+  | RESERVED               { RET _1.Value }!
+  | IDENTIFIER             { v := _1.Value }!
+      ( '.-' IDENTIFIER    { w := &Vec{KwField.ToId(_1), v, _2.Value} }!
+        ( '.-' IDENTIFIER  { w.Push(_2.Value) }!
+        )*                 { v = w }!
+      )?                   { RET v }!
+  | IDENTIFIERP            { v := &Vec{ _1.Value } }!
+      '(' ( iexpr          { v.Push(_1) }!
+          )* ')'           { RET v }!
+  | '(' iexpr ')'          { RET _2 }!
+  | AOP ival               { RET &Vec{ _1.Value, _2 } }!
   ;
   identifier:
     IDENTIFIER           { RET _constexpr(_1.Value, _1) }!
@@ -199,16 +211,26 @@ package core
  **/ //:reservedWords:
 
 var NILTK = &Token{From: InternalParser, Value: NIL}
+var idMulOp = InternalId(KwMulOp)
 
-func _here(p *Parser) *Token {
+func _marker(p *Parser) *Token {
 	if len(p.Tokens) == 0 {
-		pos, line := p.Pos, p.Line
-		p.seekToNextToken(false)
-		token := p.NewToken(0, NIL, p.Pos)
-		p.Pos, p.Line = pos, line
+		token := p.NewToken(0, NIL, 0)
+		p.pending = append(p.pending, token)
 		return token
 	}
 	return p.Tokens[0]
+}
+
+func _markerid(p *Parser, v *Keyword) Value {
+	if len(p.Tokens) == 0 {
+		token := p.NewToken(0, NIL, 0)
+		p.pending = append(p.pending, token)
+		id := &Identifier{Name: v, Token: token}
+		token.Value = id
+		return id
+	}
+	return v.ToId(p.Tokens[0])
 }
 
 func _constexpr(e Value, token *Token) Value {

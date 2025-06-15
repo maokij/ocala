@@ -3,7 +3,6 @@ package core
 import (
 	"fmt"
 	"maps"
-	"runtime"
 	"sort"
 	"strconv"
 )
@@ -36,23 +35,25 @@ var KwJump = Intern("#.jump")
 var KwJumpIf = Intern("-jump-if")
 var KwJumpUnless = Intern("-jump-unless")
 var KwTpl = Intern("#.tpl")
-var KwVec = Intern("#.vec")
 var KwProg = Intern("#.prog")
 var KwBlock = Intern("#.block")
 var KwWith = Intern("#.with")
 var KwCall = Intern("#.call")
 var KwCallproc = Intern("#.callproc")
-var KwUndefined = Intern("#.undefined")
 var KwEndProc = Intern("#.endproc")
 var KwFallthrough = Intern("#.fallthrough")
 var KwValueOf = Intern("#.valueof")
 var KwExprdata = Intern("#.exprdata")
 var KwEndInline = Intern("#.endinline")
-var KwField = Intern("#.field")
 var KwSetIota = Intern("#.set-iota")
 var KwInvalidExpansion = Intern("#.invalid-expansion")
 var KwMakeId = Intern("#.make-id")
 var KwInline = Intern("#.inline")
+var KwStruct = Intern("#.struct")
+var KwStructData = Intern("#.structdata")
+var KwDataList = Intern("#.datalist")
+var KwArray = Intern("#.array")
+var KwField = Intern("#.field")
 
 var KwLeftArrow = Intern("<-")
 var KwPlusOp = Intern("+")
@@ -167,20 +168,12 @@ type Compiler struct {
 	InlineInsts   []*Inst
 }
 
-func (cc *Compiler) RaiseCompileError(id *Identifier, message string, args ...any) {
-	var token *Token
-	if id != nil {
-		token = id.Token
+func (cc *Compiler) ErrorAt(values ...Value) *InternalError {
+	return &InternalError{
+		tag:       "compile error: ",
+		at:        values,
+		DebugMode: cc.g.DebugMode,
 	}
-
-	for i := 1; ; i++ {
-		if _, file, line, ok := runtime.Caller(i); ok && cc.g.DebugMode {
-			message += fmt.Sprintf("\n-- %s:%d", file, line)
-			continue
-		}
-		break
-	}
-	cc.g.raiseError(token, "compile error: ", message, args...)
 }
 
 func (cc *Compiler) EnterCodeBlock() {
@@ -243,7 +236,7 @@ func (cc *Compiler) FindModule(env *Env, kw *Keyword, id *Identifier) *Module {
 		return nil
 	}
 	if nm.Kind != NmModule {
-		cc.RaiseCompileError(id, "%s is not a namespace", kw.String())
+		cc.ErrorAt(id).With("%s is not a namespace", kw)
 	}
 	return nm.Value.(*Module)
 }
@@ -270,13 +263,13 @@ func (cc *Compiler) LookupNamed(env *Env, id *Identifier) *Named {
 
 func (cc *Compiler) InstallNamed(env *Env, id *Identifier, kind int32, value Value) *Named {
 	if id.Namespace != nil {
-		cc.RaiseCompileError(id, "invalid namespace %s", id.Namespace)
+		cc.ErrorAt(id).With("invalid namespace %s", id.Namespace)
 	}
 	if env.FindById(id) != nil {
-		cc.RaiseCompileError(id, "%s is already defined", id)
+		cc.ErrorAt(id).With("%s is already defined", id)
 	}
 	if cc.Builtins.FindById(id) != nil {
-		cc.RaiseCompileError(id, "%s is a builtin name", id)
+		cc.ErrorAt(id).With("%s is a builtin name", id)
 	}
 
 	nm := &Named{Token: id.Token, Name: id.Name, Kind: kind, Value: value}
@@ -427,9 +420,9 @@ func (cc *Compiler) GetOptimizer() *Optimizer {
 func CheckExpr(e *Vec, min, max int, contexts byte, cc *Compiler) (*Identifier, int) {
 	etag := e.ExprTag()
 	if etag == nil {
-		cc.RaiseCompileError(GetTokenAsId(e), "invalid form")
+		cc.ErrorAt(e).With("invalid form")
 	} else if contexts != 0 && (cc.Context()&contexts) == 0 {
-		cc.RaiseCompileError(etag, "%s is not allowed in this context", etag)
+		cc.ErrorAt(etag).With("%s is not allowed in this context", etag)
 	}
 
 	argc := e.Size()
@@ -440,28 +433,36 @@ func CheckExpr(e *Vec, min, max int, contexts byte, cc *Compiler) (*Identifier, 
 		} else if max > min {
 			s += ".." + strconv.Itoa(max-1)
 		}
-		cc.RaiseCompileError(etag, "%s: %s argument(s) required, but given %d", etag, s, argc-1)
+		cc.ErrorAt(etag).With("%s: %s argument(s) required, but given %d", etag, s, argc-1)
 	}
 
 	return etag, argc
 }
 
 func CheckValue[T Value](v Value, t T, name string, id *Identifier, cc *Compiler) T {
-	if w, ok := v.(T); ok {
-		return w
+	if a, ok := v.(T); ok {
+		return a
 	}
-	cc.RaiseCompileError(id, "%s is must be %s", name, TypeLabels[t])
+	cc.ErrorAt(v, id).With("%s must be %s", name, TypeLabelOf(t))
+	return t
+}
+
+func CheckValue2[T Value](e Value, v Value, t T, name string, id *Identifier, cc *Compiler) T {
+	if a, ok := v.(T); ok {
+		return a
+	}
+	cc.ErrorAt(e, id).With("%s must be %s", name, TypeLabelOf(t))
 	return t
 }
 
 func CheckConst[T Value](v Value, t T, name string, id *Identifier, cc *Compiler) T {
 	a := CheckValue(v, ConstexprT, name, id, cc)
-	return CheckValue(a.Body, t, name, id, cc)
+	return CheckValue2(v, a.Body, t, name, id, cc)
 }
 
 func EvalConstAs[T Value](v Value, env *Env, t T, name string, id *Identifier, cc *Compiler) T {
 	a := EvalConst(v, env, id, cc)
-	return CheckValue(a, t, name, id, cc)
+	return CheckValue2(v, a, t, name, id, cc)
 }
 
 func EvalConst(v Value, env *Env, id *Identifier, cc *Compiler) Value {
@@ -473,7 +474,7 @@ func EvalConst(v Value, env *Env, id *Identifier, cc *Compiler) Value {
 		cc.LeaveContext()
 		return r
 	}
-	cc.RaiseCompileError(nil, "[BUG] invalid context for the constexpr, %s", v.Inspect())
+	cc.ErrorAt(v).With("[BUG] invalid context for the constexpr, %s", v.Inspect())
 	return NIL
 }
 
@@ -510,43 +511,38 @@ func GetNamedValue[T Value](v Value, t T) T {
 	return v.(*Named).Value.(T)
 }
 
-func GetTokenAsId(e Value) *Identifier {
-	switch e := e.(type) {
-	case *Vec:
-		return GetTokenAsId(e.AtOrUndef(0))
-	case *Identifier:
-		return e
-	case *Constexpr:
-		return e.Token.TagId()
+func GetBuiltinTypeById(id *Identifier) *Datatype {
+	if id.Namespace != nil {
+		return nil
 	}
-	return nil
+	return BuiltinTypes[id.Name]
 }
 
-func CheckToplevelEnv(env *Env, etag *Identifier, cc *Compiler) {
+func CheckToplevelEnv(env *Env, id *Identifier, cc *Compiler) {
 	if env != cc.Toplevel {
-		cc.RaiseCompileError(etag, "%s must be in toplevel", etag.String())
+		cc.ErrorAt(id).With("%s must be in toplevel", id)
 	}
 }
 
-func CheckToplevelEnvIfCtProc(env *Env, etag *Identifier, cc *Compiler) {
-	if (cc.Context() & CtProc) != 0 {
-		CheckToplevelEnv(env, etag, cc)
+func CheckToplevelEnvIfCtProc(env *Env, id *Identifier, cc *Compiler) {
+	if cc.Context()&CtProc != 0 {
+		CheckToplevelEnv(env, id, cc)
 	}
 }
 
 func CheckReserved(nm *Named, id *Identifier, cc *Compiler) {
 	if nm == nil || nm.Kind != NmLabel {
-		cc.RaiseCompileError(id, "unknown label: %s", id)
+		cc.ErrorAt(id).With("unknown label: %s", id)
 	}
 	if e, ok := nm.Value.(*Label); !ok || !e.IsReserved() {
-		cc.RaiseCompileError(id, "%s already defined", id)
+		cc.ErrorAt(id).With("%s already defined", id)
 	}
 }
 
 func CheckConstPlainId(v Value, name string, id *Identifier, cc *Compiler) *Identifier {
 	a := CheckConst(v, IdentifierT, name, id, cc)
 	if a.Namespace != nil {
-		cc.RaiseCompileError(id, "qualified name is not allowed in this context")
+		cc.ErrorAt(v, id).With("qualified name is not allowed in this context")
 	}
 	return a
 }
@@ -579,7 +575,7 @@ func CheckBlockForm(v Value, name string, id *Identifier, cc *Compiler) *Vec {
 	if v := AsBlockForm(v); v != nil {
 		return v
 	}
-	cc.RaiseCompileError(id, "%s is must be block-form", name)
+	cc.ErrorAt(v, id).With("%s must be block-form", name)
 	return nil
 }
 
@@ -587,7 +583,7 @@ func CheckPhase(phase int, id *Identifier, cc *Compiler) {
 	if cc.Phase == phase {
 		return
 	}
-	cc.RaiseCompileError(id, "cannot use %s in %s phase", id.String(), PhaseLabels[cc.Phase])
+	cc.ErrorAt(id).With("cannot use %s in %s phase", id, PhaseLabels[cc.Phase])
 }
 
 //
@@ -596,18 +592,18 @@ func (cc *Compiler) CompileExpr(env *Env, e Value) Value {
 	switch e := e.(type) {
 	case *Constexpr:
 		if e.Env != nil && e.Env != env {
-			cc.RaiseCompileError(e.Token.TagId(), "[BUG] constexpr compiled twice")
+			cc.ErrorAt(e).With("[BUG] constexpr compiled twice")
 		}
 		e.Env = env
 	case *Vec:
 		etag := e.ExprTag()
 		if etag == nil {
-			cc.RaiseCompileError(GetTokenAsId(e), "invalid form")
+			cc.ErrorAt(e).With("invalid form")
 		}
 
 		nm := cc.LookupNamed(env, etag)
 		if nm == nil {
-			cc.RaiseCompileError(etag, "unknown form name %s", etag)
+			cc.ErrorAt(etag).With("unknown form name %s", etag)
 		}
 
 		switch nm.Kind {
@@ -618,7 +614,7 @@ func (cc *Compiler) CompileExpr(env *Env, e Value) Value {
 		case NmMacro:
 			return cc.expandMacro(env, e, nm.Value.(*Macro))
 		default:
-			cc.RaiseCompileError(etag, "invalid form %s(%s)", etag, NamedKindLabels[nm.Kind])
+			cc.ErrorAt(etag).With("invalid form %s(%s)", etag, NamedKindLabels[nm.Kind])
 		}
 	}
 	return e
@@ -639,7 +635,7 @@ func (cc *Compiler) unwrapExprdata(v Value, etag *Identifier) Value {
 	if v := KwExprdata.MatchExpr(v); v != nil && v.Size() == 2 {
 		return v.At(1)
 	}
-	cc.RaiseCompileError(etag, "the expression itself required. use the %%& placeholder")
+	cc.ErrorAt(etag).With("the expression itself required. use the %%& placeholder")
 	return NIL
 }
 
@@ -648,7 +644,7 @@ func (cc *Compiler) unwrapConstexprIf(cond bool, v Value, etag *Identifier) Valu
 		if v, ok := v.(*Constexpr); ok {
 			return v.Body
 		}
-		cc.RaiseCompileError(etag, "the placeholder only accepts constant expressions")
+		cc.ErrorAt(v, etag).With("the placeholder only accepts constant expressions")
 	}
 	return v
 }
@@ -668,7 +664,7 @@ func (cc *Compiler) expandMacroBody(env *Env, e Value, r *Vec, unwrap bool, by *
 
 		nm := cc.FindNamed(env, e)
 		if nm == nil {
-			cc.RaiseCompileError(e, "unknown placeholder %s in macro body", e)
+			cc.ErrorAt(e).With("unknown placeholder %s in macro body", e)
 		}
 
 		v := nm.Value.Dup()
@@ -676,7 +672,7 @@ func (cc *Compiler) expandMacroBody(env *Env, e Value, r *Vec, unwrap bool, by *
 			return r.Push(cc.unwrapConstexprIf(unwrap, v, e))
 		} else if e.PlaceHolder == "%&" {
 			if !unwrap {
-				cc.RaiseCompileError(e, "the %%& placeholder is only allowed within constant expressions")
+				cc.ErrorAt(e).With("the %%& placeholder is only allowed within constant expressions")
 			}
 			return r.Push(&Vec{by.Expand(KwExprdata), v})
 		} else if nm.Special {
@@ -709,11 +705,11 @@ func (cc *Compiler) expandMacroBody(env *Env, e Value, r *Vec, unwrap bool, by *
 			}
 
 			if unwrap {
-				cc.RaiseCompileError(e, "the non-constant value cannot be expanded in the constant expression")
+				cc.ErrorAt(e).With("the non-constant value cannot be expanded in the constant expression")
 			}
 			return r.Push(NewVec(v))
 		}
-		cc.RaiseCompileError(e, "vector operations only allowed on the rest parameter")
+		cc.ErrorAt(e).With("vector operations only allowed on the rest parameter")
 	case *Vec:
 		v := &Vec{}
 		for _, i := range *e {
@@ -737,7 +733,7 @@ func (cc *Compiler) expandMacro(env *Env, e *Vec, mac *Macro) Value {
 	tenv := NewEnv(env)
 
 	if cc.MacroNesting > 64 {
-		cc.RaiseCompileError(etag, "macro expansion too deep")
+		cc.ErrorAt(etag).With("macro expansion too deep")
 	}
 	cc.MacroNesting++
 
@@ -772,7 +768,7 @@ func (cc *Compiler) expandMacro(env *Env, e *Vec, mac *Macro) Value {
 		k := mac.Vars[x].(*Keyword)
 		v := mac.Vars[x+1]
 		if v == NIL {
-			v = Gensym(k.String()).ToId(etag.Token).ToConstexpr(nil)
+			v = etag.Expand(Gensym(k.String())).ToConstexpr(nil)
 		} else {
 			v = &Constexpr{Token: etag.Token, Body: EvalConst(v, tenv, etag, cc)}
 		}
@@ -803,6 +799,41 @@ func (cc *Compiler) expandInline(env *Env, e *Vec, id *Identifier, inline *Inlin
 	return NIL
 }
 
+func (cc *Compiler) evaluateType(env *Env, e Value, size int, id *Identifier) (*Datatype, int) {
+	if a := KwArray.MatchExpr(e); a != nil {
+		e = a.At(1)
+		if n := a.At(2); n == NIL {
+			if size != DataSizeAuto {
+				cc.ErrorAt(a).With("data length required")
+			}
+		} else {
+			n := EvalConstAs(n, env, IntT, "size", id, cc)
+			if n <= 0 {
+				cc.ErrorAt(a.At(2), a).With("invalid data length")
+			}
+			size = int(n)
+		}
+	}
+
+	switch v := e.(type) {
+	case *Constexpr:
+		id := CheckConst(v, IdentifierT, "type name", id, cc)
+		if t := GetBuiltinTypeById(id); t != nil {
+			return t, size
+		} else if env != nil {
+			nm := cc.LookupNamed(env, id)
+			if nm != nil && nm.Kind == NmDatatype {
+				return nm.Value.(*Datatype), size
+			}
+		}
+		cc.ErrorAt(id).With("invalid data type %s", id)
+	case *Vec:
+		return cc.CompileExpr(env, v).(*Datatype), size
+	}
+	cc.ErrorAt(e, id).With("[BUG] invalid data type")
+	return nil, 0
+}
+
 func (cc *Compiler) evaluateConstexpr(env *Env, e Value, token *Token) Value {
 	switch e := e.(type) {
 	case Int, *Str, *Keyword, *Blob, *Nil:
@@ -811,7 +842,7 @@ func (cc *Compiler) evaluateConstexpr(env *Env, e Value, token *Token) Value {
 		id, _ := CheckExpr(e, 1, -1, CtConstexpr, cc)
 		nm := cc.LookupNamed(env, id)
 		if nm == nil || nm.Value == nil {
-			cc.RaiseCompileError(id, "unknown operator %s", id)
+			cc.ErrorAt(id).With("unknown operator %s", id)
 		}
 
 		switch fn := nm.Value.(type) {
@@ -846,19 +877,19 @@ func (cc *Compiler) evaluateConstexpr(env *Env, e Value, token *Token) Value {
 				return fn(cc, env, args)
 			}
 		}
-		cc.RaiseCompileError(id, "%s is not callable", id)
+		cc.ErrorAt(id).With("%s is not callable", id)
 	case *Identifier:
 		nm := cc.LookupNamed(env, e)
 		if nm == nil {
-			cc.RaiseCompileError(e, "undefined name %s", e)
+			cc.ErrorAt(e).With("undefined name %s", e)
 		}
 
 		switch nm.Kind {
-		case NmVar:
+		case NmVar, NmDatatype:
 			return nm.Value
 		case NmLabel:
 			if cc.Phase == PhCompile {
-				cc.RaiseCompileError(e, "cannot use label address in compile phase")
+				cc.ErrorAt(e).With("cannot use label address in compile phase")
 			}
 			v := nm.Value.(*Label)
 			if v.At == nil {
@@ -867,14 +898,14 @@ func (cc *Compiler) evaluateConstexpr(env *Env, e Value, token *Token) Value {
 
 			w := cc.Constvals[v.At]
 			if w == nil {
-				cc.RaiseCompileError(e, "label %s used before declaration", e)
+				cc.ErrorAt(e).With("label %s used before declaration", e)
 			}
 			return w
 		case NmSpecial:
 			if v, ok := nm.Value.(SyntaxFn); ok {
 				return v(cc, env, &Vec{e})
 			}
-			cc.RaiseCompileError(e, "[BUG] invalid special variable %s", e)
+			cc.ErrorAt(e).With("[BUG] invalid special variable %s", e)
 		case NmConst:
 			v := nm.Value.(*Constexpr)
 			w := cc.Constvals[v]
@@ -883,15 +914,15 @@ func (cc *Compiler) evaluateConstexpr(env *Env, e Value, token *Token) Value {
 					w = cc.evaluateConstexpr(v.Env, v.Body, v.Token)
 					cc.Constvals[v] = w
 				} else {
-					cc.RaiseCompileError(e, "constant %s used before declaration", e)
+					cc.ErrorAt(e).With("constant %s used before declaration", e)
 				}
 			}
 			return w
 		default:
-			cc.RaiseCompileError(e, "cannot use the %s `%s` within this context", NamedKindLabels[nm.Kind], e)
+			cc.ErrorAt(e).With("cannot use the %s `%s` within this context", NamedKindLabels[nm.Kind], e)
 		}
 	}
-	cc.RaiseCompileError(token.TagId(), "[BUG] invalid constexpr: %s[%T]", e.Inspect(), e)
+	cc.ErrorAt(token).With("[BUG] invalid constexpr: %s[%T]", e.Inspect(), e)
 	return NIL
 }
 
@@ -900,7 +931,7 @@ var idOpLast = InternalId(Intern("#"))
 func (cc *Compiler) orderByPrec(s []Value, right *Identifier, v Value) []Value {
 	rp, ok := cc.Precs[right.Name]
 	if !ok || rp == 0 {
-		cc.RaiseCompileError(right.Token.TagId(), "[BUG] Unknown operator '%s'", right.Token)
+		cc.ErrorAt(right).With("[BUG] Unknown operator '%s'", right.Token)
 	}
 
 	for len(s) >= 3 {
@@ -975,9 +1006,9 @@ func (cc *Compiler) expandAllInlines() {
 			id := i.Args[2].(*Identifier)
 			nm := cc.LookupNamed(env, id)
 			if nm == nil {
-				cc.RaiseCompileError(i.ExprTag(), "undefined proc %s", id.String())
+				cc.ErrorAt(i).With("undefined proc %s", id)
 			} else if nm.Kind != NmInline {
-				cc.RaiseCompileError(i.ExprTag(), "%s is not a inline proc", id.String())
+				cc.ErrorAt(i).With("%s is not a inline proc", id)
 			}
 			cc.EnterCodeBlock()
 			cc.expandInline(nm.Env, i.From, id, nm.Value.(*Inline))
@@ -987,8 +1018,7 @@ func (cc *Compiler) expandAllInlines() {
 	cc.LeaveContext()
 
 	if len(cc.InlineInsts) > 0 {
-		etag := cc.InlineInsts[0].ExprTag()
-		cc.RaiseCompileError(etag, "inline proc expansion too deep")
+		cc.ErrorAt(cc.InlineInsts[0]).With("inline proc expansion too deep")
 	}
 }
 
@@ -1041,20 +1071,20 @@ func (cc *Compiler) doLink() []*Inst {
 				} else {
 					nm := cc.Toplevel.FindById(id)
 					if nm == nil || nm.Kind != NmModule {
-						cc.RaiseCompileError(etag, "unknown module %s", id)
+						cc.ErrorAt(etag).With("unknown module %s", id)
 					}
 					cc.emitCodeFromModule(nm.Value.(*Module), sec.Name)
 				}
 			}
 		default:
-			cc.RaiseCompileError(e.ExprTag(), "invalid link form")
+			cc.ErrorAt(e).With("invalid link form")
 		}
 	}
 
 	for _, nm := range modules {
 		for name, section := range nm.Value.(*Module).Sections {
 			if len(section.Insts) > 0 {
-				cc.RaiseCompileError(nil, "the section `%s@%s` is not linked", name.String(), nm.Name.String())
+				cc.ErrorAt().With("the section `%s@%s` is not linked", name, nm.Name)
 			}
 		}
 	}

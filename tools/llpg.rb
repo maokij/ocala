@@ -729,7 +729,7 @@ module LLPg
       code << "func (p #{parser_type}) _parse() (res #{value_type}, ok bool) {"
       code << "    res = p.#{method_name(@table.start)}()"
       code << "    if (p.PeekToken().Kind != tkEOF) {"
-      code << "         p.RaiseParseError(p.PeekToken(), \"EOF\")"
+      code << "         p.ErrorUnexpected(p.PeekToken(), \"EOF\")"
       code << "    }"
       code << "    ok = true"
       code << "    return"
@@ -787,7 +787,7 @@ module LLPg
 
       expected = set.keys | skip
       code << "default:"
-      code << "    p.RaiseParseError(p.PeekToken(), #{syms_as_string(expected)})"
+      code << "    p.ErrorUnexpected(p.PeekToken(), #{syms_as_string(expected)})"
       code << "}"
 
       annotations + code
@@ -813,7 +813,7 @@ module LLPg
       else
         if x > 0
           code << "if p.PeekToken().Kind != #{sym_in_code(sym)} {"
-          code << "    p.RaiseParseError(p.PeekToken(), #{syms_as_string([sym])})"
+          code << "    p.ErrorUnexpected(p.PeekToken(), #{syms_as_string([sym])})"
           code << "}"
         end
         code << "#{var} := p.ConsumeToken(); _ = #{var}"

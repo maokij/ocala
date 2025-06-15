@@ -92,7 +92,7 @@ func TestCompileAndGenerate(t *testing.T) {
 		tt.Eq(t, "generate error: unknown arch: unknown", g.ErrorMessage())
 	})
 
-	t.Run("error: with error line", func(t *testing.T) {
+	t.Run("error: full error message", func(t *testing.T) {
 		g := ttarch.BuildGenerator(ttarch.BuildCompiler(), tt.Unindent(`
 			// comment
 			data byte [this-error]
@@ -100,10 +100,34 @@ func TestCompileAndGenerate(t *testing.T) {
 		g.CompileAndGenerate("-")
 		tt.Eq(t, tt.Unindent(`
 			compile error: undefined name this-error
-			-:2:11
-			 |data byte [this-error]
-			 |           ^-- ??
-		`)+"\n", string(g.ErrorMessageWithErrorLine()))
+			[error #0]
+			  at -:2:11
+			   |data byte [this-error]
+			   |           ^-- ??
+		`)+"\n", string(g.FullErrorMessage()))
+	})
+
+	t.Run("error: full error message 2", func(t *testing.T) {
+		g := ttarch.BuildGenerator(ttarch.BuildCompiler(), tt.Unindent(`
+			macro m(a) { A <- %=a }
+			flat!; m ""
+		`))
+		g.CompileAndGenerate("-")
+		tt.Eq(t, tt.Unindent(`
+			compile error: operand must be integer
+			[error #0]
+			  at -:2:9
+			   |flat!; m ""
+			   |         ^-- ??
+			[error #1]
+			  at internal identifier LD
+			  from -:1:15
+			   |macro m(a) { A <- %=a }
+			   |               ^-- ??
+			  from -:2:7
+			   |flat!; m ""
+			   |       ^-- ??
+		`)+"\n", string(g.FullErrorMessage()))
 	})
 
 	t.Run("error: debug mode", func(t *testing.T) {
@@ -204,7 +228,7 @@ func TestGenerateList(t *testing.T) {
 			data byte [0 1 2 3 4 5 6 7]
 			data byte [1 2 "string" 0xABCD]
 			data word [0 1 2 3]
-			data word [1 2 ['s' 't' 'r' 'i' 'n' 'g'] 0xABCD]
+			data word [1 2 's' 't' 'r' 'i' 'n' 'g' 0xABCD]
 			data byte [0 1 2 3] * 4
 
 			align 8
@@ -769,7 +793,7 @@ func TestCompileConst(t *testing.T) {
 			"LD is a builtin name", `flat!
 				const LD = 1
 			`,
-			"constant value is must be constexpr", `flat!
+			"constant value must be constexpr", `flat!
 				macro mac(a) ={ const a = %=a }
 				mac EQ?
 			`,
@@ -817,7 +841,7 @@ func TestCompileData(t *testing.T) {
 			data w001 = word [0x6789]
 			data w002 = word [0xABCD 0xEF01]
 			data w003 = word [0x1234 't', 'e', 's', 't']
-			data b004 = byte [0 1 [2 3] 4 5 [6 7 8]] : rodata
+			data b004 = byte [0 1 2 3 4 5 6 7 8] : rodata
 			data b005 = byte [0 1 2 3] * 1 : rodata
 			data b006 = byte [4 5 6 7] * 3 : rodata
 			data w005 = word [0xa 0xb] * 1 : rodata
@@ -838,9 +862,257 @@ func TestCompileData(t *testing.T) {
 		}, dat, mes, dat)
 	})
 
+	t.Run("ok: struct", func(t *testing.T) {
+		dat, mes := compile(`
+			struct s { a byte; b word }
+			data s {}
+			data s {3}
+			data s {3 2}
+			data s {"a"}
+
+			data s []
+			data s [{}]
+			data s [{3}]
+			data s [{3 2}]
+			data s [{3 2} {5}]
+			data s [{3 2} {5 4}]
+
+			struct t { c byte; d s }
+			data t {}
+			data t {8}
+			data t {8 {}}
+			data t {8 {3}}
+			data t {8 {3 2}}
+
+			data t []
+			data t [{}]
+			data t [{8}]
+			data t [{8 {}}]
+			data t [{8 {3}}]
+			data t [{8 {3 2}}]
+		`)
+		tt.EqSlice(t, []byte{
+			0, 0, 0,
+			3, 0, 0,
+			3, 2, 0,
+			'a', 0, 0,
+
+			0, 0, 0,
+			3, 0, 0,
+			3, 2, 0,
+			3, 2, 0, 5, 0, 0,
+			3, 2, 0, 5, 4, 0,
+
+			0, 0, 0, 0,
+			8, 0, 0, 0,
+			8, 0, 0, 0,
+			8, 3, 0, 0,
+			8, 3, 2, 0,
+
+			0, 0, 0, 0,
+			8, 0, 0, 0,
+			8, 0, 0, 0,
+			8, 3, 0, 0,
+			8, 3, 2, 0,
+		}, dat, mes, dat)
+	})
+
+	t.Run("ok: sized", func(t *testing.T) {
+		dat, mes := compile(`
+			data [4]byte []
+			data [4]byte [5]
+			data [4]byte [5 4]
+			data [4]byte [5 4 3]
+			data [4]byte [5 4 3 2]
+
+			data [4]word []
+			data [4]word [5]
+			data [4]word [5 4]
+			data [4]word [5 4 3]
+			data [4]word [5 4 3 2]
+
+			struct s { a byte; b word }
+			data [4]s []
+			data [4]s [{}]
+			data [4]s [{5}]
+			data [4]s [{5 4}]
+			data [4]s [{5 4} {3}]
+			data [4]s [{5 4} {3 2}]
+
+			data [4]byte ["a"]
+			data [4]byte ["ab"]
+			data [4]byte ["abc"]
+			data [4]byte ["abcd"]
+
+			data [4]byte ["a", 4, 3, 2]
+			data [4]byte ["ab", 3, 2]
+			data [4]byte ["abc", 2]
+		`)
+		tt.EqSlice(t, []byte{
+			0, 0, 0, 0,
+			5, 0, 0, 0,
+			5, 4, 0, 0,
+			5, 4, 3, 0,
+			5, 4, 3, 2,
+
+			0, 0, 0, 0, 0, 0, 0, 0,
+			5, 0, 0, 0, 0, 0, 0, 0,
+			5, 0, 4, 0, 0, 0, 0, 0,
+			5, 0, 4, 0, 3, 0, 0, 0,
+			5, 0, 4, 0, 3, 0, 2, 0,
+
+			0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+			0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+			5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+			5, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+			5, 4, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0,
+			5, 4, 0, 3, 2, 0, 0, 0, 0, 0, 0, 0,
+
+			'a', 0, 0, 0,
+			'a', 'b', 0, 0,
+			'a', 'b', 'c', 0,
+			'a', 'b', 'c', 'd',
+
+			'a', 4, 3, 2,
+			'a', 'b', 3, 2,
+			'a', 'b', 'c', 2,
+		}, dat, mes, dat)
+	})
+
+	t.Run("ok: sized field", func(t *testing.T) {
+		dat, mes := compile(`
+			struct s { a [3]byte; b [2]word }
+			data s []
+			data s [{[5]}]
+			data s [{[5 4]}]
+			data s [{[5 4 3]}]
+			data s [{[5 4 3] [2]}]
+			data s [{[5 4 3] [2 1]}]
+			data s [{[5] [2]}]
+			data s [{[5 4] [2 1]}]
+
+			data s [{["a"]}]
+			data s [{["ab"] [2]}]
+			data s [{["abc"] [2 1]}]
+
+		`)
+		tt.EqSlice(t, []byte{
+			5, 0, 0, 0, 0, 0, 0,
+			5, 4, 0, 0, 0, 0, 0,
+			5, 4, 3, 0, 0, 0, 0,
+			5, 4, 3, 2, 0, 0, 0,
+			5, 4, 3, 2, 0, 1, 0,
+			5, 0, 0, 2, 0, 0, 0,
+			5, 4, 0, 2, 0, 1, 0,
+
+			'a', 0, 0, 0, 0, 0, 0,
+			'a', 'b', 0, 2, 0, 0, 0,
+			'a', 'b', 'c', 2, 0, 1, 0,
+		}, dat, mes, dat)
+	})
+
+	t.Run("ok: array", func(t *testing.T) {
+		dat, mes := compile(`
+			data [][4]byte []
+			data [][4]byte [["a"]]
+			data [][4]byte [["ab"]]
+			data [][4]byte [["abc"]]
+			data [][4]byte [["abcd"]]
+			data [][4]byte [["a"] ["a"]]
+			data [][4]byte [["ab"] ["ab"]]
+			data [][4]byte [["abc"] ["abc"]]
+			data [][4]byte [["abcd"] ["abcd"]]
+
+			data [2][4]byte
+			data [2][4]byte []
+			data [2][4]byte [[]]
+			data [2][4]byte [["a"]]
+		`)
+		tt.EqSlice(t, []byte{
+			'a', 0, 0, 0,
+			'a', 'b', 0, 0,
+			'a', 'b', 'c', 0,
+			'a', 'b', 'c', 'd',
+			'a', 0, 0, 0, 'a', 0, 0, 0,
+			'a', 'b', 0, 0, 'a', 'b', 0, 0,
+			'a', 'b', 'c', 0, 'a', 'b', 'c', 0,
+			'a', 'b', 'c', 'd', 'a', 'b', 'c', 'd',
+
+			0, 0, 0, 0, 0, 0, 0, 0,
+			0, 0, 0, 0, 0, 0, 0, 0,
+			0, 0, 0, 0, 0, 0, 0, 0,
+			'a', 0, 0, 0, 0, 0, 0, 0,
+		}, dat, mes, dat)
+	})
+	t.Run("ok: ds", func(t *testing.T) {
+		es := []struct {
+			a int
+			b string
+		}{
+			{1, "data byte"},
+			{2, "data byte * 2"},
+			{1, "data [1]byte"},
+			{2, "data [1]byte * 2"},
+			{1, "data [1][1]byte"},
+			{2, "data [1][1]byte * 2"},
+			{2, "data [2]byte"},
+			{4, "data [2]byte * 2"},
+			{4, "data [2][2]byte"},
+			{8, "data [2][2]byte * 2"},
+
+			{2, "data word"},
+			{4, "data word * 2"},
+			{2, "data [1]word"},
+			{4, "data [1]word * 2"},
+			{2, "data [1][1]word"},
+			{4, "data [1][1]word * 2"},
+			{4, "data [2]word"},
+			{8, "data [2]word * 2"},
+			{8, "data [2][2]word"},
+			{16, "data [2][2]word * 2"},
+
+			{2, "struct s { a [2]byte }; data s"},
+			{4, "struct s { a [2]byte }; data s * 2"},
+			{2, "struct s { a [2]byte }; data [1]s"},
+			{4, "struct s { a [2]byte }; data [1]s * 2"},
+			{4, "struct s { a [2]byte }; data [2]s"},
+			{8, "struct s { a [2]byte }; data [2]s * 2"},
+
+			{2, "data struct { a [2]byte }"},
+			{4, "data struct { a [2]byte } * 2"},
+			{2, "data [1]struct { a [2]byte }"},
+			{4, "data [1]struct { a [2]byte } * 2"},
+			{4, "data [2]struct { a [2]byte }"},
+			{8, "data [2]struct { a [2]byte } * 2"},
+		}
+		for _, i := range es {
+			dat, mes := compile(i.b)
+			tt.Eq(t, i.a, len(dat), mes, i.a, i.b)
+		}
+	})
+
+	t.Run("ok: generate list", func(t *testing.T) {
+		list, mes := genlist(`
+			struct s { a byte; b word}
+			data [4]s [{} {5} {6 7}]
+		`)
+		tt.EqText(t, tt.Unindent(`
+			|                                            ; generated by ocala
+
+			     - 0000                                 .org 0
+			000000 0000[3] ..                           .defb 3
+			000003 0003[1] 05                           .byte 5
+			000004 0004[2] ..                           .defb 2
+			000006 0006[1] 06                           .byte 6
+			000007 0007[2] 07 00                        .word 7
+			000009 0009[3] ..                           .defb 3
+
+		`)[1:]+"\n", list, mes)
+	})
+
 	t.Run("error", func(t *testing.T) {
 		es := []string{
-			"qualified name is not allowed in this context", `
+			"invalid data type invalid:byte", `
 				data b001 = invalid:byte
 			`,
 			"qualified name is not allowed in this context", `
@@ -861,14 +1133,139 @@ func TestCompileData(t *testing.T) {
 			"invalid data value", `flat!
 				data b001 = byte [quote(test)]
 			`,
+			"invalid blob type", `flat!
+				data b001 = word load-file("./testdata/embed01.dat")
+			`,
+			"invalid blob type", `flat!
+				data b001 = [4]byte load-file("./testdata/embed01.dat")
+			`,
+			"repeat operator must be `*`", `flat!
+				data byte / 2
+			`,
 			"invalid repeat count 0", `flat!
 				data byte * 0
 			`,
-			"data name required", `flat!
+			"too many elements", `flat!
+				data [2]byte [0, 1, 2]
+			`,
+			"the addressed data must be named", `flat!
 				data byte @ 0x0005
 			`,
 			"the addressed data cannot contain any elements", `flat!
 				data b001 = byte [1] @ 0x0005
+			`,
+			"strings are only allowed as byte data", `flat!
+				data b001 = word ["string"]
+			`,
+			"the string too long", `flat!
+				data b001 = [4]byte ["string"]
+			`,
+			"invalid data length", `flat!
+				data [-1]byte [1]
+			`,
+			"invalid data length", `flat!
+				data [0]byte [1]
+			`,
+			"invalid data length", `flat!
+				data [-1][2]byte [1]
+			`,
+			"invalid data length", `flat!
+				data [0][2]byte [1]
+			`,
+			"struct data required", `flat!
+				data struct { a byte } [1]
+			`,
+			"data list required", `flat!
+				data struct { a [2]byte } {1}
+			`,
+			"the string too long", `flat!
+				data struct { a byte } {"ab"}
+			`,
+		}
+		for x := 0; x < len(es); x += 2 {
+			_, mes := compile(es[x+1])
+			tt.Eq(t, "compile error: "+es[x], mes, es[x+1])
+		}
+	})
+}
+
+func TestCompileStruct(t *testing.T) {
+	t.Run("ok", func(t *testing.T) {
+		dat, mes := compile(`flat!
+			struct s0 {
+				z byte
+			}
+			struct s1 {
+				a byte
+				b word
+				c struct { x word; y byte }
+				d s0
+			}
+			data v = s1 @ 0x0100
+			db s1.a s1.b s1.c s1.c.x s1.c.y s1.d s1.d.z
+			dw v.a v.b v.c v.c.x v.c.y v.d v.d.z
+		`)
+		tt.EqSlice(t, []byte{
+			0, 1, 3, 3, 5, 6, 6,
+			0, 1, 1, 1, 3, 1, 3, 1, 5, 1, 6, 1, 6, 1,
+		}, dat, mes, dat)
+	})
+
+	t.Run("ok: size 1", func(t *testing.T) {
+		dat, mes := compile(`flat!
+			struct s { a [1]byte }
+			struct t { b [1]s }
+			struct u { a [1][1]byte }
+			data s {}
+			data t {}
+			data u {}
+		`)
+		tt.Eq(t, 3, len(dat), dat, mes, dat)
+	})
+
+	t.Run("error", func(t *testing.T) {
+		es := []string{
+			"named inner struct is not allowed", `flat!
+				struct s { a struct t {} }
+			`,
+			"the field a is already defined", `flat!
+				struct s { a byte; a byte }
+			`,
+			"data length required", `flat!
+				struct s { a []byte }
+			`,
+			"invalid data length", `flat!
+				struct s { a [0]byte }
+			`,
+			"invalid data length", `flat!
+				struct s { a [1][0]byte }
+			`,
+			"invalid data length", `flat!
+				struct s { a [0][1]byte }
+			`,
+			"invalid data length", `flat!
+				struct s { a byte }
+				struct t { b [0]s }
+			`,
+			"only builtin types can be used as array element types", `flat!
+				struct s { a byte }
+				struct t { b [2][4]s }
+			`,
+			"element type must be constexpr", `flat!
+				struct s { a [2][4][8]byte }
+			`,
+			"f is not a struct type", `flat!
+				proc f() { RET }
+				struct s { a byte }
+				db f.a
+			`,
+			"s is not a struct type", `flat!
+				struct s {}
+				db s.a
+			`,
+			"unknown field b", `flat!
+				struct s { a byte }
+				db s.b
 			`,
 		}
 		for x := 0; x < len(es); x += 2 {
@@ -986,6 +1383,13 @@ func TestCompileLoadFile(t *testing.T) {
 		`)
 		tt.EqSlice(t, []byte{0xF, 0xE, 0xD, 0xC, 0xB, 0xA, 9, 8,
 			7, 6, 5, 4, 3, 2, 1, 0}, dat, mes)
+	})
+
+	t.Run("ok: []byte", func(t *testing.T) {
+		dat, mes := compile(`
+			data []byte load-file("./testdata/embed01.dat")
+		`)
+		tt.Eq(t, 16, len(dat), dat, mes)
 	})
 
 	t.Run("ok: from include path", func(t *testing.T) {
@@ -1113,7 +1517,7 @@ func TestCompileAlign(t *testing.T) {
 
 	t.Run("error", func(t *testing.T) {
 		es := []string{
-			"argument is must be constexpr", `flat!
+			"argument must be constexpr", `flat!
 				align A
 			`,
 			"the alignment size must be power of 2", `flat!
@@ -1154,7 +1558,7 @@ func TestCompileSection(t *testing.T) {
 
 	t.Run("error", func(t *testing.T) {
 		es := []string{
-			"body is must be block-form", `
+			"body must be block-form", `
 				section text 1
 			`,
 		}
@@ -1367,6 +1771,9 @@ func TestCompileMacro(t *testing.T) {
 			"default value required", `flat!
 				macro mac(a: _ b) {}
 			`,
+			"parameter a is already defined", `flat!
+				macro mac(a a) {}
+			`,
 			"unknown placeholder %=a in macro body", `flat!
 				macro mac() { %=a }
 				mac
@@ -1403,6 +1810,12 @@ func TestCompileMacro(t *testing.T) {
 				macro mac(a) [invalid:b] {}
 				mac (1 + 2)
 			`,
+			"variable a is already defined", `flat!
+				macro mac(a) [a] {}
+			`,
+			"variable a is already defined", `flat!
+				macro mac() [a a] {}
+			`,
 			"invalid fragment", `flat!
 				macro mac(a) [b = %{a}] {}
 				mac (1 + 2)
@@ -1435,6 +1848,9 @@ func TestCompileWith(t *testing.T) {
 		es := []string{
 			"cannot use [X] as first operand for '<-'", `flat!
 				[X] <- A
+			`,
+			"unknown operator: *", `flat!
+				A * X
 			`,
 			"cannot use A as second operand for '-rep'", `flat!
 				$(1) -rep A
@@ -1522,7 +1938,7 @@ func TestSemanticCheck(t *testing.T) {
 			"cannot use X as operand#2 for LD", `flat!
 				LD A, X
 			`,
-			"cannot determine the size of the instruction", `
+			"cannot determine the size of the instruction(3 or 2)", `
 				link { org 255 0 1; merge text _ }
 				flat!
 				L0: DNN (258 - (L1 - L0))
@@ -1534,12 +1950,6 @@ func TestSemanticCheck(t *testing.T) {
 			`,
 			"unknown form name unknown?", `flat!
 				unknown? 1
-			`,
-			"<field> form not implemented yet", `flat!
-				A <- L0.field
-			`,
-			"data type is must be constexpr", `flat!
-				data d001 = struct { a: byte [0] }
 			`,
 		}
 		for x := 0; x < len(es); x += 2 {
@@ -1572,7 +1982,7 @@ func TestExprCheck(t *testing.T) {
 			"apply: 1+ argument(s) required, but given 0", `
 				apply
 			`,
-			"pragma is must be identifier", `
+			"pragma must be identifier", `
 				pragma 1
 			`,
 			"qualified name is not allowed in this context", `
@@ -1641,6 +2051,7 @@ func TestParseError(t *testing.T) {
 		`data byte [f001(!)]`,
 		`data byte [EQ?]`,
 		`data byte [1 !`,
+		`data byte [f(!`,
 		`const a =;`,
 		`const a $`,
 		`$(A)`,
@@ -1649,10 +2060,12 @@ func TestParseError(t *testing.T) {
 		`[1 !`,
 		`A @1`,
 		`A@@`,
-		`mac {1;`,
+		`mac { s;`,
+		`mac ={ s;`,
 		`mac (1 ! 1)`,
 		`1`,
 		`mac @`,
+		`func.A(`,
 		`func.A(!)`,
 		`func(!!)`,
 		`A . { db 1 !`,
@@ -1667,6 +2080,7 @@ func TestParseError(t *testing.T) {
 		`proc f(!`,
 		`proc f(A !)`,
 		`proc f(A) !`,
+		`module A`,
 	}
 	for _, i := range es {
 		_, mes := compile(i)

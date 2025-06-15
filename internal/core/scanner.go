@@ -15,38 +15,35 @@ type Token struct {
 	Value Value
 }
 
-func (t *Token) String() string {
-	label := tokenLabels[t.Kind]
-	return fmt.Sprintf("<Token: %s pos: %d>", label, t.Pos)
+func (v *Token) String() string {
+	label := tokenLabels[v.Kind]
+	return fmt.Sprintf("<Token: %s pos: %d>", label, v.Pos)
 }
 
 func (v *Token) LineNumber() int {
 	return bytes.Count(v.From.Text[:v.Pos], []byte{'\n'})
 }
 
-func (v *Token) TagId() *Identifier {
-	return KwUNDER.ToId(v)
+func (v *Token) Inspect() string {
+	return v.String()
 }
 
-func FormatErrorLine(token *Token, chain bool, message string) string {
-	p := token.From
-	bol := p.SeekToBOL(token.Pos)
-	col := max(token.Pos-bol, 0)
+func (v *Token) Dup() Value {
+	return CopyPtr(v)
+}
+
+func (v *Token) FormatAsErrorLine(s string) string {
+	p := v.From
+	bol := p.SeekToBOL(v.Pos)
+	col := max(v.Pos-bol, 0)
 	p.SkipUntil('\n')
 
-	internal := token.From == InternalParser
-	id, ok := token.Value.(*Identifier)
-	s := strings.TrimRight(message, "\n") + "\n"
-	if internal && ok {
-		s += fmt.Sprintf("<internal> %s\n", id)
+	if v.From == InternalParser {
+		s = fmt.Sprintf("  %s internal %s %s\n", s, TypeLabelOf(v.Value), v.Value)
 	} else {
-		s += fmt.Sprintf("%s:%d:%d\n", p.Path, token.LineNumber()+1, col) +
-			fmt.Sprintf(" |%s\n", p.SliceFrom(bol)) +
-			fmt.Sprintf(" |%s^-- ??\n", strings.Repeat(" ", int(col)))
-	}
-
-	if ok && chain && id.ExpandedBy != nil {
-		s += FormatErrorLine(id.ExpandedBy.Token, true, "from ")
+		s = fmt.Sprintf("  %s %s:%d:%d\n", s, p.Path, v.LineNumber()+1, col) +
+			fmt.Sprintf("   |%s\n", p.SliceFrom(bol)) +
+			fmt.Sprintf("   |%s^-- ??\n", strings.Repeat(" ", int(col)))
 	}
 	return s
 }
@@ -70,9 +67,13 @@ func _bstos(a []byte) string {
 	return unsafe.String(&a[0], len(a))
 }
 
-func (s *Scanner) RaiseScanError(message string, args ...any) {
-	token := s.NewToken(0, NIL, s.Pos)
-	s.cc.g.raiseError(token, "scan error: ", message, args...)
+func (s *Scanner) ErrorWith(message string, args ...any) {
+	err := &InternalError{
+		tag:       "scan error: ",
+		at:        []Value{s.NewToken(0, NIL, s.Pos)},
+		DebugMode: s.cc.g.DebugMode,
+	}
+	err.With(message, args...)
 }
 
 func (s *Scanner) IsEOF() bool {
@@ -121,7 +122,7 @@ func (s *Scanner) GetChar() (byte, bool) {
 func (s *Scanner) GetCharOrError() byte {
 	c, ok := s.GetChar()
 	if !ok {
-		s.RaiseScanError("unexpected EOF")
+		s.ErrorWith("unexpected EOF")
 	}
 	return c
 }

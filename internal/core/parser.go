@@ -9,6 +9,7 @@ type Parser struct {
 	Scanner
 	state    int
 	contexts []byte
+	pending  []*Token
 }
 
 const (
@@ -19,14 +20,27 @@ const (
 	pstNoNl
 )
 
-func (p *Parser) RaiseParseError(token *Token, expected string) {
+func (p *Parser) ErrorUnexpected(token *Token, expected string) {
 	label := tokenLabels[token.Kind]
-	p.cc.g.raiseError(token, "parse error: ", "unexpected %s, expected %s\n", label, expected)
+	err := &InternalError{
+		tag:       "parse error: ",
+		at:        []Value{token},
+		DebugMode: p.cc.g.DebugMode,
+	}
+	err.With("unexpected %s, expected %s\n", label, expected)
 }
 
 func (p *Parser) PeekToken() *Token {
 	if len(p.Tokens) == 0 {
 		p.scanToken()
+
+		if len(p.pending) > 0 {
+			pos := p.Tokens[0].Pos
+			for _, i := range p.pending {
+				i.Pos = pos
+			}
+			p.pending = p.pending[:0]
+		}
 	}
 	return p.Tokens[0]
 }
@@ -42,7 +56,7 @@ loop:
 			// NOP
 		case c == ',' && comment <= 0:
 			if comma || p.Line != line {
-				p.RaiseScanError("invalid comma")
+				p.ErrorWith("invalid comma")
 			}
 			comma = true
 		case c == '\n':
@@ -79,13 +93,13 @@ loop:
 	}
 
 	if comment == 2 {
-		p.RaiseScanError("the block comment is not terminated")
+		p.ErrorWith("the block comment is not terminated")
 	} else if nl {
 		nl = !comma && line != p.Line
 		if comma && p.Line-line > 1 {
-			p.RaiseScanError("the comma followed by blank lines is not allowed")
+			p.ErrorWith("the comma followed by blank lines is not allowed")
 		} else if bline > -1 {
-			p.RaiseScanError("the block comment must be followed by new line")
+			p.ErrorWith("the block comment must be followed by new line")
 		}
 	}
 
@@ -98,6 +112,7 @@ var reIdentifier = regexp.MustCompile(
 	`^([_a-zA-Z][-^!$%&*+/<=>?|~_a-zA-Z0-9]*:|::)?([-^!$%&*+/<=>?|~_a-zA-Z][-^!$%&*+/<=>?|~_a-zA-Z0-9]*)`)
 var nameChars = `-^!$%&*+/<=>?|~_0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz`
 var wsChars = " \t\r\n"
+var headChars = " \t\r\n,;([{"
 var tailChars = " \t\r\n,;)]}"
 
 func (p *Parser) newIdLikeToken(s, t string, ws, nl bool, context byte, pos int32, ph string) *Token {
@@ -111,7 +126,7 @@ func (p *Parser) newIdLikeToken(s, t string, ws, nl bool, context byte, pos int3
 	ns := s != ""
 	if ns {
 		if ph != "" {
-			p.RaiseScanError("placeholders cannot contain namespaces")
+			p.ErrorWith("placeholders cannot contain namespaces")
 		}
 		v.Namespace = Intern(s[:len(s)-1])
 	}
@@ -127,14 +142,11 @@ func (p *Parser) newIdLikeToken(s, t string, ws, nl bool, context byte, pos int3
 		return p.NewIdToken(tkBOP, v, pos)
 	} else if tk, ok := p.cc.ReservedWords[t]; ok {
 		if ph != "" {
-			p.RaiseScanError("reserved words cannot be use as placeholders")
+			p.ErrorWith("reserved words cannot be use as placeholders")
 		}
 
 		token := p.NewIdToken(tk, v, pos)
-		if tk == tkREG && p.ScanChar("@") {
-			p.PushToken(token)
-			token = p.NewIdToken(tkMIAT, v, p.Pos-1)
-		} else if tk == tkCOND && p.ScanChar(".") {
+		if tk == tkCOND && p.ScanChar(".") {
 			token.Kind = tkCONDDOT
 			p.state = pstWs
 		}
@@ -150,7 +162,7 @@ func (p *Parser) newIdLikeToken(s, t string, ws, nl bool, context byte, pos int3
 func (p *Parser) findTokenKind(s string) int32 {
 	tk, ok := tokenKinds[s]
 	if !ok {
-		p.RaiseScanError("invalid token %s", s)
+		p.ErrorWith("invalid token %s", s)
 	}
 	return tk
 }
@@ -199,7 +211,7 @@ func (p *Parser) scanEscapedChar() byte {
 			return byte(n)
 		}
 	}
-	p.RaiseScanError("invalid character escape")
+	p.ErrorWith("invalid character escape")
 	return 0
 }
 
@@ -228,11 +240,11 @@ func (p *Parser) scanToken() {
 	case p.Scan(rePlaceholder):
 		ph := p.Matched[0]
 		if !p.Scan(reIdentifier) {
-			p.RaiseScanError("invalid placeholder")
+			p.ErrorWith("invalid placeholder")
 		}
 		token = p.newIdLikeToken(p.Matched[1], p.Matched[2], false, false, context, pos, ph)
 	case p.ScanSeq("..."):
-		token = p.NewToken(tkREST, Int(1), pos)
+		token = p.NewIdToken(tkREST, &Identifier{Name: KwRest}, pos)
 	case p.ScanSeq(".."):
 		token = p.NewIdToken(tkBOP, &Identifier{Name: KwDotDot}, pos)
 	case p.ScanChar("."):
@@ -240,13 +252,20 @@ func (p *Parser) scanToken() {
 		tk := int32(tkDTMI)
 		if p.MatchChar(wsChars) {
 			if !ws {
-				p.RaiseScanError("leading whitespaces are required before the operator `.`")
+				p.ErrorWith("leading whitespaces are required before the operator `.`")
 			}
 			tk = tkDOP
 		}
 		token = p.NewIdToken(tk, &Identifier{Name: KwDot}, pos)
 	case p.ScanChar("@"):
 		s := p.SubStringFrom(pos) + stringIf(!p.MatchChar(wsChars), "-")
+		if !ws && p.Pos >= 2 {
+			p.Pos -= 2
+			if !p.MatchChar(headChars) {
+				s = "-@"
+			}
+			p.Pos += 2
+		}
 		tk := p.findTokenKind(s)
 		token = p.NewToken(tk, NIL, pos)
 	case p.ScanSeq("$"):
@@ -278,7 +297,7 @@ func (p *Parser) scanToken() {
 		token = p.NewIdToken(tkAOP, &Identifier{Name: KwLogicalNotOp}, pos)
 	case p.ScanChar("~"):
 		if p.MatchChar(wsChars) {
-			p.RaiseScanError("no whitespace is allowed after the prefix operator")
+			p.ErrorWith("no whitespace is allowed after the prefix operator")
 		}
 		token = p.NewIdToken(tkAOP, &Identifier{Name: KwNotOp}, pos)
 	case p.ScanChar(";`"):
@@ -298,16 +317,19 @@ func (p *Parser) scanToken() {
 	case p.ScanChar(")]}"):
 		tk := p.findTokenKind(p.SubStringFrom(pos))
 		token = p.NewToken(tk, NIL, pos)
+		if context == '#' {
+			p.contexts = p.contexts[:len(p.contexts)-1]
+		}
 		p.contexts = p.contexts[:len(p.contexts)-1]
 	case p.ScanChar(`'`):
 		c := p.GetCharOrError()
 		if c == '\'' {
-			p.RaiseScanError("blank character literal is invalid")
+			p.ErrorWith("blank character literal is invalid")
 		} else if c == '\\' {
 			c = p.scanEscapedChar()
 		}
 		if p.GetCharOrError() != '\'' {
-			p.RaiseScanError("invalid character literal")
+			p.ErrorWith("invalid character literal")
 		}
 		token = p.NewToken(tkINTEGER, Int(c), pos)
 	case p.ScanChar(`"`):
@@ -340,7 +362,7 @@ func (p *Parser) scanToken() {
 	case p.ScanChar(":"):
 		token = p.NewToken(tkCL, NIL, pos)
 	default:
-		p.RaiseScanError("invalid character '%c'", p.PeekChar())
+		p.ErrorWith("invalid character '%c'", p.PeekChar())
 	}
 
 	// for _, i := range p.Tokens {

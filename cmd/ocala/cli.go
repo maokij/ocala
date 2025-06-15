@@ -160,7 +160,7 @@ func (cli *CLI) Run(args []string) int {
 	}
 
 	if !g.CompileAndGenerate(path) {
-		g.ErrWriter.Write(g.ErrorMessageWithErrorLine())
+		g.ErrWriter.Write(g.FullErrorMessage())
 		return 1
 	}
 
