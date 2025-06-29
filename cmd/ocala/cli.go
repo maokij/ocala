@@ -20,9 +20,10 @@ var errInvalidTarget = fmt.Errorf("invalid target arch(-h for help)")
 var errInvalidInstallation = fmt.Errorf("invalid installation")
 
 var Archs = map[string]func() *core.Compiler{
-	"z80":     z80.BuildCompiler,
-	"6502":    mos6502.BuildCompiler,
-	"mos6502": mos6502.BuildCompiler,
+	"z80":              z80.BuildCompiler,
+	"z80+undocumented": z80.BuildCompilerUndocumented,
+	"6502":             mos6502.BuildCompiler,
+	"mos6502":          mos6502.BuildCompiler,
 }
 
 type CLI struct {

@@ -2,6 +2,24 @@ package ttarch
 
 import . "ocala/internal/core" //lint:ignore ST1001 core
 
+var bmaps = [][]byte{
+	{3, 1, 3, 0, 97, 103, 111}, // 0: BMM
+}
+
+var kwADD = Intern("ADD")
+var kwBCO = Intern("BCO")
+var kwBIT = Intern("BIT")
+var kwBMM = Intern("BMM")
+var kwBYTE = Intern("#.BYTE")
+var kwDNN = Intern("DNN")
+var kwEXT = Intern("EXT")
+var kwJMP = Intern("JMP")
+var kwJPR = Intern("JPR")
+var kwJR = Intern("JR")
+var kwJSR = Intern("JSR")
+var kwLD = Intern("LD")
+var kwNOP = Intern("NOP")
+var kwRET = Intern("RET")
 var kwRegA = Intern("A")
 var kwRegB = Intern("B")
 var kwRegP = Intern("P")
@@ -20,38 +38,31 @@ var kwCondEQ = Intern("EQ?")
 var kwCondCC = Intern("CC?")
 var kwCondCS = Intern("CS?")
 
-var operandToAsmMap = map[*Keyword](struct {
-	s string
-	t bool
-}){
-	kwRegA:   {s: "A", t: false},
-	kwRegB:   {s: "B", t: false},
-	kwRegP:   {s: "P", t: false},
-	kwRegAB:  {s: "AB", t: false},
-	kwRegSP:  {s: "SP", t: false},
-	kwRegPQ:  {s: "PQ", t: false},
-	kwRegX:   {s: "X", t: false},
-	kwMemX:   {s: "(X)", t: false},
-	kwRegY:   {s: "Y", t: false},
-	kwMemY:   {s: "(Y)", t: false},
-	kwImmN:   {s: "0+ %", t: true},
-	kwImmNN:  {s: "0+ %", t: true},
-	kwMemNN:  {s: "(%)", t: true},
-	kwCondNE: {s: "NE", t: false},
-	kwCondEQ: {s: "EQ", t: false},
-	kwCondCC: {s: "CC", t: false},
-	kwCondCS: {s: "CS", t: false},
+var asmOperands = map[*Keyword]AsmOperand{
+	kwRegA:   {"A", false},
+	kwRegB:   {"B", false},
+	kwRegP:   {"P", false},
+	kwRegAB:  {"AB", false},
+	kwRegSP:  {"SP", false},
+	kwRegPQ:  {"PQ", false},
+	kwRegX:   {"X", false},
+	kwMemX:   {"(X)", false},
+	kwRegY:   {"Y", false},
+	kwMemY:   {"(Y)", false},
+	kwImmN:   {"0+ %", true},
+	kwImmNN:  {"0+ %", true},
+	kwMemNN:  {"(%)", true},
+	kwCondNE: {"NE", false},
+	kwCondEQ: {"EQ", false},
+	kwCondCC: {"CC", false},
+	kwCondCS: {"CS", false},
 }
 
 var tokenWords = [][]string{
 	{"A", "B", "P", "X", "Y", "AB", "SP"},
 	{"NE?", "EQ?", "CC?", "CS?"},
-	{"-dnnm", "-byte"},
+	{"-jump", "-dnnm", "-byte"},
 	{"<-", "-jump-if", "-jump-unless", "-rep"},
-}
-
-var bmaps = [][]byte{
-	{3, 1, 3, 0, 97, 103, 111}, // 0: BMM
 }
 
 var tokenAliases = map[string]string{
@@ -66,12 +77,12 @@ var instAliases = map[string][]string{
 }
 
 var instMap = InstPat{
-	Intern("NOP"): InstPat{
+	kwNOP: InstPat{
 		nil: InstDat{
 			{Kind: BcByte, A0: 0x00},
 		},
 	},
-	Intern("JMP"): InstPat{
+	kwJMP: InstPat{
 		kwImmNN: InstPat{
 			nil: InstDat{
 				{Kind: BcByte, A0: 0x01},
@@ -87,7 +98,7 @@ var instMap = InstPat{
 			},
 		},
 	},
-	Intern("JPR"): InstPat{
+	kwJPR: InstPat{
 		kwImmNN: InstPat{
 			nil: InstDat{
 				{Kind: BcByte, A0: 0x02},
@@ -103,7 +114,7 @@ var instMap = InstPat{
 			},
 		},
 	},
-	Intern("JSR"): InstPat{
+	kwJSR: InstPat{
 		kwImmNN: InstPat{
 			nil: InstDat{
 				{Kind: BcByte, A0: 0x03},
@@ -119,12 +130,12 @@ var instMap = InstPat{
 			},
 		},
 	},
-	Intern("RET"): InstPat{
+	kwRET: InstPat{
 		nil: InstDat{
 			{Kind: BcByte, A0: 0x04},
 		},
 	},
-	Intern("JR"): InstPat{
+	kwJR: InstPat{
 		kwImmNN: InstPat{
 			nil: InstDat{
 				{Kind: BcByte, A0: 0x05},
@@ -138,7 +149,7 @@ var instMap = InstPat{
 			},
 		},
 	},
-	Intern("BCO"): InstPat{
+	kwBCO: InstPat{
 		kwImmNN: InstPat{
 			kwCondNE: InstPat{
 				nil: InstDat{
@@ -200,7 +211,135 @@ var instMap = InstPat{
 			},
 		},
 	},
-	Intern("LD"): InstPat{
+	KwJump: InstPat{
+		kwImmNN: InstPat{
+			nil: InstDat{
+				{Kind: BcByte, A0: 0x01},
+				{Kind: BcLow, A0: 0x00},
+				{Kind: BcHigh, A0: 0x00},
+			},
+			kwCondNE: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0x10},
+					{Kind: BcLow, A0: 0x00},
+					{Kind: BcHigh, A0: 0x00},
+				},
+			},
+			kwCondEQ: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0x11},
+					{Kind: BcLow, A0: 0x00},
+					{Kind: BcHigh, A0: 0x00},
+				},
+			},
+			kwCondCC: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0x12},
+					{Kind: BcLow, A0: 0x00},
+					{Kind: BcHigh, A0: 0x00},
+				},
+			},
+			kwCondCS: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0x13},
+					{Kind: BcLow, A0: 0x00},
+					{Kind: BcHigh, A0: 0x00},
+				},
+			},
+		},
+		kwImmN: InstPat{
+			nil: InstDat{
+				{Kind: BcByte, A0: 0x01},
+				{Kind: BcLow, A0: 0x00},
+				{Kind: BcHigh, A0: 0x00},
+			},
+			kwCondNE: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0x10},
+					{Kind: BcLow, A0: 0x00},
+					{Kind: BcHigh, A0: 0x00},
+				},
+			},
+			kwCondEQ: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0x11},
+					{Kind: BcLow, A0: 0x00},
+					{Kind: BcHigh, A0: 0x00},
+				},
+			},
+			kwCondCC: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0x12},
+					{Kind: BcLow, A0: 0x00},
+					{Kind: BcHigh, A0: 0x00},
+				},
+			},
+			kwCondCS: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0x13},
+					{Kind: BcLow, A0: 0x00},
+					{Kind: BcHigh, A0: 0x00},
+				},
+			},
+		},
+	},
+	KwCall: InstPat{
+		kwImmNN: InstPat{
+			nil: InstDat{
+				{Kind: BcByte, A0: 0x03},
+				{Kind: BcLow, A0: 0x00},
+				{Kind: BcHigh, A0: 0x00},
+			},
+			kwCondNE: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x01},
+				},
+			},
+			kwCondEQ: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x01},
+				},
+			},
+			kwCondCC: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x01},
+				},
+			},
+			kwCondCS: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x01},
+				},
+			},
+		},
+		kwImmN: InstPat{
+			nil: InstDat{
+				{Kind: BcByte, A0: 0x03},
+				{Kind: BcLow, A0: 0x00},
+				{Kind: BcHigh, A0: 0x00},
+			},
+			kwCondNE: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x01},
+				},
+			},
+			kwCondEQ: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x01},
+				},
+			},
+			kwCondCC: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x01},
+				},
+			},
+			kwCondCS: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x01},
+				},
+			},
+		},
+	},
+	kwLD: InstPat{
 		kwRegA: InstPat{
 			kwRegB: InstPat{
 				nil: InstDat{
@@ -411,7 +550,7 @@ var instMap = InstPat{
 			},
 		},
 	},
-	Intern("ADD"): InstPat{
+	kwADD: InstPat{
 		kwRegA: InstPat{
 			kwRegA: InstPat{
 				nil: InstDat{
@@ -459,7 +598,7 @@ var instMap = InstPat{
 			},
 		},
 	},
-	Intern("BIT"): InstPat{
+	kwBIT: InstPat{
 		kwImmN: InstPat{
 			kwRegA: InstPat{
 				nil: InstDat{
@@ -485,7 +624,7 @@ var instMap = InstPat{
 			},
 		},
 	},
-	Intern("BMM"): InstPat{
+	kwBMM: InstPat{
 		kwImmN: InstPat{
 			nil: InstDat{
 				{Kind: BcMap, A0: 0x00, A1: 0x00},
@@ -497,7 +636,7 @@ var instMap = InstPat{
 			},
 		},
 	},
-	Intern("DNN"): InstPat{
+	kwDNN: InstPat{
 		kwImmN: InstPat{
 			nil: InstDat{
 				{Kind: BcByte, A0: 0x64},
@@ -514,89 +653,148 @@ var instMap = InstPat{
 	},
 }
 
-var ctxOpMap = map[*Keyword]map[*Keyword]map[*Keyword][][]Value{
+var ctxOpMap = CtxOpMap{
 	Intern("<-"): {
 		kwRegA: {
 			KwAny: {
-				{Intern("LD"), &Vec{Int(0), nil}, &Vec{Int(1), nil}},
+				{kwLD, &Vec{Int(0), nil}, &Vec{Int(1), nil}},
 			},
 		},
 		kwRegB: {
 			KwAny: {
-				{Intern("LD"), &Vec{Int(0), nil}, &Vec{Int(1), nil}},
+				{kwLD, &Vec{Int(0), nil}, &Vec{Int(1), nil}},
 			},
 		},
 		kwRegX: {
 			KwAny: {
-				{Intern("LD"), &Operand{Kind: kwRegX}, &Vec{Int(1), nil}},
+				{kwLD, &Operand{Kind: kwRegX}, &Vec{Int(1), nil}},
 			},
 		},
 		kwRegY: {
 			KwAny: {
-				{Intern("LD"), &Operand{Kind: kwRegY}, &Vec{Int(1), nil}},
+				{kwLD, &Operand{Kind: kwRegY}, &Vec{Int(1), nil}},
 			},
 		},
 		kwRegAB: {
 			KwAny: {
-				{Intern("LD"), &Vec{Int(0), nil}, &Vec{Int(1), nil}},
+				{kwLD, &Vec{Int(0), nil}, &Vec{Int(1), nil}},
 			},
 			kwRegPQ: {
-				{Intern("LD"), &Vec{Int(0), nil}, Int(4660)},
+				{kwLD, &Vec{Int(0), nil}, Int(4660)},
+			},
+		},
+	},
+	Intern("-jump"): {
+		kwImmNN: {
+			nil: {
+				{KwJump, &Vec{Int(0), nil}},
 			},
 		},
 	},
 	Intern("-jump-if"): {
 		kwImmNN: {
 			kwCondNE: {
-				{Intern("BCO"), &Vec{Int(0), nil}, &Vec{Int(1), nil}},
+				{KwJump, &Vec{Int(0), nil}, &Vec{Int(1), nil}},
 			},
 			kwCondEQ: {
-				{Intern("BCO"), &Vec{Int(0), nil}, &Vec{Int(1), nil}},
+				{KwJump, &Vec{Int(0), nil}, &Vec{Int(1), nil}},
 			},
 			kwCondCC: {
-				{Intern("BCO"), &Vec{Int(0), nil}, &Vec{Int(1), nil}},
+				{KwJump, &Vec{Int(0), nil}, &Vec{Int(1), nil}},
 			},
 			kwCondCS: {
-				{Intern("BCO"), &Vec{Int(0), nil}, &Vec{Int(1), nil}},
+				{KwJump, &Vec{Int(0), nil}, &Vec{Int(1), nil}},
 			},
 		},
 	},
 	Intern("-jump-unless"): {
 		kwImmNN: {
 			kwCondNE: {
-				{Intern("BCO"), &Vec{Int(0), nil}, &Operand{Kind: kwCondEQ}},
+				{KwJump, &Vec{Int(0), nil}, &Operand{Kind: kwCondEQ}},
 			},
 			kwCondEQ: {
-				{Intern("BCO"), &Vec{Int(0), nil}, &Operand{Kind: kwCondNE}},
+				{KwJump, &Vec{Int(0), nil}, &Operand{Kind: kwCondNE}},
 			},
 			kwCondCC: {
-				{Intern("BCO"), &Vec{Int(0), nil}, &Operand{Kind: kwCondCS}},
+				{KwJump, &Vec{Int(0), nil}, &Operand{Kind: kwCondCS}},
 			},
 			kwCondCS: {
-				{Intern("BCO"), &Vec{Int(0), nil}, &Operand{Kind: kwCondCC}},
+				{KwJump, &Vec{Int(0), nil}, &Operand{Kind: kwCondCC}},
 			},
 		},
 	},
 	Intern("-dnnm"): {
 		kwMemNN: {
 			nil: {
-				{Intern("DNN"), &Vec{Int(0), kwImmNN}},
+				{kwDNN, &Vec{Int(0), kwImmNN}},
 			},
 		},
 	},
 	Intern("-byte"): {
 		kwImmNN: {
 			nil: {
-				{Intern("#.BYTE"), &Vec{Int(0), nil}},
+				{kwBYTE, &Vec{Int(0), nil}},
 			},
 		},
 	},
 	Intern("-rep"): {
 		kwImmNN: {
 			kwImmNN: {
-				{Intern("#.REP"), &Vec{Int(1), nil}, &Vec{
-					&Vec{Intern("#.BYTE"), &Vec{Int(0), nil}},
+				{KwREP, &Vec{Int(1), nil}, &Vec{
+					&Vec{kwBYTE, &Vec{Int(0), nil}},
 				}},
+			},
+		},
+	},
+}
+
+var asmOperandsExt = map[*Keyword]AsmOperand{}
+
+var tokenWordsExt = [][]string{
+	{},
+	{},
+	{},
+	{"-jump", "-ext"},
+}
+
+var instMapExt = InstPat{
+	kwEXT: InstPat{
+		kwRegA: InstPat{
+			kwImmN: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0x70},
+					{Kind: BcLow, A0: 0x01},
+				},
+			},
+			kwImmNN: InstPat{
+				nil: InstDat{
+					{Kind: BcTemp, A0: 0x00},
+					{Kind: BcTemp, A0: 0x00},
+				},
+			},
+		},
+	},
+}
+
+var ctxOpMapExt = CtxOpMap{
+	Intern("<-"): {
+		kwRegA: {
+			kwImmNN: {
+				{kwEXT, &Operand{Kind: kwRegA}, &Vec{Int(1), nil}},
+			},
+		},
+	},
+	Intern("-jump"): {
+		kwRegA: {
+			kwImmNN: {
+				{kwEXT, &Operand{Kind: kwRegA}, &Vec{Int(1), nil}},
+			},
+		},
+	},
+	Intern("-ext"): {
+		kwRegA: {
+			kwImmNN: {
+				{kwEXT, &Operand{Kind: kwRegA}, &Vec{Int(1), nil}},
 			},
 		},
 	},

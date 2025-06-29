@@ -1,6 +1,7 @@
     arch mos6502
     link { org 512 0 1 ; merge text _ }
     flat!
+    optimize near-jump 0
     A <- X
     A <- Y
     A <- 5

@@ -128,6 +128,8 @@ L37:
     BEQ L36
     BEQ L39
 L38:
+L39:
+L40:
     ORA #5
     ORA 5
     ORA 5, X
@@ -137,7 +139,7 @@ L38:
     ORA (5, X)
     ORA (5), Y
     ORA 5, Y
-L39:
+L41:
     AND #5
     AND 5
     AND 5, X
@@ -147,7 +149,7 @@ L39:
     AND (5, X)
     AND (5), Y
     AND 5, Y
-L40:
+L42:
     EOR #5
     EOR 5
     EOR 5, X
@@ -157,7 +159,7 @@ L40:
     EOR (5, X)
     EOR (5), Y
     EOR 5, Y
-L41:
+L43:
     ADC #5
     ADC 5
     ADC 5, X
@@ -167,7 +169,7 @@ L41:
     ADC (5, X)
     ADC (5), Y
     ADC 5, Y
-L42:
+L44:
     CMP #5
     CMP 5
     CMP 5, X
@@ -177,7 +179,7 @@ L42:
     CMP (5, X)
     CMP (5), Y
     CMP 5, Y
-L43:
+L45:
     SBC #5
     SBC 5
     SBC 5, X
@@ -187,54 +189,54 @@ L43:
     SBC (5, X)
     SBC (5), Y
     SBC 5, Y
-L44:
+L46:
     BIT 5
     BIT 1234
-L45:
+L47:
     CPX #5
     CPX 5
     CPX 1234
-L46:
+L48:
     CPY #5
     CPY 5
     CPY 1234
-L47:
+L49:
     INC 5
     INC 5, X
     INC 1234
     INC 1234, X
-L48:
-    INX 
-L49:
-    INY 
 L50:
+    INX 
+L51:
+    INY 
+L52:
     DEC 5
     DEC 5, X
     DEC 1234
     DEC 1234, X
-L51:
-    DEX 
-L52:
-    DEY 
 L53:
+    DEX 
+L54:
+    DEY 
+L55:
     ASL A
     ASL 5
     ASL 5, X
     ASL 1234
     ASL 1234, X
-L54:
+L56:
     LSR A
     LSR 5
     LSR 5, X
     LSR 1234
     LSR 1234, X
-L55:
+L57:
     ROL A
     ROL 5
     ROL 5, X
     ROL 1234
     ROL 1234, X
-L56:
+L58:
     ROR A
     ROR 5
     ROR 5, X

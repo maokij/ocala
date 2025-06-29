@@ -51,7 +51,7 @@ func EqText(t *testing.T, a, b string, rest ...any) {
 
 	if !ok {
 		t.Helper()
-		t.Errorf("text not equal\n%s; %v", strings.Join(diff, "\n"), rest)
+		t.Errorf("text not equal(%d/%d)\n%s; %v", len(as), len(bs), strings.Join(diff, "\n"), rest)
 	}
 }
 

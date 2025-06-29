@@ -72,8 +72,10 @@ test: lint
 .PHONY: testdata
 testdata:
 	./tools/generate_arch.rb testdata internal/z80/z80.lisp
-	z80asm -o internal/z80/testdata/opcodes.dat internal/z80/testdata/opcodes.asm
-	z80asm -o internal/z80/testdata/operators.dat internal/z80/testdata/operators.asm
+	pasmo internal/z80/testdata/opcodes.asm internal/z80/testdata/opcodes.dat
+	pasmo internal/z80/testdata/opcodes_undocumented.asm internal/z80/testdata/opcodes_undocumented.dat
+	pasmo internal/z80/testdata/operators.asm internal/z80/testdata/operators.dat
+	pasmo internal/z80/testdata/operators_undocumented.asm internal/z80/testdata/operators_undocumented.dat
 	./tools/generate_arch.rb testdata internal/mos6502/mos6502.lisp
 	ca65 -o internal/mos6502/testdata/opcodes.o internal/mos6502/testdata/opcodes.asm
 	ld65 -t none -o internal/mos6502/testdata/opcodes.dat internal/mos6502/testdata/opcodes.o

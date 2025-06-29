@@ -52,6 +52,8 @@ func (v InstDat) Find(k *Keyword) InstTab {
 	return nil
 }
 
+type CtxOpMap map[*Keyword]map[*Keyword]map[*Keyword][][]Value
+
 // //////////////////////////////////////////////////////////
 type Nil struct{}
 
@@ -490,6 +492,7 @@ const (
 	BcImp
 	BcMap
 	BcTemp
+	BcUnsupported
 )
 
 func (v BCode) Inspect() string {
@@ -528,7 +531,7 @@ type Inst struct {
 	Kind int
 	From *Vec
 	Args []Value
-	size int
+	Size int
 }
 
 const (
@@ -554,7 +557,7 @@ func (v *Inst) Dup() Value {
 	for _, i := range v.Args {
 		args = append(args, i.Dup())
 	}
-	return &Inst{Kind: v.Kind, From: v.From, Args: args, size: v.size}
+	return &Inst{Kind: v.Kind, From: v.From, Args: args, Size: v.Size}
 }
 
 func (v *Inst) ExprTag() *Identifier {

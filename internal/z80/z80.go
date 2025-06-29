@@ -1,19 +1,20 @@
 package z80
 
 import (
+	"maps"
 	. "ocala/internal/core" //lint:ignore ST1001 core
-	"strings"
+	"slices"
 )
 
 func BuildCompiler() *Compiler {
 	return &Compiler{
 		Arch:            "z80",
 		InstMap:         instMap,
-		InstAliases:     instAliases,
 		SyntaxMap:       syntaxMap,
 		CtxOpMap:        ctxOpMap,
 		ExprToOperand:   exprToOperand,
-		OperandToAsm:    operandToAsm,
+		AsmOperands:     asmOperands,
+		TrimAsmOperand:  true,
 		CollectRegs:     collectRegs,
 		KwRegA:          kwRegA,
 		TokenWords:      tokenWords,
@@ -22,21 +23,30 @@ func BuildCompiler() *Compiler {
 		TokenAliases:    tokenAliases,
 		IsValidProcTail: isValidProcTail,
 		AdjustInline:    adjustInline,
+		OptimizeBCode:   optimizeBCodeForward,
 	}
 }
 
-var kwLD = Intern("LD")
-var kwJP = Intern("JP")
-var kwJR = Intern("JR")
-var kwRET = Intern("RET")
-var kwRETI = Intern("RETI")
-var kwRETN = Intern("RETN")
-var kwCALL = Intern("CALL")
+func BuildCompilerUndocumented() *Compiler {
+	cc := BuildCompiler()
+	cc.Variant = "+undocumented"
+	cc.AsmOperands = maps.Clone(cc.AsmOperands)
+	maps.Copy(cc.AsmOperands, asmOperandsUndocumented)
+
+	cc.TokenWords = slices.Clone(cc.TokenWords)
+	cc.TokenWords[0] = append(cc.TokenWords[0], tokenWordsUndocumented[0]...)
+	cc.TokenWords[1] = append(cc.TokenWords[1], tokenWordsUndocumented[1]...)
+	cc.TokenWords[2] = append(cc.TokenWords[2], tokenWordsUndocumented[2]...)
+	cc.TokenWords[3] = append(cc.TokenWords[3], tokenWordsUndocumented[3]...)
+
+	cc.InstMap = MergeInstMap(cc.InstMap, instMapUndocumented)
+	cc.CtxOpMap = MergeCtxOpMap(cc.CtxOpMap, ctxOpMapUndocumented)
+	return cc
+}
+
 var kwNearJump = Intern("near-jump")
 
 var syntaxMap = map[*Keyword]SyntaxFn{
-	KwJump:          SyntaxFn(sJump), // for loop syntax
-	KwCall:          SyntaxFn(sCall),
 	KwOptimize:      SyntaxFn(sOptimize),
 	Intern("#.LDP"): SyntaxFn(sLdp),
 }
@@ -111,15 +121,7 @@ func exprToOperand(cc *Compiler, e Value) *Operand {
 	return InvalidOperand
 }
 
-func adjustOperand(cc *Compiler, e *Operand, etag *Identifier) {
-	c, ok := e.A0.(*Constexpr)
-	if !ok {
-		return
-	}
-
-	n := EvalConstAs(c, c.Env, IntT, "operand", etag, cc)
-	cc.Constvals[c] = n
-
+func adjustOperand(cc *Compiler, e *Operand, n int, etag *Identifier) {
 	switch e.Kind {
 	case kwImmN:
 		if n < -128 || n > 255 {
@@ -140,21 +142,9 @@ func adjustOperand(cc *Compiler, e *Operand, etag *Identifier) {
 	}
 }
 
-func operandToAsm(g *Generator, e *Operand) string {
-	a := operandToAsmMap[e.Kind]
-	s := a.s
-	if a.t {
-		s = strings.Replace(a.s, "%", g.ValueToAsm(nil, e.A0), 1)
-	}
-	if s[0] == '0' && s[1] == '+' && s[2] == ' ' && s[3] != '(' {
-		s = s[3:]
-	}
-	return s
-}
-
 func isValidProcTail(cc *Compiler, inst *Inst) bool {
 	switch inst.Args[0] {
-	case kwJP, kwJR:
+	case kwJP, kwJR, KwJump:
 		return len(inst.Args) == 2
 	case kwRET, kwRETI, kwRETN:
 		return len(inst.Args) == 1
@@ -188,7 +178,15 @@ func adjustInline(cc *Compiler, insts []*Inst) {
 	}
 }
 
-var optJumps = map[byte]byte{
+func updateInst(inst *Inst, kw *Keyword) {
+	if len(inst.Args) == 2 {
+		inst.Args = []Value{kw, inst.Args[1]}
+	} else {
+		inst.Args = []Value{kw, inst.Args[2], inst.Args[1]}
+	}
+}
+
+var optJumpCodes = map[byte]byte{
 	0xc3: 0x18, // JP
 	0xc2: 0x20, // JP NZ
 	0xca: 0x28, // JP Z
@@ -196,34 +194,56 @@ var optJumps = map[byte]byte{
 	0xda: 0x38, // JP C
 }
 
-func optimizeBCode(cc *Compiler, inst *Inst, bcodes []BCode, commit bool) []BCode {
-	if op := inst.Args[0].(*Keyword); op != kwJP {
-		return bcodes
+func optimizeBCode(cc *Compiler, inst *Inst, bcodes []BCode, commit bool, full bool) []BCode {
+	switch inst.Args[0].(*Keyword) {
+	case KwJump:
+		if code := optJumpCodes[bcodes[0].A0]; code != 0 {
+			c := inst.Args[1].(*Operand).A0.(*Constexpr)
+			v := cc.Constvals[c].(Int)
+			d := int(v) - cc.Pc
+			if d > 0 { // forward
+				d -= inst.Size
+			} else { // backward
+				d -= 2
+			}
+			if d >= -128 && d <= 127 && (full || d >= 0) {
+				bcodes = []BCode{{Kind: BcByte, A0: code}, {Kind: BcByte, A0: byte(d)}}
+			}
+		}
+
+		if commit {
+			kw := kwJP
+			if len(bcodes) == 2 {
+				kw = kwJR
+			}
+			updateInst(inst, kw)
+		}
+	case KwCall:
+		if commit {
+			updateInst(inst, kwCALL)
+		}
 	}
+	return bcodes
+}
 
-	n, ok := optJumps[bcodes[0].A0]
-	if !ok || inst.From.ExprTagName() == KwVolatile {
-		return bcodes
-	}
-
-	x := 1
-	if n != 0x18 {
-		x = 2
-	}
-
-	c := inst.Args[x].(*Operand).A0.(*Constexpr)
-	v := cc.Constvals[c].(Int)
-	d := int(v) - cc.Pc - 2
-
-	if d < -128 || d > 127 {
-		return bcodes
-	}
-
+func noOptimizeBCode(cc *Compiler, inst *Inst, bcodes []BCode, commit bool) []BCode {
 	if commit {
-		inst.Args[0] = kwJR
+		switch inst.Args[0].(*Keyword) {
+		case KwJump:
+			updateInst(inst, kwJP)
+		case KwCall:
+			updateInst(inst, kwCALL)
+		}
 	}
+	return bcodes
+}
 
-	return []BCode{{Kind: BcByte, A0: n}, {Kind: BcByte, A0: byte(d)}}
+func optimizeBCodeForward(cc *Compiler, inst *Inst, bcodes []BCode, commit bool) []BCode {
+	return optimizeBCode(cc, inst, bcodes, commit, false)
+}
+
+func optimizeBCodeFull(cc *Compiler, inst *Inst, bcodes []BCode, commit bool) []BCode {
+	return optimizeBCode(cc, inst, bcodes, commit, true)
 }
 
 func collectRegs(regs []*Keyword, reg *Keyword) []*Keyword {
@@ -249,38 +269,25 @@ func splitReg(a *Keyword) (*Keyword, *Keyword, bool) {
 	}
 }
 
-// SYNTAX: (#.jump addr cond)
-func sJump(cc *Compiler, env *Env, e *Vec) Value {
-	etag, _ := CheckExpr(e, 3, 3, CtProc, cc)
-	jump := &Vec{etag.ExpandedBy.Expand(kwJP)}
-	if e.At(2) != NIL {
-		jump.Push(e.At(2))
-	}
-	jump.Push(e.At(1))
-	return cc.CompileExpr(env, jump)
-}
-
-// SYNTAX: (#.call addr cond)
-func sCall(cc *Compiler, env *Env, e *Vec) Value {
-	etag, _ := CheckExpr(e, 3, 3, CtProc, cc)
-	call := &Vec{etag.ExpandedBy.Expand(kwCALL)}
-	if e.At(2) != NIL {
-		call.Push(e.At(2))
-	}
-	call.Push(e.At(1))
-	return cc.CompileExpr(env, call)
-}
-
 // SYNTAX: (optimize ...)
 func sOptimize(cc *Compiler, env *Env, e *Vec) Value {
-	etag, _ := CheckExpr(e, 2, -1, CtModule|CtProc, cc)
+	etag, n := CheckExpr(e, 2, -1, CtModule|CtProc, cc)
 	k := CheckConstPlainId(e.At(1), "kind", etag, cc)
 
 	CheckToplevelEnv(env, etag, cc)
-	optimizer := cc.GetOptimizer()
 	switch k.Name {
 	case kwNearJump:
-		optimizer.OptimizeBCode = optimizeBCode
+		v := Int(1)
+		if n == 3 {
+			v = CheckAndEvalConstAs(e.At(2), env, IntT, "option", etag, cc)
+		}
+
+		cc.OptimizeBCode = noOptimizeBCode
+		if v == Int(1) {
+			cc.OptimizeBCode = optimizeBCodeForward
+		} else if v > Int(1) {
+			cc.OptimizeBCode = optimizeBCodeFull
+		}
 	default:
 		cc.ErrorAt(etag).With("unknown optimizer: %s", k)
 	}

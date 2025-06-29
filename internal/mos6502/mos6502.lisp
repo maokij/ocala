@@ -40,7 +40,9 @@
     (MI? minus?))
   (map CC NE? 0 EQ? 1 CC? 2 CS? 3 VC? 4 VS? 5 PL? 6 MI? 7)
 
-  (example "$prologue" (*) "arch mos6502; link { org 512 0 1 ; merge text _ }; flat!" ".org 512")
+  (example "$prologue" (*)
+    "arch mos6502; link { org 512 0 1 ; merge text _ }; flat!; optimize near-jump 0"
+    ".org 512")
 
   (opcode  LDA (a)
     (N)  [0xA9 (=l a)]
@@ -126,6 +128,22 @@
   (opcode  BCS (a) (NN) [0xB0 (=rl a -2)])
   (opcode  BNE (a) (NN) [0xD0 (=rl a -2)])
   (opcode  BEQ (a) (NN) [0xF0 (=rl a -2)])
+
+  (opcode  #.jump (a) (NN) [0x4C (=l a) (=h a)])
+  (opcode  #.jump (a b)
+    (NN PL?) [0x30 0x03 0x4C (=l a) (=h a)]
+    (NN MI?) [0x10 0x03 0x4C (=l a) (=h a)]
+    (NN VC?) [0x70 0x03 0x4C (=l a) (=h a)]
+    (NN VS?) [0x50 0x03 0x4C (=l a) (=h a)]
+    (NN CC?) [0xB0 0x03 0x4C (=l a) (=h a)]
+    (NN CS?) [0x90 0x03 0x4C (=l a) (=h a)]
+    (NN NE?) [0xF0 0x03 0x4C (=l a) (=h a)]
+    (NN EQ?) [0xD0 0x03 0x4C (=l a) (=h a)])
+  (example #.jump (*) "" "")
+
+  (opcode  #.call (a)   (NN)    [0x20 (=l a) (=h a)])
+  (opcode  #.call (a b) (NN CC) [(=U b)])
+  (example #.call (*) "" "")
 
   ;;
   (opcode  ORA (a)
@@ -313,26 +331,21 @@
   (operator >>   (a b) (A NN) [(#.REP (= b) `[(CMP 0x80) (ROR A)])])
   (operator >>>  (a b) (_ NN) [(#.REP (= b) `[(LSR (= a))])])
 
-  (operator -jump-if (a b)
-    (NN NE?) [(BNE (= a))]
-    (NN EQ?) [(BEQ (= a))]
-    (NN CC?) [(BCC (= a))]
-    (NN CS?) [(BCS (= a))]
-    (NN VC?) [(BVC (= a))]
-    (NN VS?) [(BVS (= a))]
-    (NN PL?) [(BPL (= a))]
-    (NN MI?) [(BMI (= a))])
+  (operator -jump (a) (NN) [(#.jump (= a))])
+  (example -jump (*) "" "")
+
+  (operator -jump-if (a b) (NN CC) [(#.jump (= a) (= b))])
   (example -jump-if (*) "" "")
 
   (operator -jump-unless (a b)
-    (NN NE?) [(BEQ (= a))]
-    (NN EQ?) [(BNE (= a))]
-    (NN CC?) [(BCS (= a))]
-    (NN CS?) [(BCC (= a))]
-    (NN VC?) [(BVS (= a))]
-    (NN VS?) [(BVC (= a))]
-    (NN PL?) [(BMI (= a))]
-    (NN MI?) [(BPL (= a))])
+    (NN NE?) [(#.jump (= a) EQ?)]
+    (NN EQ?) [(#.jump (= a) NE?)]
+    (NN CC?) [(#.jump (= a) CS?)]
+    (NN CS?) [(#.jump (= a) CC?)]
+    (NN VC?) [(#.jump (= a) VS?)]
+    (NN VS?) [(#.jump (= a) VC?)]
+    (NN PL?) [(#.jump (= a) MI?)]
+    (NN MI?) [(#.jump (= a) PL?)])
   (example -jump-unless (*) "" "")
 
   (example $operators (*)
@@ -348,20 +361,20 @@
     "A >>> 2"   "LSR A; LSR A"
     "[5] >>> 2" "LSR 5; LSR 5"
 
-    "LBI:; $(LBI) -jump-if NE?" "LBI:; BNE LBI"
-    "$(LBI) -jump-if EQ?" "BEQ LBI"
-    "$(LBI) -jump-if CC?" "BCC LBI"
-    "$(LBI) -jump-if CS?" "BCS LBI"
-    "$(LBI) -jump-if VC?" "BVC LBI"
-    "$(LBI) -jump-if VS?" "BVS LBI"
-    "$(LBI) -jump-if PL?" "BPL LBI"
-    "$(LBI) -jump-if MI?" "BMI LBI"
+    "LBI:; $(LBI) -jump-if NE?" "LBI:; BEQ :+; JMP LBI; :"
+    "$(LBI) -jump-if EQ?" "BNE :+; JMP LBI; :"
+    "$(LBI) -jump-if CC?" "BCS :+; JMP LBI; :"
+    "$(LBI) -jump-if CS?" "BCC :+; JMP LBI; :"
+    "$(LBI) -jump-if VC?" "BVS :+; JMP LBI; :"
+    "$(LBI) -jump-if VS?" "BVC :+; JMP LBI; :"
+    "$(LBI) -jump-if PL?" "BMI :+; JMP LBI; :"
+    "$(LBI) -jump-if MI?" "BPL :+; JMP LBI; :"
 
-    "LBU:; $(LBU) -jump-unless NE?" "LBU:; BEQ LBU"
-    "$(LBU) -jump-unless EQ?" "BNE LBU"
-    "$(LBU) -jump-unless CC?" "BCS LBU"
-    "$(LBU) -jump-unless CS?" "BCC LBU"
-    "$(LBU) -jump-unless VC?" "BVS LBU"
-    "$(LBU) -jump-unless VS?" "BVC LBU"
-    "$(LBU) -jump-unless PL?" "BMI LBU"
-    "$(LBU) -jump-unless MI?" "BPL LBU"))
+    "LBU:; $(LBU) -jump-unless NE?" "LBU:; BNE :+; JMP LBU; :"
+    "$(LBU) -jump-unless EQ?" "BEQ :+; JMP LBU; :"
+    "$(LBU) -jump-unless CC?" "BCC :+; JMP LBU; :"
+    "$(LBU) -jump-unless CS?" "BCS :+; JMP LBU; :"
+    "$(LBU) -jump-unless VC?" "BVC :+; JMP LBU; :"
+    "$(LBU) -jump-unless VS?" "BVS :+; JMP LBU; :"
+    "$(LBU) -jump-unless PL?" "BPL :+; JMP LBU; :"
+    "$(LBU) -jump-unless MI?" "BMI :+; JMP LBU; :"))

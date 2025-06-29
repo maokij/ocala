@@ -42,15 +42,23 @@ func (cc *Compiler) sReserved(env *Env, e *Vec) Value {
 // SYNTAX: (load-file path)
 // func (cc *Compiler) sLoadFile(env *Env, e *Vec) Value
 
-// SYNTAX: (arch s)
+// SYNTAX: (arch name variant)
 func (cc *Compiler) sArch(env *Env, e *Vec) Value {
-	etag, _ := CheckExpr(e, 2, 2, CtModule|CtProc, cc)
+	etag, n := CheckExpr(e, 2, 3, CtModule|CtProc, cc)
 	arch := CheckConst(e.At(1), IdentifierT, "arch name", etag, cc)
 
 	CheckToplevelEnv(env, etag, cc)
 	if cc.Arch != arch.String() {
 		cc.ErrorAt(arch, etag).With("current target arch is %s", cc.Arch)
 	}
+
+	if n == 3 {
+		variant := CheckConst(e.At(2), IdentifierT, "variant name", etag, cc)
+		if cc.Variant != variant.String() {
+			cc.ErrorAt(variant, etag).With("current target variant is %s", cc.Variant)
+		}
+	}
+
 	return NIL
 }
 
@@ -98,21 +106,6 @@ func (cc *Compiler) sDo(env *Env, e *Vec) Value {
 	return cc.CompileExpr(env, v)
 }
 
-// SYNTAX: (<volatile> a)
-func (cc *Compiler) sVolatile(env *Env, e *Vec) Value {
-	etag, _ := CheckExpr(e, 2, -1, CtProc, cc)
-	op := CheckConst(e.At(1), IdentifierT, "op", etag, cc)
-	nm := cc.LookupNamed(env, op)
-	if nm == nil || nm.Kind != NmInst {
-		cc.ErrorAt(op, etag).With("unknown inst name %s", op)
-	}
-
-	cc.CompileExpr(env, NewVec(append([]Value{op}, (*e)[2:]...)))
-	insts := cc.CodeStack[len(cc.CodeStack)-1]
-	insts[len(insts)-1].From = e
-	return NIL
-}
-
 // SYNTAX: (apply fn ...)
 func (cc *Compiler) sApply(env *Env, e *Vec) Value {
 	etag, _ := CheckExpr(e, 2, -1, CtModule|CtProc, cc)
@@ -134,7 +127,7 @@ func (cc *Compiler) sLoop(env *Env, e *Vec) Value {
 	cc.EmitCode(NewInst(e, InstLabel, condNm))
 	if n == 2 {
 		a := etag.Expand(KwUBEG).ToConstexpr(nil)
-		cc.CompileExpr(env, &Vec{etag.Expand(KwJump), a, NIL})
+		cc.CompileExpr(env, &Vec{etag.Expand(KwJump), a})
 	} else {
 		a := CheckConst(e.At(2), IdentifierT, "loop condition", etag, cc)
 		cc.CompileExpr(env, NewVec(append([]Value{a}, (*e)[3:]...)))
@@ -156,7 +149,7 @@ func (cc *Compiler) sIfCond(env *Env, e *Vec) Value {
 	cc.CompileExpr(env, &Vec{
 		etag.Expand(KwWith),
 		endThenId.ToConstexpr(env),
-		&Vec{etag.Expand(KwJumpUnless), cond, NIL},
+		&Vec{etag.Expand(KwJumpUnlessOp), cond},
 	})
 	cc.CompileExpr(env, thenBody)
 	if n == 3 {
@@ -173,7 +166,7 @@ func (cc *Compiler) sIfCond(env *Env, e *Vec) Value {
 
 	endElseId := etag.Expand(Gensym("end-else"))
 	endElseNm := cc.InstallNamed(env, endElseId, NmLabel, &Label{})
-	cc.CompileExpr(env, &Vec{etag.Expand(KwJump), endElseId.ToConstexpr(env), NIL})
+	cc.CompileExpr(env, &Vec{etag.Expand(KwJump), endElseId.ToConstexpr(env)})
 	cc.EmitCode(NewInst(e, InstLabel, endThenNm))
 	cc.CompileExpr(env, elseBody)
 	return cc.EmitCode(NewInst(e, InstLabel, endElseNm))
@@ -291,7 +284,7 @@ func (cc *Compiler) sWhen(env *Env, e *Vec) Value {
 			return cc.CompileExpr(env, &Vec{
 				etag.Expand(KwWith),
 				endThenId.ToConstexpr(env),
-				&Vec{etag.Expand(KwJumpUnless), cond, NIL},
+				&Vec{etag.Expand(KwJumpUnlessOp), cond},
 			})
 		})
 		cc.InstallNamed(env, etag.Expand(KwWhenAnd), NmSyntax, and)
@@ -302,7 +295,7 @@ func (cc *Compiler) sWhen(env *Env, e *Vec) Value {
 			return cc.CompileExpr(env, &Vec{
 				etag.Expand(KwWith),
 				thenId.ToConstexpr(env),
-				&Vec{etag.Expand(KwJumpIf), cond, NIL},
+				&Vec{etag.Expand(KwJumpIfOp), cond},
 			})
 		})
 		cc.InstallNamed(env, etag.Expand(KwWhenOr), NmSyntax, or)
@@ -332,7 +325,7 @@ func (cc *Compiler) sWhen(env *Env, e *Vec) Value {
 
 	endElseId := etag.Expand(Gensym("end-else"))
 	endElseNm := cc.InstallNamed(env, endElseId, NmLabel, &Label{})
-	cc.CompileExpr(env, &Vec{etag.Expand(KwJump), endElseId.ToConstexpr(env), NIL})
+	cc.CompileExpr(env, &Vec{etag.Expand(KwJump), endElseId.ToConstexpr(env)})
 	cc.EmitCode(NewInst(e, InstLabel, endThenNm))
 	cc.CompileExpr(env, elseBody)
 	return cc.EmitCode(NewInst(e, InstLabel, endElseNm))
@@ -568,8 +561,10 @@ func (cc *Compiler) sCallproc(env *Env, e *Vec) Value {
 		inst := NewInst(e, InstMisc, KwInline, env, id, NIL)
 		cc.InlineInsts = append(cc.InlineInsts, inst)
 		cc.EmitCode(inst)
-	} else {
+	} else if cond != NIL {
 		cc.CompileExpr(env, &Vec{etag.Expand(op), name, cond})
+	} else {
+		cc.CompileExpr(env, &Vec{etag.Expand(op), name})
 	}
 	return cc.EmitCode(NewInst(e, InstMisc, KwCallproc, name, sig))
 }
@@ -1104,7 +1099,7 @@ func (cc *Compiler) sSizeof(env *Env, e *Vec) Value {
 	if !v.LinkedToData() {
 		cc.ErrorAt(name, etag).With("%s is not a data", name)
 	}
-	return Int(v.Link.size)
+	return Int(v.Link.Size)
 }
 
 // SYNTAX: (nameof a)

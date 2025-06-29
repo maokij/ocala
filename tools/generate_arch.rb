@@ -1,11 +1,13 @@
 #!/usr/bin/env ruby
 # frozen_string_literal: true
 
+require "set"
 require "strscan"
 require File.expand_path("llpg", __dir__)
 
 class GenerateArch
   module_eval LLPg.generate_code(<<-GRAMMAR)
+    prog: ^{ v = [:prog] }! (sexp { v << val[0] }!)* { v }!;
     sexp: INT { val[0].value }!
         | STR { val[0].value }!
         | SYM { val[0].value }!
@@ -15,10 +17,18 @@ class GenerateArch
   GRAMMAR
   include Parser
 
+  BOPS = %i[* / % + - << >> >>> < <= > >= == != & | ^ && ||].freeze
+  INTERNS = {
+    "#.REP": "KwREP",
+    "#.INVALID": "KwINVALID",
+    "#.jump": "KwJump",
+    "#.call": "KwCall"
+  }.freeze
   Operand = Struct.new(:name, :go, :oc, :asm, :alt, :temp)
   Token = Struct.new(:kind, :value, :pos)
   Arg = Struct.new(:v, :x)
   BMap = Struct.new(:x, :name, :mask, :min, :max, :map) # rubocop:disable Lint/StructNewOverride
+
   BCode = Struct.new(:t, :v) do # byte(n) low(x) high(x) imp(b x) temp
     def inspect
       "#{t.upcase}(#{v.map { |i| format('%02x', i) }.join(' ')})"
@@ -28,6 +38,7 @@ class GenerateArch
       pp.text(inspect)
     end
   end
+
   OpArg = Struct.new(:t, :v) do # k(x) s(x t) v(x)
     def inspect
       t == :k ? v[0].to_s : "#{v[1]}(#{v[0]})"
@@ -73,6 +84,60 @@ class GenerateArch
     end
   end
 
+  class Arch
+    ATTRIBUTES = Set.new(%i[
+                           opcodes operands operators bops uops bmaps
+                           registers conditions examples inst_aliases token_aliases
+                         ]).freeze
+    attr_reader :name, :base, *ATTRIBUTES
+
+    def initialize(name, base = nil)
+      @name = name
+      @base = base
+      @opcodes = {}
+      @operands = {}
+      @operators = {}
+      @bops = {}
+      @uops = {}
+      @bmaps = base ? base.bmaps : {}
+      @examples = {}
+      @inst_aliases = {}
+      @token_aliases = {}
+
+      @registers = []
+      @conditions = []
+
+      @operands[:_] = Operand.new(:_, "KwAny") unless base
+    end
+
+    def deep_merge(*rest)
+      merge = lambda do |a, b|
+        return b unless b.is_a?(Hash)
+        return b unless a.is_a?(Hash)
+
+        b.each { |k, v| a[k] = merge.call(a[k], v) }.then { a }
+      end
+      rest.reduce({}) { |r, i| merge.call(r, i) }
+    end
+
+    def all(attr, acc = [])
+      raise unless ATTRIBUTES.include?(attr)
+
+      (base ? base.all(attr, acc) : acc).push(send(attr))
+    end
+
+    def merged(attr)
+      deep_merge(*all(attr))
+    end
+
+    def fetch(attr, *ks)
+      raise unless ATTRIBUTES.include?(attr)
+
+      send(attr)&.dig(*ks) || base&.fetch(attr, *ks)
+    end
+  end
+  attr_reader :arch
+
   class Env
     attr_reader :outer, :items
 
@@ -112,7 +177,7 @@ class GenerateArch
         BCode.new(:rhigh, [evaluate(env, name).x, d, t])
       },
       "=m": lambda { |env, name, map|
-        BCode.new(:map, [evaluate(env, name).x, @bmaps[map].x])
+        BCode.new(:map, [evaluate(env, name).x, arch.bmaps[map].x])
       },
       "=t": lambda { |_env|
         BCode.new(:temp, [0])
@@ -120,50 +185,62 @@ class GenerateArch
       "=i": lambda { |env, name, base, mask, shift|
         BCode.new(:imp, [evaluate(env, name).x, evaluate(env, base), mask, shift])
       },
+      "=U": lambda { |env, name|
+        BCode.new(:unsupported, [evaluate(env, name).x])
+      },
       "+": lambda { |env, *args|
         args.reduce(0) { |r, i| r | evaluate(env, i) }
       },
       quote: lambda { |_env, v|
         v
       },
-      arch: lambda { |env, _name, *rest|
+      prog: lambda { |env, *rest|
         rest.each { |i| evaluate(env, i) }
+      },
+      arch: lambda { |env, name, *rest|
+        name, base = Array(name)
+        base = env[base] or raise "unknown base" if base
+
+        env[name] = @arch = Arch.new(name, base)
+        rest.each { |i| evaluate(env, i) }
+        adjust_temp
+        @archs << arch
       },
       map: lambda { |env, name, *kvs|
         env[name] = kvs.each_slice(2).to_h
         @form[name] = lambda { |ienv, k, shift = 0|
           k = evaluate(ienv, k).v
           v = evaluate(ienv, name)[k] or
-            raise "!invalid key #{k} in #{map}"
+            raise "!invalid key #{k} in #{name}"
           v << shift
         }
       },
       aliases: lambda { |_env, name, *names|
-        @inst_aliases[name] = names
+        arch.inst_aliases[name] = names
       },
       registers: lambda { |_env, *items|
-        @scanmap[:REG] = items
+        arch.registers.replace(items)
       },
       conditions: lambda { |_env, *items|
         items.each do |name, *aliases|
-          @scanmap[:COND] << name
-          aliases.each { @token_aliases[_1] = name }
+          arch.conditions << name
+          aliases.each { arch.token_aliases[_1] = name }
         end
       },
       bytemap: lambda { |_env, name, mask, min, max, *items|
-        x = @bmaps.size
-        @bmaps[name] = BMap.new(x, name, mask, min, max, items)
+        x = arch.bmaps.size
+        arch.bmaps[name] = BMap.new(x, name, mask, min, max, items)
       },
       operand: lambda { |env, name, go, oc, asm, alt = nil, temp = nil|
-        env[name] = @operands[name] = Operand.new(name, "kw#{go}", oc, asm, alt, temp)
+        env[name] = arch.operands[name] = Operand.new(name, "kw#{go}", oc, asm, alt, temp)
       },
       example: lambda { |env, name, *patterns|
         name = name.intern
-        @examples[name] ||= {}
+        arch.examples[name] ||= {}
 
         if patterns[0] == [:*]
           oc, asm = patterns[1..].each_slice(2).to_a.transpose.map { |i| i.join(";") }
-          @examples[name][[:*]] = [oc, asm]
+          arch.examples[name][[:*]] = [oc, asm]
         else
           patterns.each_slice(3) do |pat, oc, asm|
             puts "--> test: #{name} #{pat}" if ENV["DEBUG"]
@@ -172,14 +249,14 @@ class GenerateArch
             pat = pat.empty? ? [[]] : pat[0].product(*pat[1..])
 
             pat.each do |operands|
-              @examples[name][operands] = [oc, asm]
+              arch.examples[name][operands] = [oc, asm]
             end
           end
         end
       },
       opcode: lambda { |env, name, args, *patterns|
         name = name.intern
-        @opcodes[name] ||= {}
+        arch.opcodes[name] ||= {}
         patterns.each_slice(2) do |pat, body|
           puts "--> #{name} #{pat}" if ENV["DEBUG"]
           raise "?size mismatch #{args} / #{pat}" unless args.size == pat.size
@@ -191,7 +268,7 @@ class GenerateArch
             tenv = env.enter
             args.each_with_index { |i, x| tenv[i] = Arg.new(operands[x], x) }
 
-            found = @opcodes[name][operands]
+            found = arch.fetch(:opcodes, name, operands)
             bcodes = body.map do |i|
               i = evaluate(tenv, i)
               if i.is_a?(Integer)
@@ -204,7 +281,7 @@ class GenerateArch
             if found
               warn "already defined (#{name} #{operands.join(', ')}) as #{found}, skip #{bcodes}"
             else
-              @opcodes[name][operands] = bcodes
+              arch.opcodes[name][operands] = bcodes
             end
           end
         end
@@ -212,9 +289,9 @@ class GenerateArch
       operator: lambda { |env, name, args, *patterns|
         name = name.intern
         if args.size == 1
-          @uops[name] ||= 0
+          arch.uops[name] ||= 0
         elsif args.size == 2
-          @bops[name] ||= 0
+          arch.bops[name] ||= 0
         end
 
         mapcode = lambda do |ienv, body|
@@ -232,7 +309,7 @@ class GenerateArch
           end
         end
 
-        @operators[name] ||= {}
+        arch.operators[name] ||= {}
         patterns.each_slice(2) do |pat, body|
           puts "--> #{name} #{pat}" if ENV["DEBUG"]
           raise "?size mismatch #{args} / #{pat}" unless args.size == pat.size
@@ -244,29 +321,17 @@ class GenerateArch
             tenv = env.enter
             args.each_with_index { |i, x| tenv[i] = Arg.new(operands[x], x) }
 
-            raise "already defined (#{name} #{operands.join(', ')})" if @operators[name][operands]
+            raise "already defined (#{name} #{operands.join(', ')})" if arch.operators[name][operands]
 
-            @operators[name][operands] = mapcode.call(tenv, body)
+            arch.operators[name][operands] = mapcode.call(tenv, body)
           end
         end
       }
     }
+
+    @archs = []
     @s = StringScanner.new(src)
-    @opcodes = {}
-    @operands = {}
-    @operators = {}
-    @bops = {}
-    @uops = {}
-    @bmaps = {}
-    @scanmap = { REG: [], COND: [] }
-    @examples = {}
-    @inst_aliases = {}
-    @token_aliases = {}
-    e = _parse([])
-    env = Env.new
-    @operands[:_] = env[:_] = Operand.new(:_, "KwAny")
-    evaluate(Env.new, e)
-    adjust_temp
+    evaluate(Env.new, _parse([]))
   end
 
   def nest_map(m)
@@ -292,8 +357,8 @@ class GenerateArch
   end
 
   def adjust_temp
-    alts = @operands.filter_map { |k, v| v.alt && [k, v] }.to_h
-    @opcodes.each_value do |pats|
+    alts = arch.merged(:operands).filter { |_, v| v.alt }
+    arch.opcodes.each_value do |pats|
       as = {}
       pats.each do |pat, body|
         temp = false
@@ -324,15 +389,21 @@ class GenerateArch
       raise "?unknown func #{name}" unless @form[name]
 
       @form[name].call(env, *args)
-
     else
       raise "?invalid form #{e}"
     end
   end
 
-  def generate_table_code(package)
+  def intern(name)
+    return INTERNS[name] if INTERNS[name]
+
+    name = name.to_s
+    @interns[name] ||= "kw#{name.gsub(/\W/, '')}"
+  end
+
+  def generate_table_code(_package, arch)
     operand_code = lambda do |a|
-      @operands[a]&.go || "nil"
+      arch.fetch(:operands, a)&.go || "nil"
     end
 
     bcodes_code = lambda do |ls|
@@ -354,13 +425,13 @@ class GenerateArch
           case i.t
           when :k
             k = i.v[0]
-            a = @operands[k]
+            a = arch.fetch(:operands, k)
             if a
               "&Operand{Kind: #{a.go}}"
-            elsif !k.start_with?("#") && !@opcodes[k]
+            elsif !k.start_with?("#") && !arch.fetch(:opcodes, k)
               raise "unknown opcode #{k}"
             else
-              %!Intern("#{k}")!
+              intern(k)
             end
           when :v
             "Int(#{i.v[0]})"
@@ -388,70 +459,70 @@ class GenerateArch
     end
 
     code = []
-    code << "package #{package}" << ""
-    code << %(import . "ocala/internal/core" //lint:ignore ST1001 core) << ""
+    suffix = arch.base ? arch.name.to_s.gsub(/\W/, "").capitalize : ""
 
-    @operands.each_value do |v|
+    arch.operands.each_value do |v|
       code << %!var #{v.go} = Intern("#{v.oc}")! unless v.go.start_with?("Kw")
     end
     code << ""
 
-    code << "var operandToAsmMap = map[*Keyword](struct{ s string; t bool }){"
-    @operands.each_value do |v|
+    code << "var asmOperands#{suffix} = map[*Keyword]AsmOperand{"
+    arch.operands.each_value do |v|
       next unless v.asm
 
       s = v.asm.gsub(/%[BW]/, "%")
       t = s == v.asm ? "false" : "true"
-      code << %(  #{v.go}: { s: "#{s}", t: #{t} },)
+      code << %(  #{v.go}: { "#{s}", #{t} },)
     end
     code << "}" << ""
 
-    code << "var tokenWords = [][]string{"
-    @scanmap.slice(:REG, :COND).each do |k, v|
+    code << "var tokenWords#{suffix} = [][]string{"
+    [arch.registers, arch.conditions].each do |v|
       s = v.map do |i|
-        a = @operands[i]&.oc or raise "invalid operand #{i} for #{k}"
+        a = arch.fetch(:operands, i)&.oc or raise "invalid operand #{i}"
         %("#{a}")
       end
       code << "    { #{s.join(', ')} },"
     end
-    uops = @uops.keys.map { %("#{_1}") }
-    bops = %i[* / % + - << >> >>> < <= > >= == != & | ^ && ||]
-    bops = (@bops.keys - bops).map { %("#{_1}") }
+    uops = arch.uops.keys.map { %("#{_1}") }
+    base_bops = (arch.base&.merged(:bops) || {}).keys | BOPS
+    bops = (arch.bops.keys - base_bops).map { %("#{_1}") }
     code << "    { #{uops.join(', ')} },"
     code << "    { #{bops.join(', ')} },"
     code << "}" << ""
 
-    code << "var bmaps = [][]byte{"
-    @bmaps.sort_by { |_k, v| v.x }.each do |k, v|
-      map = v.map.join(", ")
-      code << %(  {#{v.mask}, #{v.min}, #{v.max}, #{map}}, // #{v.x}: #{k})
+    unless arch.token_aliases.empty?
+      code << "var tokenAliases#{suffix} = map[string]string{"
+      arch.token_aliases.each do |k, v|
+        code << %(  "#{k}": "#{v}",)
+      end
+      code << "}" << ""
     end
-    code << "}" << ""
 
-    code << "var tokenAliases = map[string]string{"
-    @token_aliases.each do |k, v|
-      code << %(  "#{k}": "#{v}",)
+    unless arch.inst_aliases.empty?
+      code << "var instAliases#{suffix} = map[string][]string{"
+      arch.inst_aliases.each do |k, v|
+        v = v.map { %("#{_1}") }.join(", ")
+        code << %(  "#{k}": { #{v} },)
+      end
+      code << "}" << ""
     end
-    code << "}" << ""
 
-    code << "var instAliases = map[string][]string{"
-    @inst_aliases.each do |k, v|
-      v = v.map { %("#{_1}") }.join(", ")
-      code << %(  "#{k}": { #{v} },)
+    unless arch.opcodes.empty?
+      code << ""
+      code << "var instMap#{suffix} = InstPat{"
+      arch.opcodes.each do |name, pats|
+        code << %(  #{intern(name)}: InstPat{)
+        code.concat(map_code_list.call(nest_map(pats)))
+        code << %(  },)
+      end
+      code << "}" << ""
     end
-    code << "}" << ""
 
-    code << ""
-    code << "var instMap = InstPat{"
-    @opcodes.each do |name, pats|
-      code << %!  Intern("#{name}"): InstPat{!
-      code.concat(map_code_list.call(nest_map(pats)))
-      code << %(  },)
-    end
-    code << "}" << ""
+    return if arch.operators.empty?
 
-    code << "var ctxOpMap = map[*Keyword]map[*Keyword]map[*Keyword][][]Value{"
-    @operators.each do |name, pats|
+    code << "var ctxOpMap#{suffix} = CtxOpMap{"
+    arch.operators.each do |name, pats|
       code << %!        Intern("#{name}"): {!
       nest_map2(pats).each do |a, bs|
         code << %(            #{operand_code.call(a)}: {)
@@ -467,8 +538,26 @@ class GenerateArch
 
   def generate_arch(path)
     package = File.basename(File.dirname(path))
-    s = generate_table_code(package).join("\n")
-    s = gofmt(s)
+    @interns = {}
+    s = @archs.map do |arch|
+      generate_table_code(package, arch).join("\n")
+    end
+
+    code = ["package #{package}", ""]
+    code << %(import . "ocala/internal/core" //lint:ignore ST1001 core) << ""
+
+    code << "var bmaps = [][]byte{"
+    @archs[0].bmaps.sort_by { |_, v| v.x }.each do |k, v|
+      map = v.map.join(", ")
+      code << %(  {#{v.mask}, #{v.min}, #{v.max}, #{map}}, // #{v.x}: #{k})
+    end
+    code << "}" << ""
+
+    @interns.sort_by { |_, v| v }.each do |k, v|
+      code << %!var #{v} = Intern("#{k}")!
+    end
+
+    s = gofmt(s.unshift(code.join("\n")).join("\n"))
     File.write(path.sub(/\.lisp\z/, ".g.go"), s)
   end
 
@@ -482,14 +571,21 @@ class GenerateArch
   end
 
   def use_example(name, pat, a, b)
-    c = @examples.dig(name, pat) or return
+    c = @all_examples.dig(name, pat) or return
+    c[0] == :_ and return
+
     s, t = c.map { _1.split(/(?<! );/).map(&:strip).join("\n    ") }
     a << "    #{s}" unless s.empty?
     b << "    #{t}" unless t.empty?
     true
   end
 
-  def generate_opcodes_oc(path)
+  def find_asm_example(name, pat)
+    c = @all_examples.dig(name, pat) or return
+    c[1] if c[0] == :_
+  end
+
+  def generate_opcodes_oc(path, arch)
     nlabels = 0
     cocl = []
     casm = []
@@ -501,8 +597,9 @@ class GenerateArch
       end
     end
 
+    suffix = arch.base ? arch.name.to_s.gsub(/\A\W/, "_") : ""
     use_example(:$prologue, [:*], cocl, casm)
-    @opcodes.each do |name, pats|
+    arch.merged(:opcodes).each do |name, pats|
       n = add_label.call
       next if use_example(name, [:*], cocl, casm)
 
@@ -510,7 +607,8 @@ class GenerateArch
         next if body[0].t == :temp
         next if use_example(name, operands, cocl, casm)
 
-        operands = operands.map { |i| @operands[i] }
+        alt = find_asm_example(name, operands)
+        operands = operands.map { |i| arch.fetch(:operands, i) or raise "unknown operand #{i.inspect}" }
         ocs = operands.map { |i| pfill(i.oc) }
         asms = operands.map { |i| pfill(i.asm) }
         rel = body.find { |i| i.t == :rlow }
@@ -522,19 +620,27 @@ class GenerateArch
 
           asms[x] = ocs[x] = "L#{n + 2}"
         end
+
         cocl << "    #{name} #{ocs.join(' ')}"
-        casm << "    #{name} #{asms.join(', ')}"
+        casm <<
+          if alt
+            "    #{alt}"
+          else
+            "    #{name} #{asms.join(', ')}"
+          end
       end
     end
     use_example(:$epilogue, [:*], cocl, casm)
 
-    File.write(testdata_path(path, "opcodes.oc"), cocl.join("\n") << "\n")
-    File.write(testdata_path(path, "opcodes.asm"), casm.join("\n") << "\n")
+    File.write(testdata_path(path, "opcodes#{suffix}.oc"), cocl.join("\n") << "\n")
+    File.write(testdata_path(path, "opcodes#{suffix}.asm"), casm.join("\n") << "\n")
   end
 
-  def generate_operators_oc(path)
-    alts = @operands.filter_map { |k, v| v.alt && [k, v] }.to_h
-    @operators.each_value do |pats|
+  def generate_operators_oc(path, arch)
+    suffix = arch.base ? arch.name.to_s.gsub(/\A\W/, "_") : ""
+
+    alts = arch.merged(:operands).filter { |_, v| v.alt }
+    arch.merged(:operators).each_value do |pats|
       as = pats.filter_map do |pat, body|
         apat = pat.map { |i| alts[i]&.alt || i }
         apat != pat && !pats[apat] && [apat, body]
@@ -542,7 +648,7 @@ class GenerateArch
       pats.merge!(as.to_h)
     end
 
-    allopr = @operands.keys - [:_]
+    allopr = arch.merged(:operands).keys - [:_]
     cocl = []
     casm = []
 
@@ -550,7 +656,7 @@ class GenerateArch
       op = template[0].v[0]
       next if op.start_with?("#")
 
-      inst = @opcodes[op] or raise "unknown opcode #{template}"
+      inst = arch.fetch(:opcodes, op) or raise "unknown opcode #{template}"
       oprs = []
       asms = []
       template[1..].map do |i|
@@ -559,13 +665,13 @@ class GenerateArch
         case i.t
         when :k
           oprs << i.v[0]
-          asms << pfill(@operands[i.v[0]].asm)
+          asms << pfill(arch.fetch(:operands, i.v[0]).asm)
         when :v
           oprs << ((-128..255).cover?(i.v[0]) ? :N : :NN)
           asms << "##{i.v[0]}"
         when :s
           oprs << (i.v[1] || pat[i.v[0]])
-          asms << pfill(@operands[oprs.last].asm)
+          asms << pfill(arch.fetch(:operands, oprs.last).asm)
         end
       end
       m = inst[oprs]
@@ -583,7 +689,7 @@ class GenerateArch
     end
 
     use_example(:$prologue, [:*], cocl, casm)
-    @operators.each do |name, pats|
+    arch.merged(:operators).each do |name, pats|
       next if use_example(name, [:*], cocl, casm)
 
       m = {}
@@ -594,18 +700,23 @@ class GenerateArch
           next if m[args]
 
           m[args] = true
+          next if use_example(name, args, cocl, casm)
 
           unless expanded.all?
             # warn "?? #{name} #{operands} --> #{args} #{body.inspect} #{expanded.inspect}"
             next
           end
 
-          args = args.map { |i| pfill(@operands[i].oc) }
+          alt = find_asm_example(name, args)
+          args = args.map { |i| pfill(arch.fetch(:operands, i).oc) }
           args[0] = "$(#{args[0]})" if args[0].match?(/\A\d/)
           cocl << "    #{args[0]} #{name} #{args[1]}".rstrip
-
-          expanded.each do |i|
-            casm << "    #{i[0]} #{i[1..].join(', ')}"
+          if alt
+            casm << "    #{alt}"
+          else
+            expanded.each do |i|
+              casm << "    #{i[0]} #{i[1..].join(', ')}"
+            end
           end
         end
       end
@@ -613,8 +724,16 @@ class GenerateArch
     use_example(:$operators, [:*], cocl, casm)
     use_example(:$epilogue, [:*], cocl, casm)
 
-    File.write(testdata_path(path, "operators.oc"), cocl.join("\n") << "\n")
-    File.write(testdata_path(path, "operators.asm"), casm.join("\n") << "\n")
+    File.write(testdata_path(path, "operators#{suffix}.oc"), cocl.join("\n") << "\n")
+    File.write(testdata_path(path, "operators#{suffix}.asm"), casm.join("\n") << "\n")
+  end
+
+  def generate_testdata(path)
+    @archs.each do |arch|
+      @all_examples = arch.merged(:examples)
+      generate_opcodes_oc(path, arch)
+      generate_operators_oc(path, arch)
+    end
   end
 
   def gofmt(s)
@@ -635,8 +754,7 @@ class GenerateArch
       generate_arch(args[0])
     when "testdata"
       read_arch(File.read(args[0]))
-      generate_opcodes_oc(args[0])
-      generate_operators_oc(args[0])
+      generate_testdata(args[0])
     else
       raise "unknown subcommand: #{command}"
     end

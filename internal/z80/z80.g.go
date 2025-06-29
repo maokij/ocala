@@ -2,6 +2,80 @@ package z80
 
 import . "ocala/internal/core" //lint:ignore ST1001 core
 
+var bmaps = [][]byte{
+	{255, 0, 0, 233},         // 0: JP
+	{3, 0, 2, 70, 86, 94, 0}, // 1: IM
+}
+
+var kwADC = Intern("ADC")
+var kwADD = Intern("ADD")
+var kwAND = Intern("AND")
+var kwBIT = Intern("BIT")
+var kwCALL = Intern("CALL")
+var kwCCF = Intern("CCF")
+var kwCP = Intern("CP")
+var kwCPD = Intern("CPD")
+var kwCPDR = Intern("CPDR")
+var kwCPI = Intern("CPI")
+var kwCPIR = Intern("CPIR")
+var kwCPL = Intern("CPL")
+var kwDAA = Intern("DAA")
+var kwDEC = Intern("DEC")
+var kwDI = Intern("DI")
+var kwDJNZ = Intern("DJNZ")
+var kwEI = Intern("EI")
+var kwEX = Intern("EX")
+var kwEXX = Intern("EXX")
+var kwHALT = Intern("HALT")
+var kwIM = Intern("IM")
+var kwIN = Intern("IN")
+var kwINC = Intern("INC")
+var kwIND = Intern("IND")
+var kwINDR = Intern("INDR")
+var kwINI = Intern("INI")
+var kwINIR = Intern("INIR")
+var kwJP = Intern("JP")
+var kwJR = Intern("JR")
+var kwLD = Intern("LD")
+var kwLDD = Intern("LDD")
+var kwLDDR = Intern("LDDR")
+var kwLDI = Intern("LDI")
+var kwLDIR = Intern("LDIR")
+var kwLDP = Intern("#.LDP")
+var kwNEG = Intern("NEG")
+var kwNOP = Intern("NOP")
+var kwOR = Intern("OR")
+var kwOTDR = Intern("OTDR")
+var kwOTIR = Intern("OTIR")
+var kwOUT = Intern("OUT")
+var kwOUTD = Intern("OUTD")
+var kwOUTI = Intern("OUTI")
+var kwPOP = Intern("POP")
+var kwPUSH = Intern("PUSH")
+var kwRES = Intern("RES")
+var kwRET = Intern("RET")
+var kwRETI = Intern("RETI")
+var kwRETN = Intern("RETN")
+var kwRL = Intern("RL")
+var kwRLA = Intern("RLA")
+var kwRLC = Intern("RLC")
+var kwRLCA = Intern("RLCA")
+var kwRLD = Intern("RLD")
+var kwRR = Intern("RR")
+var kwRRA = Intern("RRA")
+var kwRRC = Intern("RRC")
+var kwRRCA = Intern("RRCA")
+var kwRRD = Intern("RRD")
+var kwRST = Intern("RST")
+var kwSBC = Intern("SBC")
+var kwSCF = Intern("SCF")
+var kwSET = Intern("SET")
+var kwSLA = Intern("SLA")
+var kwSLL = Intern("SLL")
+var kwSRA = Intern("SRA")
+var kwSRL = Intern("SRL")
+var kwSUB = Intern("SUB")
+var kwXOR = Intern("XOR")
 var kwRegA = Intern("A")
 var kwRegB = Intern("B")
 var kwRegC = Intern("C")
@@ -31,6 +105,7 @@ var kwMemNN = Intern("[%W]")
 var kwMemC = Intern("[C]")
 var kwRegI = Intern("I")
 var kwRegR = Intern("R")
+var kwRegF = Intern("F")
 var kwCondNZ = Intern("NZ?")
 var kwCondZ = Intern("Z?")
 var kwCondNC = Intern("NC?")
@@ -40,59 +115,52 @@ var kwCondPE = Intern("PE?")
 var kwCondP = Intern("P?")
 var kwCondM = Intern("M?")
 
-var operandToAsmMap = map[*Keyword](struct {
-	s string
-	t bool
-}){
-	kwRegA:   {s: "A", t: false},
-	kwRegB:   {s: "B", t: false},
-	kwRegC:   {s: "C", t: false},
-	kwRegD:   {s: "D", t: false},
-	kwRegE:   {s: "E", t: false},
-	kwRegH:   {s: "H", t: false},
-	kwRegL:   {s: "L", t: false},
-	kwRegHL:  {s: "HL", t: false},
-	kwMemHL:  {s: "(HL)", t: false},
-	kwRegBC:  {s: "BC", t: false},
-	kwMemBC:  {s: "(BC)", t: false},
-	kwRegDE:  {s: "DE", t: false},
-	kwMemDE:  {s: "(DE)", t: false},
-	kwRegAF:  {s: "AF", t: false},
-	kwAltAF:  {s: "AF'", t: false},
-	kwRegSP:  {s: "SP", t: false},
-	kwMemSP:  {s: "(SP)", t: false},
-	kwRegPQ:  {s: "PQ", t: false},
-	kwRegIX:  {s: "IX", t: false},
-	kwMemIX:  {s: "(IX+%)", t: true},
-	kwRegIY:  {s: "IY", t: false},
-	kwMemIY:  {s: "(IY+%)", t: true},
-	kwImmN:   {s: "0+ %", t: true},
-	kwMemN:   {s: "(%)", t: true},
-	kwImmNN:  {s: "0+ %", t: true},
-	kwMemNN:  {s: "(%)", t: true},
-	kwMemC:   {s: "(C)", t: false},
-	kwRegI:   {s: "I", t: false},
-	kwRegR:   {s: "R", t: false},
-	kwCondNZ: {s: "NZ", t: false},
-	kwCondZ:  {s: "Z", t: false},
-	kwCondNC: {s: "NC", t: false},
-	kwCondC:  {s: "C", t: false},
-	kwCondPO: {s: "PO", t: false},
-	kwCondPE: {s: "PE", t: false},
-	kwCondP:  {s: "P", t: false},
-	kwCondM:  {s: "M", t: false},
+var asmOperands = map[*Keyword]AsmOperand{
+	kwRegA:   {"A", false},
+	kwRegB:   {"B", false},
+	kwRegC:   {"C", false},
+	kwRegD:   {"D", false},
+	kwRegE:   {"E", false},
+	kwRegH:   {"H", false},
+	kwRegL:   {"L", false},
+	kwRegHL:  {"HL", false},
+	kwMemHL:  {"(HL)", false},
+	kwRegBC:  {"BC", false},
+	kwMemBC:  {"(BC)", false},
+	kwRegDE:  {"DE", false},
+	kwMemDE:  {"(DE)", false},
+	kwRegAF:  {"AF", false},
+	kwAltAF:  {"AF'", false},
+	kwRegSP:  {"SP", false},
+	kwMemSP:  {"(SP)", false},
+	kwRegPQ:  {"PQ", false},
+	kwRegIX:  {"IX", false},
+	kwMemIX:  {"(IX+%)", true},
+	kwRegIY:  {"IY", false},
+	kwMemIY:  {"(IY+%)", true},
+	kwImmN:   {"0+ %", true},
+	kwMemN:   {"(%)", true},
+	kwImmNN:  {"0+ %", true},
+	kwMemNN:  {"(%)", true},
+	kwMemC:   {"(C)", false},
+	kwRegI:   {"I", false},
+	kwRegR:   {"R", false},
+	kwRegF:   {"F", false},
+	kwCondNZ: {"NZ", false},
+	kwCondZ:  {"Z", false},
+	kwCondNC: {"NC", false},
+	kwCondC:  {"C", false},
+	kwCondPO: {"PO", false},
+	kwCondPE: {"PE", false},
+	kwCondP:  {"P", false},
+	kwCondM:  {"M", false},
 }
 
 var tokenWords = [][]string{
-	{"A", "B", "C", "D", "E", "H", "L", "I", "R", "AF", "AF-", "BC", "DE", "HL", "IX", "IY", "SP"},
+	{"A", "B", "C", "D", "E", "H", "L", "I", "R", "F", "AF", "AF-", "BC", "DE", "HL", "IX", "IY", "SP"},
 	{"NZ?", "Z?", "NC?", "C?", "PO?", "PE?", "P?", "M?"},
-	{"-push", "-pop", "++", "--", "-not", "-neg", "-zero?"},
+	{"-push", "-pop", "++", "--", "-not", "-neg", "-zero?", "-jump"},
 	{"<-", "->", "<->", "+$", "-$", "-?", "<*", "<*$", ">*", ">*$", "-set", "-reset", "-bit?", "-in", "-out", "-jump-if", "-jump-unless"},
-}
-
-var bmaps = [][]byte{
-	{255, 0, 0, 233},         // 0: JP
-	{3, 0, 2, 70, 86, 94, 0}, // 1: IM
 }
 
 var tokenAliases = map[string]string{
@@ -112,10 +180,8 @@ var tokenAliases = map[string]string{
 	"minus?":     "M?",
 }
 
-var instAliases = map[string][]string{}
-
 var instMap = InstPat{
-	Intern("LD"): InstPat{
+	kwLD: InstPat{
 		kwRegA: InstPat{
 			kwRegA: InstPat{
 				nil: InstDat{
@@ -1165,7 +1231,7 @@ var instMap = InstPat{
 			},
 		},
 	},
-	Intern("PUSH"): InstPat{
+	kwPUSH: InstPat{
 		kwRegBC: InstPat{
 			nil: InstDat{
 				{Kind: BcByte, A0: 0xc5},
@@ -1199,7 +1265,7 @@ var instMap = InstPat{
 			},
 		},
 	},
-	Intern("POP"): InstPat{
+	kwPOP: InstPat{
 		kwRegBC: InstPat{
 			nil: InstDat{
 				{Kind: BcByte, A0: 0xc1},
@@ -1233,7 +1299,7 @@ var instMap = InstPat{
 			},
 		},
 	},
-	Intern("EX"): InstPat{
+	kwEX: InstPat{
 		kwRegDE: InstPat{
 			kwRegHL: InstPat{
 				nil: InstDat{
@@ -1268,60 +1334,60 @@ var instMap = InstPat{
 			},
 		},
 	},
-	Intern("EXX"): InstPat{
+	kwEXX: InstPat{
 		nil: InstDat{
 			{Kind: BcByte, A0: 0xd9},
 		},
 	},
-	Intern("LDI"): InstPat{
+	kwLDI: InstPat{
 		nil: InstDat{
 			{Kind: BcByte, A0: 0xed},
 			{Kind: BcByte, A0: 0xa0},
 		},
 	},
-	Intern("LDIR"): InstPat{
+	kwLDIR: InstPat{
 		nil: InstDat{
 			{Kind: BcByte, A0: 0xed},
 			{Kind: BcByte, A0: 0xb0},
 		},
 	},
-	Intern("LDD"): InstPat{
+	kwLDD: InstPat{
 		nil: InstDat{
 			{Kind: BcByte, A0: 0xed},
 			{Kind: BcByte, A0: 0xa8},
 		},
 	},
-	Intern("LDDR"): InstPat{
+	kwLDDR: InstPat{
 		nil: InstDat{
 			{Kind: BcByte, A0: 0xed},
 			{Kind: BcByte, A0: 0xb8},
 		},
 	},
-	Intern("CPI"): InstPat{
+	kwCPI: InstPat{
 		nil: InstDat{
 			{Kind: BcByte, A0: 0xed},
 			{Kind: BcByte, A0: 0xa1},
 		},
 	},
-	Intern("CPIR"): InstPat{
+	kwCPIR: InstPat{
 		nil: InstDat{
 			{Kind: BcByte, A0: 0xed},
 			{Kind: BcByte, A0: 0xb1},
 		},
 	},
-	Intern("CPD"): InstPat{
+	kwCPD: InstPat{
 		nil: InstDat{
 			{Kind: BcByte, A0: 0xed},
 			{Kind: BcByte, A0: 0xa9},
 		},
 	},
-	Intern("CPDR"): InstPat{
+	kwCPDR: InstPat{
 		nil: InstDat{
 			{Kind: BcByte, A0: 0xed},
 			{Kind: BcByte, A0: 0xb9},
 		},
 	},
-	Intern("ADD"): InstPat{
+	kwADD: InstPat{
 		kwRegA: InstPat{
 			kwRegA: InstPat{
 				nil: InstDat{
@@ -1465,7 +1531,7 @@ var instMap = InstPat{
 			},
 		},
 	},
-	Intern("ADC"): InstPat{
+	kwADC: InstPat{
 		kwRegA: InstPat{
 			kwRegA: InstPat{
 				nil: InstDat{
@@ -1561,7 +1627,7 @@ var instMap = InstPat{
 			},
 		},
 	},
-	Intern("SUB"): InstPat{
+	kwSUB: InstPat{
 		kwRegA: InstPat{
 			nil: InstDat{
 				{Kind: BcByte, A0: 0x97},
@@ -1629,7 +1695,7 @@ var instMap = InstPat{
 			},
 		},
 	},
-	Intern("SBC"): InstPat{
+	kwSBC: InstPat{
 		kwRegA: InstPat{
 			kwRegA: InstPat{
 				nil: InstDat{
@@ -1725,7 +1791,7 @@ var instMap = InstPat{
 			},
 		},
 	},
-	Intern("AND"): InstPat{
+	kwAND: InstPat{
 		kwRegA: InstPat{
 			nil: InstDat{
 				{Kind: BcByte, A0: 0xa7},
@@ -1793,7 +1859,7 @@ var instMap = InstPat{
 			},
 		},
 	},
-	Intern("OR"): InstPat{
+	kwOR: InstPat{
 		kwRegA: InstPat{
 			nil: InstDat{
 				{Kind: BcByte, A0: 0xb7},
@@ -1861,7 +1927,7 @@ var instMap = InstPat{
 			},
 		},
 	},
-	Intern("XOR"): InstPat{
+	kwXOR: InstPat{
 		kwRegA: InstPat{
 			nil: InstDat{
 				{Kind: BcByte, A0: 0xaf},
@@ -1929,7 +1995,7 @@ var instMap = InstPat{
 			},
 		},
 	},
-	Intern("CP"): InstPat{
+	kwCP: InstPat{
 		kwRegA: InstPat{
 			nil: InstDat{
 				{Kind: BcByte, A0: 0xbf},
@@ -1997,7 +2063,7 @@ var instMap = InstPat{
 			},
 		},
 	},
-	Intern("INC"): InstPat{
+	kwINC: InstPat{
 		kwRegA: InstPat{
 			nil: InstDat{
 				{Kind: BcByte, A0: 0x3c},
@@ -2085,7 +2151,7 @@ var instMap = InstPat{
 			},
 		},
 	},
-	Intern("DEC"): InstPat{
+	kwDEC: InstPat{
 		kwRegA: InstPat{
 			nil: InstDat{
 				{Kind: BcByte, A0: 0x3d},
@@ -2173,27 +2239,27 @@ var instMap = InstPat{
 			},
 		},
 	},
-	Intern("RLCA"): InstPat{
+	kwRLCA: InstPat{
 		nil: InstDat{
 			{Kind: BcByte, A0: 0x07},
 		},
 	},
-	Intern("RLA"): InstPat{
+	kwRLA: InstPat{
 		nil: InstDat{
 			{Kind: BcByte, A0: 0x17},
 		},
 	},
-	Intern("RRCA"): InstPat{
+	kwRRCA: InstPat{
 		nil: InstDat{
 			{Kind: BcByte, A0: 0x0f},
 		},
 	},
-	Intern("RRA"): InstPat{
+	kwRRA: InstPat{
 		nil: InstDat{
 			{Kind: BcByte, A0: 0x1f},
 		},
 	},
-	Intern("RLC"): InstPat{
+	kwRLC: InstPat{
 		kwRegA: InstPat{
 			nil: InstDat{
 				{Kind: BcByte, A0: 0xcb},
@@ -2259,7 +2325,7 @@ var instMap = InstPat{
 			},
 		},
 	},
-	Intern("RL"): InstPat{
+	kwRL: InstPat{
 		kwRegA: InstPat{
 			nil: InstDat{
 				{Kind: BcByte, A0: 0xcb},
@@ -2325,7 +2391,7 @@ var instMap = InstPat{
 			},
 		},
 	},
-	Intern("RRC"): InstPat{
+	kwRRC: InstPat{
 		kwRegA: InstPat{
 			nil: InstDat{
 				{Kind: BcByte, A0: 0xcb},
@@ -2391,7 +2457,7 @@ var instMap = InstPat{
 			},
 		},
 	},
-	Intern("RR"): InstPat{
+	kwRR: InstPat{
 		kwRegA: InstPat{
 			nil: InstDat{
 				{Kind: BcByte, A0: 0xcb},
@@ -2457,7 +2523,7 @@ var instMap = InstPat{
 			},
 		},
 	},
-	Intern("SLA"): InstPat{
+	kwSLA: InstPat{
 		kwRegA: InstPat{
 			nil: InstDat{
 				{Kind: BcByte, A0: 0xcb},
@@ -2523,7 +2589,7 @@ var instMap = InstPat{
 			},
 		},
 	},
-	Intern("SRA"): InstPat{
+	kwSRA: InstPat{
 		kwRegA: InstPat{
 			nil: InstDat{
 				{Kind: BcByte, A0: 0xcb},
@@ -2589,7 +2655,7 @@ var instMap = InstPat{
 			},
 		},
 	},
-	Intern("SRL"): InstPat{
+	kwSRL: InstPat{
 		kwRegA: InstPat{
 			nil: InstDat{
 				{Kind: BcByte, A0: 0xcb},
@@ -2655,19 +2721,19 @@ var instMap = InstPat{
 			},
 		},
 	},
-	Intern("RLD"): InstPat{
+	kwRLD: InstPat{
 		nil: InstDat{
 			{Kind: BcByte, A0: 0xed},
 			{Kind: BcByte, A0: 0x6f},
 		},
 	},
-	Intern("RRD"): InstPat{
+	kwRRD: InstPat{
 		nil: InstDat{
 			{Kind: BcByte, A0: 0xed},
 			{Kind: BcByte, A0: 0x67},
 		},
 	},
-	Intern("BIT"): InstPat{
+	kwBIT: InstPat{
 		kwImmN: InstPat{
 			kwRegA: InstPat{
 				nil: InstDat{
@@ -2801,7 +2867,7 @@ var instMap = InstPat{
 			},
 		},
 	},
-	Intern("SET"): InstPat{
+	kwSET: InstPat{
 		kwImmN: InstPat{
 			kwRegA: InstPat{
 				nil: InstDat{
@@ -2935,7 +3001,7 @@ var instMap = InstPat{
 			},
 		},
 	},
-	Intern("RES"): InstPat{
+	kwRES: InstPat{
 		kwImmN: InstPat{
 			kwRegA: InstPat{
 				nil: InstDat{
@@ -3069,7 +3135,7 @@ var instMap = InstPat{
 			},
 		},
 	},
-	Intern("JP"): InstPat{
+	kwJP: InstPat{
 		kwImmNN: InstPat{
 			nil: InstDat{
 				{Kind: BcByte, A0: 0xc3},
@@ -3230,7 +3296,7 @@ var instMap = InstPat{
 			},
 		},
 	},
-	Intern("JR"): InstPat{
+	kwJR: InstPat{
 		kwImmNN: InstPat{
 			nil: InstDat{
 				{Kind: BcByte, A0: 0x18},
@@ -3300,7 +3366,7 @@ var instMap = InstPat{
 			},
 		},
 	},
-	Intern("DJNZ"): InstPat{
+	kwDJNZ: InstPat{
 		kwImmNN: InstPat{
 			nil: InstDat{
 				{Kind: BcByte, A0: 0x10},
@@ -3314,7 +3380,7 @@ var instMap = InstPat{
 			},
 		},
 	},
-	Intern("CALL"): InstPat{
+	kwCALL: InstPat{
 		kwImmNN: InstPat{
 			nil: InstDat{
 				{Kind: BcByte, A0: 0xcd},
@@ -3458,7 +3524,7 @@ var instMap = InstPat{
 			},
 		},
 	},
-	Intern("RET"): InstPat{
+	kwRET: InstPat{
 		nil: InstDat{
 			{Kind: BcByte, A0: 0xc9},
 		},
@@ -3503,19 +3569,19 @@ var instMap = InstPat{
 			},
 		},
 	},
-	Intern("RETI"): InstPat{
+	kwRETI: InstPat{
 		nil: InstDat{
 			{Kind: BcByte, A0: 0xed},
 			{Kind: BcByte, A0: 0x4d},
 		},
 	},
-	Intern("RETN"): InstPat{
+	kwRETN: InstPat{
 		nil: InstDat{
 			{Kind: BcByte, A0: 0xed},
 			{Kind: BcByte, A0: 0x45},
 		},
 	},
-	Intern("RST"): InstPat{
+	kwRST: InstPat{
 		kwImmN: InstPat{
 			nil: InstDat{
 				{Kind: BcImp, A0: 0x00, A1: 0xc7, A2: 0x38, A3: 0x00},
@@ -3527,7 +3593,263 @@ var instMap = InstPat{
 			},
 		},
 	},
-	Intern("IN"): InstPat{
+	KwJump: InstPat{
+		kwImmNN: InstPat{
+			nil: InstDat{
+				{Kind: BcByte, A0: 0xc3},
+				{Kind: BcLow, A0: 0x00},
+				{Kind: BcHigh, A0: 0x00},
+			},
+			kwCondNZ: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xc2},
+					{Kind: BcLow, A0: 0x00},
+					{Kind: BcHigh, A0: 0x00},
+				},
+			},
+			kwCondZ: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xca},
+					{Kind: BcLow, A0: 0x00},
+					{Kind: BcHigh, A0: 0x00},
+				},
+			},
+			kwCondNC: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xd2},
+					{Kind: BcLow, A0: 0x00},
+					{Kind: BcHigh, A0: 0x00},
+				},
+			},
+			kwCondC: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xda},
+					{Kind: BcLow, A0: 0x00},
+					{Kind: BcHigh, A0: 0x00},
+				},
+			},
+			kwCondPO: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xe2},
+					{Kind: BcLow, A0: 0x00},
+					{Kind: BcHigh, A0: 0x00},
+				},
+			},
+			kwCondPE: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xea},
+					{Kind: BcLow, A0: 0x00},
+					{Kind: BcHigh, A0: 0x00},
+				},
+			},
+			kwCondP: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xf2},
+					{Kind: BcLow, A0: 0x00},
+					{Kind: BcHigh, A0: 0x00},
+				},
+			},
+			kwCondM: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xfa},
+					{Kind: BcLow, A0: 0x00},
+					{Kind: BcHigh, A0: 0x00},
+				},
+			},
+		},
+		kwImmN: InstPat{
+			nil: InstDat{
+				{Kind: BcByte, A0: 0xc3},
+				{Kind: BcLow, A0: 0x00},
+				{Kind: BcHigh, A0: 0x00},
+			},
+			kwCondNZ: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xc2},
+					{Kind: BcLow, A0: 0x00},
+					{Kind: BcHigh, A0: 0x00},
+				},
+			},
+			kwCondZ: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xca},
+					{Kind: BcLow, A0: 0x00},
+					{Kind: BcHigh, A0: 0x00},
+				},
+			},
+			kwCondNC: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xd2},
+					{Kind: BcLow, A0: 0x00},
+					{Kind: BcHigh, A0: 0x00},
+				},
+			},
+			kwCondC: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xda},
+					{Kind: BcLow, A0: 0x00},
+					{Kind: BcHigh, A0: 0x00},
+				},
+			},
+			kwCondPO: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xe2},
+					{Kind: BcLow, A0: 0x00},
+					{Kind: BcHigh, A0: 0x00},
+				},
+			},
+			kwCondPE: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xea},
+					{Kind: BcLow, A0: 0x00},
+					{Kind: BcHigh, A0: 0x00},
+				},
+			},
+			kwCondP: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xf2},
+					{Kind: BcLow, A0: 0x00},
+					{Kind: BcHigh, A0: 0x00},
+				},
+			},
+			kwCondM: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xfa},
+					{Kind: BcLow, A0: 0x00},
+					{Kind: BcHigh, A0: 0x00},
+				},
+			},
+		},
+	},
+	KwCall: InstPat{
+		kwImmNN: InstPat{
+			nil: InstDat{
+				{Kind: BcByte, A0: 0xcd},
+				{Kind: BcLow, A0: 0x00},
+				{Kind: BcHigh, A0: 0x00},
+			},
+			kwCondNZ: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xc4},
+					{Kind: BcLow, A0: 0x00},
+					{Kind: BcHigh, A0: 0x00},
+				},
+			},
+			kwCondZ: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xcc},
+					{Kind: BcLow, A0: 0x00},
+					{Kind: BcHigh, A0: 0x00},
+				},
+			},
+			kwCondNC: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xd4},
+					{Kind: BcLow, A0: 0x00},
+					{Kind: BcHigh, A0: 0x00},
+				},
+			},
+			kwCondC: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xdc},
+					{Kind: BcLow, A0: 0x00},
+					{Kind: BcHigh, A0: 0x00},
+				},
+			},
+			kwCondPO: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xe4},
+					{Kind: BcLow, A0: 0x00},
+					{Kind: BcHigh, A0: 0x00},
+				},
+			},
+			kwCondPE: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xec},
+					{Kind: BcLow, A0: 0x00},
+					{Kind: BcHigh, A0: 0x00},
+				},
+			},
+			kwCondP: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xf4},
+					{Kind: BcLow, A0: 0x00},
+					{Kind: BcHigh, A0: 0x00},
+				},
+			},
+			kwCondM: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xfc},
+					{Kind: BcLow, A0: 0x00},
+					{Kind: BcHigh, A0: 0x00},
+				},
+			},
+		},
+		kwImmN: InstPat{
+			nil: InstDat{
+				{Kind: BcByte, A0: 0xcd},
+				{Kind: BcLow, A0: 0x00},
+				{Kind: BcHigh, A0: 0x00},
+			},
+			kwCondNZ: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xc4},
+					{Kind: BcLow, A0: 0x00},
+					{Kind: BcHigh, A0: 0x00},
+				},
+			},
+			kwCondZ: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xcc},
+					{Kind: BcLow, A0: 0x00},
+					{Kind: BcHigh, A0: 0x00},
+				},
+			},
+			kwCondNC: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xd4},
+					{Kind: BcLow, A0: 0x00},
+					{Kind: BcHigh, A0: 0x00},
+				},
+			},
+			kwCondC: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xdc},
+					{Kind: BcLow, A0: 0x00},
+					{Kind: BcHigh, A0: 0x00},
+				},
+			},
+			kwCondPO: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xe4},
+					{Kind: BcLow, A0: 0x00},
+					{Kind: BcHigh, A0: 0x00},
+				},
+			},
+			kwCondPE: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xec},
+					{Kind: BcLow, A0: 0x00},
+					{Kind: BcHigh, A0: 0x00},
+				},
+			},
+			kwCondP: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xf4},
+					{Kind: BcLow, A0: 0x00},
+					{Kind: BcHigh, A0: 0x00},
+				},
+			},
+			kwCondM: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xfc},
+					{Kind: BcLow, A0: 0x00},
+					{Kind: BcHigh, A0: 0x00},
+				},
+			},
+		},
+	},
+	kwIN: InstPat{
 		kwRegA: InstPat{
 			kwMemN: InstPat{
 				nil: InstDat{
@@ -3597,31 +3919,31 @@ var instMap = InstPat{
 			},
 		},
 	},
-	Intern("INI"): InstPat{
+	kwINI: InstPat{
 		nil: InstDat{
 			{Kind: BcByte, A0: 0xed},
 			{Kind: BcByte, A0: 0xa2},
 		},
 	},
-	Intern("INIR"): InstPat{
+	kwINIR: InstPat{
 		nil: InstDat{
 			{Kind: BcByte, A0: 0xed},
 			{Kind: BcByte, A0: 0xb2},
 		},
 	},
-	Intern("IND"): InstPat{
+	kwIND: InstPat{
 		nil: InstDat{
 			{Kind: BcByte, A0: 0xed},
 			{Kind: BcByte, A0: 0xaa},
 		},
 	},
-	Intern("INDR"): InstPat{
+	kwINDR: InstPat{
 		nil: InstDat{
 			{Kind: BcByte, A0: 0xed},
 			{Kind: BcByte, A0: 0xba},
 		},
 	},
-	Intern("OUT"): InstPat{
+	kwOUT: InstPat{
 		kwMemN: InstPat{
 			kwRegA: InstPat{
 				nil: InstDat{
@@ -3683,77 +4005,77 @@ var instMap = InstPat{
 			},
 		},
 	},
-	Intern("OUTI"): InstPat{
+	kwOUTI: InstPat{
 		nil: InstDat{
 			{Kind: BcByte, A0: 0xed},
 			{Kind: BcByte, A0: 0xa3},
 		},
 	},
-	Intern("OTIR"): InstPat{
+	kwOTIR: InstPat{
 		nil: InstDat{
 			{Kind: BcByte, A0: 0xed},
 			{Kind: BcByte, A0: 0xb3},
 		},
 	},
-	Intern("OUTD"): InstPat{
+	kwOUTD: InstPat{
 		nil: InstDat{
 			{Kind: BcByte, A0: 0xed},
 			{Kind: BcByte, A0: 0xab},
 		},
 	},
-	Intern("OTDR"): InstPat{
+	kwOTDR: InstPat{
 		nil: InstDat{
 			{Kind: BcByte, A0: 0xed},
 			{Kind: BcByte, A0: 0xbb},
 		},
 	},
-	Intern("DAA"): InstPat{
+	kwDAA: InstPat{
 		nil: InstDat{
 			{Kind: BcByte, A0: 0x27},
 		},
 	},
-	Intern("CPL"): InstPat{
+	kwCPL: InstPat{
 		nil: InstDat{
 			{Kind: BcByte, A0: 0x2f},
 		},
 	},
-	Intern("NEG"): InstPat{
+	kwNEG: InstPat{
 		nil: InstDat{
 			{Kind: BcByte, A0: 0xed},
 			{Kind: BcByte, A0: 0x44},
 		},
 	},
-	Intern("CCF"): InstPat{
+	kwCCF: InstPat{
 		nil: InstDat{
 			{Kind: BcByte, A0: 0x3f},
 		},
 	},
-	Intern("SCF"): InstPat{
+	kwSCF: InstPat{
 		nil: InstDat{
 			{Kind: BcByte, A0: 0x37},
 		},
 	},
-	Intern("NOP"): InstPat{
+	kwNOP: InstPat{
 		nil: InstDat{
 			{Kind: BcByte, A0: 0x00},
 		},
 	},
-	Intern("HALT"): InstPat{
+	kwHALT: InstPat{
 		nil: InstDat{
 			{Kind: BcByte, A0: 0x76},
 		},
 	},
-	Intern("DI"): InstPat{
+	kwDI: InstPat{
 		nil: InstDat{
 			{Kind: BcByte, A0: 0xf3},
 		},
 	},
-	Intern("EI"): InstPat{
+	kwEI: InstPat{
 		nil: InstDat{
 			{Kind: BcByte, A0: 0xfb},
 		},
 	},
-	Intern("IM"): InstPat{
+	kwIM: InstPat{
 		kwImmN: InstPat{
 			nil: InstDat{
 				{Kind: BcByte, A0: 0xed},
@@ -3769,331 +4091,331 @@ var instMap = InstPat{
 	},
 }
 
-var ctxOpMap = map[*Keyword]map[*Keyword]map[*Keyword][][]Value{
+var ctxOpMap = CtxOpMap{
 	Intern("<-"): {
 		kwRegA: {
 			KwAny: {
-				{Intern("LD"), &Vec{Int(0), nil}, &Vec{Int(1), nil}},
+				{kwLD, &Vec{Int(0), nil}, &Vec{Int(1), nil}},
 			},
 		},
 		kwRegB: {
 			KwAny: {
-				{Intern("LD"), &Vec{Int(0), nil}, &Vec{Int(1), nil}},
+				{kwLD, &Vec{Int(0), nil}, &Vec{Int(1), nil}},
 			},
 		},
 		kwRegC: {
 			KwAny: {
-				{Intern("LD"), &Vec{Int(0), nil}, &Vec{Int(1), nil}},
+				{kwLD, &Vec{Int(0), nil}, &Vec{Int(1), nil}},
 			},
 		},
 		kwRegD: {
 			KwAny: {
-				{Intern("LD"), &Vec{Int(0), nil}, &Vec{Int(1), nil}},
+				{kwLD, &Vec{Int(0), nil}, &Vec{Int(1), nil}},
 			},
 		},
 		kwRegE: {
 			KwAny: {
-				{Intern("LD"), &Vec{Int(0), nil}, &Vec{Int(1), nil}},
+				{kwLD, &Vec{Int(0), nil}, &Vec{Int(1), nil}},
 			},
 		},
 		kwRegH: {
 			KwAny: {
-				{Intern("LD"), &Vec{Int(0), nil}, &Vec{Int(1), nil}},
+				{kwLD, &Vec{Int(0), nil}, &Vec{Int(1), nil}},
 			},
 		},
 		kwRegL: {
 			KwAny: {
-				{Intern("LD"), &Vec{Int(0), nil}, &Vec{Int(1), nil}},
+				{kwLD, &Vec{Int(0), nil}, &Vec{Int(1), nil}},
 			},
 		},
 		kwRegI: {
 			KwAny: {
-				{Intern("LD"), &Vec{Int(0), nil}, &Vec{Int(1), nil}},
+				{kwLD, &Vec{Int(0), nil}, &Vec{Int(1), nil}},
 			},
 		},
 		kwRegR: {
 			KwAny: {
-				{Intern("LD"), &Vec{Int(0), nil}, &Vec{Int(1), nil}},
+				{kwLD, &Vec{Int(0), nil}, &Vec{Int(1), nil}},
 			},
 		},
 		kwRegBC: {
 			KwAny: {
-				{Intern("LD"), &Vec{Int(0), nil}, &Vec{Int(1), nil}},
+				{kwLD, &Vec{Int(0), nil}, &Vec{Int(1), nil}},
 			},
 			kwRegPQ: {
-				{Intern("#.LDP"), &Vec{Int(0), nil}, &Vec{Int(1), nil}},
+				{kwLDP, &Vec{Int(0), nil}, &Vec{Int(1), nil}},
 			},
 		},
 		kwRegDE: {
 			KwAny: {
-				{Intern("LD"), &Vec{Int(0), nil}, &Vec{Int(1), nil}},
+				{kwLD, &Vec{Int(0), nil}, &Vec{Int(1), nil}},
 			},
 			kwRegPQ: {
-				{Intern("#.LDP"), &Vec{Int(0), nil}, &Vec{Int(1), nil}},
+				{kwLDP, &Vec{Int(0), nil}, &Vec{Int(1), nil}},
 			},
 		},
 		kwRegHL: {
 			KwAny: {
-				{Intern("LD"), &Vec{Int(0), nil}, &Vec{Int(1), nil}},
+				{kwLD, &Vec{Int(0), nil}, &Vec{Int(1), nil}},
 			},
 			kwRegPQ: {
-				{Intern("#.LDP"), &Vec{Int(0), nil}, &Vec{Int(1), nil}},
+				{kwLDP, &Vec{Int(0), nil}, &Vec{Int(1), nil}},
 			},
 		},
 		kwRegSP: {
 			KwAny: {
-				{Intern("LD"), &Vec{Int(0), nil}, &Vec{Int(1), nil}},
+				{kwLD, &Vec{Int(0), nil}, &Vec{Int(1), nil}},
 			},
 			kwRegPQ: {
-				{Intern("#.LDP"), &Vec{Int(0), nil}, &Vec{Int(1), nil}},
+				{kwLDP, &Vec{Int(0), nil}, &Vec{Int(1), nil}},
 			},
 		},
 		kwRegIX: {
 			KwAny: {
-				{Intern("LD"), &Vec{Int(0), nil}, &Vec{Int(1), nil}},
+				{kwLD, &Vec{Int(0), nil}, &Vec{Int(1), nil}},
 			},
 		},
 		kwRegIY: {
 			KwAny: {
-				{Intern("LD"), &Vec{Int(0), nil}, &Vec{Int(1), nil}},
+				{kwLD, &Vec{Int(0), nil}, &Vec{Int(1), nil}},
 			},
 		},
 	},
 	Intern("->"): {
 		kwRegA: {
 			KwAny: {
-				{Intern("LD"), &Vec{Int(1), nil}, &Vec{Int(0), nil}},
+				{kwLD, &Vec{Int(1), nil}, &Vec{Int(0), nil}},
 			},
 		},
 		kwRegB: {
 			KwAny: {
-				{Intern("LD"), &Vec{Int(1), nil}, &Vec{Int(0), nil}},
+				{kwLD, &Vec{Int(1), nil}, &Vec{Int(0), nil}},
 			},
 		},
 		kwRegC: {
 			KwAny: {
-				{Intern("LD"), &Vec{Int(1), nil}, &Vec{Int(0), nil}},
+				{kwLD, &Vec{Int(1), nil}, &Vec{Int(0), nil}},
 			},
 		},
 		kwRegD: {
 			KwAny: {
-				{Intern("LD"), &Vec{Int(1), nil}, &Vec{Int(0), nil}},
+				{kwLD, &Vec{Int(1), nil}, &Vec{Int(0), nil}},
 			},
 		},
 		kwRegE: {
 			KwAny: {
-				{Intern("LD"), &Vec{Int(1), nil}, &Vec{Int(0), nil}},
+				{kwLD, &Vec{Int(1), nil}, &Vec{Int(0), nil}},
 			},
 		},
 		kwRegH: {
 			KwAny: {
-				{Intern("LD"), &Vec{Int(1), nil}, &Vec{Int(0), nil}},
+				{kwLD, &Vec{Int(1), nil}, &Vec{Int(0), nil}},
 			},
 		},
 		kwRegL: {
 			KwAny: {
-				{Intern("LD"), &Vec{Int(1), nil}, &Vec{Int(0), nil}},
+				{kwLD, &Vec{Int(1), nil}, &Vec{Int(0), nil}},
 			},
 		},
 		kwRegI: {
 			KwAny: {
-				{Intern("LD"), &Vec{Int(1), nil}, &Vec{Int(0), nil}},
+				{kwLD, &Vec{Int(1), nil}, &Vec{Int(0), nil}},
 			},
 		},
 		kwRegR: {
 			KwAny: {
-				{Intern("LD"), &Vec{Int(1), nil}, &Vec{Int(0), nil}},
+				{kwLD, &Vec{Int(1), nil}, &Vec{Int(0), nil}},
 			},
 		},
 		kwRegBC: {
 			KwAny: {
-				{Intern("LD"), &Vec{Int(1), nil}, &Vec{Int(0), nil}},
+				{kwLD, &Vec{Int(1), nil}, &Vec{Int(0), nil}},
 			},
 			kwRegPQ: {
-				{Intern("#.LDP"), &Vec{Int(1), nil}, &Vec{Int(0), nil}},
+				{kwLDP, &Vec{Int(1), nil}, &Vec{Int(0), nil}},
 			},
 		},
 		kwRegDE: {
 			KwAny: {
-				{Intern("LD"), &Vec{Int(1), nil}, &Vec{Int(0), nil}},
+				{kwLD, &Vec{Int(1), nil}, &Vec{Int(0), nil}},
 			},
 			kwRegPQ: {
-				{Intern("#.LDP"), &Vec{Int(1), nil}, &Vec{Int(0), nil}},
+				{kwLDP, &Vec{Int(1), nil}, &Vec{Int(0), nil}},
 			},
 		},
 		kwRegHL: {
 			KwAny: {
-				{Intern("LD"), &Vec{Int(1), nil}, &Vec{Int(0), nil}},
+				{kwLD, &Vec{Int(1), nil}, &Vec{Int(0), nil}},
 			},
 			kwRegPQ: {
-				{Intern("#.LDP"), &Vec{Int(1), nil}, &Vec{Int(0), nil}},
+				{kwLDP, &Vec{Int(1), nil}, &Vec{Int(0), nil}},
 			},
 		},
 		kwRegSP: {
 			KwAny: {
-				{Intern("LD"), &Vec{Int(1), nil}, &Vec{Int(0), nil}},
+				{kwLD, &Vec{Int(1), nil}, &Vec{Int(0), nil}},
 			},
 			kwRegPQ: {
-				{Intern("#.LDP"), &Vec{Int(1), nil}, &Vec{Int(0), nil}},
+				{kwLDP, &Vec{Int(1), nil}, &Vec{Int(0), nil}},
 			},
 		},
 		kwRegIX: {
 			KwAny: {
-				{Intern("LD"), &Vec{Int(1), nil}, &Vec{Int(0), nil}},
+				{kwLD, &Vec{Int(1), nil}, &Vec{Int(0), nil}},
 			},
 		},
 		kwRegIY: {
 			KwAny: {
-				{Intern("LD"), &Vec{Int(1), nil}, &Vec{Int(0), nil}},
+				{kwLD, &Vec{Int(1), nil}, &Vec{Int(0), nil}},
 			},
 		},
 		kwImmNN: {
 			KwAny: {
-				{Intern("LD"), &Vec{Int(1), nil}, &Vec{Int(0), nil}},
+				{kwLD, &Vec{Int(1), nil}, &Vec{Int(0), nil}},
 			},
 		},
 	},
 	Intern("<->"): {
 		kwRegAF: {
 			kwAltAF: {
-				{Intern("EX"), &Operand{Kind: kwRegAF}, &Operand{Kind: kwAltAF}},
+				{kwEX, &Operand{Kind: kwRegAF}, &Operand{Kind: kwAltAF}},
 			},
 		},
 		kwRegDE: {
 			kwRegHL: {
-				{Intern("EX"), &Operand{Kind: kwRegDE}, &Operand{Kind: kwRegHL}},
+				{kwEX, &Operand{Kind: kwRegDE}, &Operand{Kind: kwRegHL}},
 			},
 		},
 		kwRegHL: {
 			kwRegDE: {
-				{Intern("EX"), &Operand{Kind: kwRegDE}, &Operand{Kind: kwRegHL}},
+				{kwEX, &Operand{Kind: kwRegDE}, &Operand{Kind: kwRegHL}},
 			},
 			kwMemSP: {
-				{Intern("EX"), &Operand{Kind: kwMemSP}, &Operand{Kind: kwRegHL}},
+				{kwEX, &Operand{Kind: kwMemSP}, &Operand{Kind: kwRegHL}},
 			},
 		},
 		kwMemSP: {
 			kwRegHL: {
-				{Intern("EX"), &Operand{Kind: kwMemSP}, &Operand{Kind: kwRegHL}},
+				{kwEX, &Operand{Kind: kwMemSP}, &Operand{Kind: kwRegHL}},
 			},
 		},
 	},
 	Intern("-push"): {
 		KwAny: {
 			nil: {
-				{Intern("PUSH"), &Vec{Int(0), nil}},
+				{kwPUSH, &Vec{Int(0), nil}},
 			},
 		},
 	},
 	Intern("-pop"): {
 		KwAny: {
 			nil: {
-				{Intern("POP"), &Vec{Int(0), nil}},
+				{kwPOP, &Vec{Int(0), nil}},
 			},
 		},
 	},
 	Intern("++"): {
 		KwAny: {
 			nil: {
-				{Intern("INC"), &Vec{Int(0), nil}},
+				{kwINC, &Vec{Int(0), nil}},
 			},
 		},
 	},
 	Intern("--"): {
 		KwAny: {
 			nil: {
-				{Intern("DEC"), &Vec{Int(0), nil}},
+				{kwDEC, &Vec{Int(0), nil}},
 			},
 		},
 	},
 	Intern("-not"): {
 		kwRegA: {
 			nil: {
-				{Intern("CPL")},
+				{kwCPL},
 			},
 		},
 	},
 	Intern("-neg"): {
 		kwRegA: {
 			nil: {
-				{Intern("NEG")},
+				{kwNEG},
 			},
 		},
 	},
 	Intern("+"): {
 		KwAny: {
 			KwAny: {
-				{Intern("ADD"), &Vec{Int(0), nil}, &Vec{Int(1), nil}},
+				{kwADD, &Vec{Int(0), nil}, &Vec{Int(1), nil}},
 			},
 		},
 	},
 	Intern("+$"): {
 		KwAny: {
 			KwAny: {
-				{Intern("ADC"), &Vec{Int(0), nil}, &Vec{Int(1), nil}},
+				{kwADC, &Vec{Int(0), nil}, &Vec{Int(1), nil}},
 			},
 		},
 	},
 	Intern("-"): {
 		kwRegHL: {
 			KwAny: {
-				{Intern("OR"), &Operand{Kind: kwRegA}},
-				{Intern("SBC"), &Operand{Kind: kwRegHL}, &Vec{Int(1), nil}},
+				{kwOR, &Operand{Kind: kwRegA}},
+				{kwSBC, &Operand{Kind: kwRegHL}, &Vec{Int(1), nil}},
 			},
 		},
 		kwRegA: {
 			KwAny: {
-				{Intern("SUB"), &Vec{Int(1), nil}},
+				{kwSUB, &Vec{Int(1), nil}},
 			},
 		},
 	},
 	Intern("-$"): {
 		KwAny: {
 			KwAny: {
-				{Intern("SBC"), &Vec{Int(0), nil}, &Vec{Int(1), nil}},
+				{kwSBC, &Vec{Int(0), nil}, &Vec{Int(1), nil}},
 			},
 		},
 	},
 	Intern("-?"): {
 		kwRegA: {
 			KwAny: {
-				{Intern("CP"), &Vec{Int(1), nil}},
+				{kwCP, &Vec{Int(1), nil}},
 			},
 		},
 	},
 	Intern("&"): {
 		kwRegA: {
 			KwAny: {
-				{Intern("AND"), &Vec{Int(1), nil}},
+				{kwAND, &Vec{Int(1), nil}},
 			},
 		},
 	},
 	Intern("|"): {
 		kwRegA: {
 			KwAny: {
-				{Intern("OR"), &Vec{Int(1), nil}},
+				{kwOR, &Vec{Int(1), nil}},
 			},
 		},
 	},
 	Intern("^"): {
 		kwRegA: {
 			KwAny: {
-				{Intern("XOR"), &Vec{Int(1), nil}},
+				{kwXOR, &Vec{Int(1), nil}},
 			},
 		},
 	},
 	Intern("<*"): {
 		kwRegA: {
 			kwImmNN: {
-				{Intern("#.REP"), &Vec{Int(1), nil}, &Vec{
-					&Vec{Intern("RLCA")},
+				{KwREP, &Vec{Int(1), nil}, &Vec{
+					&Vec{kwRLCA},
 				}},
 			},
 		},
 		KwAny: {
 			kwImmNN: {
-				{Intern("#.REP"), &Vec{Int(1), nil}, &Vec{
-					&Vec{Intern("RLC"), &Vec{Int(0), nil}},
+				{KwREP, &Vec{Int(1), nil}, &Vec{
+					&Vec{kwRLC, &Vec{Int(0), nil}},
 				}},
 			},
 		},
@@ -4101,15 +4423,15 @@ var ctxOpMap = map[*Keyword]map[*Keyword]map[*Keyword][][]Value{
 	Intern("<*$"): {
 		kwRegA: {
 			kwImmNN: {
-				{Intern("#.REP"), &Vec{Int(1), nil}, &Vec{
-					&Vec{Intern("RLA")},
+				{KwREP, &Vec{Int(1), nil}, &Vec{
+					&Vec{kwRLA},
 				}},
 			},
 		},
 		KwAny: {
 			kwImmNN: {
-				{Intern("#.REP"), &Vec{Int(1), nil}, &Vec{
-					&Vec{Intern("RL"), &Vec{Int(0), nil}},
+				{KwREP, &Vec{Int(1), nil}, &Vec{
+					&Vec{kwRL, &Vec{Int(0), nil}},
 				}},
 			},
 		},
@@ -4117,15 +4439,15 @@ var ctxOpMap = map[*Keyword]map[*Keyword]map[*Keyword][][]Value{
 	Intern(">*"): {
 		kwRegA: {
 			kwImmNN: {
-				{Intern("#.REP"), &Vec{Int(1), nil}, &Vec{
-					&Vec{Intern("RRCA")},
+				{KwREP, &Vec{Int(1), nil}, &Vec{
+					&Vec{kwRRCA},
 				}},
 			},
 		},
 		KwAny: {
 			kwImmNN: {
-				{Intern("#.REP"), &Vec{Int(1), nil}, &Vec{
-					&Vec{Intern("RRC"), &Vec{Int(0), nil}},
+				{KwREP, &Vec{Int(1), nil}, &Vec{
+					&Vec{kwRRC, &Vec{Int(0), nil}},
 				}},
 			},
 		},
@@ -4133,15 +4455,15 @@ var ctxOpMap = map[*Keyword]map[*Keyword]map[*Keyword][][]Value{
 	Intern(">*$"): {
 		kwRegA: {
 			kwImmNN: {
-				{Intern("#.REP"), &Vec{Int(1), nil}, &Vec{
-					&Vec{Intern("RRA")},
+				{KwREP, &Vec{Int(1), nil}, &Vec{
+					&Vec{kwRRA},
 				}},
 			},
 		},
 		KwAny: {
 			kwImmNN: {
-				{Intern("#.REP"), &Vec{Int(1), nil}, &Vec{
-					&Vec{Intern("RR"), &Vec{Int(0), nil}},
+				{KwREP, &Vec{Int(1), nil}, &Vec{
+					&Vec{kwRR, &Vec{Int(0), nil}},
 				}},
 			},
 		},
@@ -4149,8 +4471,8 @@ var ctxOpMap = map[*Keyword]map[*Keyword]map[*Keyword][][]Value{
 	Intern("<<"): {
 		KwAny: {
 			kwImmNN: {
-				{Intern("#.REP"), &Vec{Int(1), nil}, &Vec{
-					&Vec{Intern("SLA"), &Vec{Int(0), nil}},
+				{KwREP, &Vec{Int(1), nil}, &Vec{
+					&Vec{kwSLA, &Vec{Int(0), nil}},
 				}},
 			},
 		},
@@ -4158,8 +4480,8 @@ var ctxOpMap = map[*Keyword]map[*Keyword]map[*Keyword][][]Value{
 	Intern(">>"): {
 		KwAny: {
 			kwImmNN: {
-				{Intern("#.REP"), &Vec{Int(1), nil}, &Vec{
-					&Vec{Intern("SRA"), &Vec{Int(0), nil}},
+				{KwREP, &Vec{Int(1), nil}, &Vec{
+					&Vec{kwSRA, &Vec{Int(0), nil}},
 				}},
 			},
 		},
@@ -4167,8 +4489,8 @@ var ctxOpMap = map[*Keyword]map[*Keyword]map[*Keyword][][]Value{
 	Intern(">>>"): {
 		KwAny: {
 			kwImmNN: {
-				{Intern("#.REP"), &Vec{Int(1), nil}, &Vec{
-					&Vec{Intern("SRL"), &Vec{Int(0), nil}},
+				{KwREP, &Vec{Int(1), nil}, &Vec{
+					&Vec{kwSRL, &Vec{Int(0), nil}},
 				}},
 			},
 		},
@@ -4176,150 +4498,3483 @@ var ctxOpMap = map[*Keyword]map[*Keyword]map[*Keyword][][]Value{
 	Intern("-set"): {
 		KwAny: {
 			KwAny: {
-				{Intern("SET"), &Vec{Int(1), nil}, &Vec{Int(0), nil}},
+				{kwSET, &Vec{Int(1), nil}, &Vec{Int(0), nil}},
 			},
 		},
 	},
 	Intern("-reset"): {
 		KwAny: {
 			KwAny: {
-				{Intern("RES"), &Vec{Int(1), nil}, &Vec{Int(0), nil}},
+				{kwRES, &Vec{Int(1), nil}, &Vec{Int(0), nil}},
 			},
 		},
 	},
 	Intern("-bit?"): {
 		KwAny: {
 			KwAny: {
-				{Intern("BIT"), &Vec{Int(1), nil}, &Vec{Int(0), nil}},
+				{kwBIT, &Vec{Int(1), nil}, &Vec{Int(0), nil}},
 			},
 		},
 	},
 	Intern("-in"): {
 		kwRegA: {
 			kwRegC: {
-				{Intern("IN"), &Operand{Kind: kwRegA}, &Operand{Kind: kwMemC}},
+				{kwIN, &Operand{Kind: kwRegA}, &Operand{Kind: kwMemC}},
 			},
 			kwImmNN: {
-				{Intern("IN"), &Operand{Kind: kwRegA}, &Vec{Int(1), kwMemNN}},
+				{kwIN, &Operand{Kind: kwRegA}, &Vec{Int(1), kwMemNN}},
 			},
 		},
 		KwAny: {
 			kwRegC: {
-				{Intern("IN"), &Vec{Int(0), nil}, &Operand{Kind: kwMemC}},
+				{kwIN, &Vec{Int(0), nil}, &Operand{Kind: kwMemC}},
 			},
 		},
 	},
 	Intern("-out"): {
 		kwRegA: {
 			kwRegC: {
-				{Intern("OUT"), &Operand{Kind: kwMemC}, &Operand{Kind: kwRegA}},
+				{kwOUT, &Operand{Kind: kwMemC}, &Operand{Kind: kwRegA}},
 			},
 			kwImmNN: {
-				{Intern("OUT"), &Vec{Int(1), kwMemNN}, &Operand{Kind: kwRegA}},
+				{kwOUT, &Vec{Int(1), kwMemNN}, &Operand{Kind: kwRegA}},
 			},
 		},
 		KwAny: {
 			kwRegC: {
-				{Intern("OUT"), &Operand{Kind: kwMemC}, &Vec{Int(0), nil}},
+				{kwOUT, &Operand{Kind: kwMemC}, &Vec{Int(0), nil}},
 			},
 		},
 	},
 	Intern("-zero?"): {
 		kwRegA: {
 			nil: {
-				{Intern("AND"), &Vec{Int(0), nil}},
+				{kwAND, &Vec{Int(0), nil}},
 			},
 		},
 		kwRegBC: {
 			nil: {
-				{Intern("#.INVALID"), &Vec{Int(0), nil}},
+				{KwINVALID, &Vec{Int(0), nil}},
 			},
 		},
 		kwRegDE: {
 			nil: {
-				{Intern("#.INVALID"), &Vec{Int(0), nil}},
+				{KwINVALID, &Vec{Int(0), nil}},
 			},
 		},
 		kwRegHL: {
 			nil: {
-				{Intern("#.INVALID"), &Vec{Int(0), nil}},
+				{KwINVALID, &Vec{Int(0), nil}},
 			},
 		},
 		kwRegSP: {
 			nil: {
-				{Intern("#.INVALID"), &Vec{Int(0), nil}},
+				{KwINVALID, &Vec{Int(0), nil}},
 			},
 		},
 		kwRegIX: {
 			nil: {
-				{Intern("#.INVALID"), &Vec{Int(0), nil}},
+				{KwINVALID, &Vec{Int(0), nil}},
 			},
 		},
 		kwRegIY: {
 			nil: {
-				{Intern("#.INVALID"), &Vec{Int(0), nil}},
+				{KwINVALID, &Vec{Int(0), nil}},
 			},
 		},
 		KwAny: {
 			nil: {
-				{Intern("INC"), &Vec{Int(0), nil}},
-				{Intern("DEC"), &Vec{Int(0), nil}},
+				{kwINC, &Vec{Int(0), nil}},
+				{kwDEC, &Vec{Int(0), nil}},
+			},
+		},
+	},
+	Intern("-jump"): {
+		kwImmNN: {
+			nil: {
+				{KwJump, &Vec{Int(0), nil}},
 			},
 		},
 	},
 	Intern("-jump-if"): {
 		kwImmNN: {
 			kwCondNZ: {
-				{Intern("JP"), &Vec{Int(1), nil}, &Vec{Int(0), nil}},
+				{KwJump, &Vec{Int(0), nil}, &Vec{Int(1), nil}},
 			},
 			kwCondZ: {
-				{Intern("JP"), &Vec{Int(1), nil}, &Vec{Int(0), nil}},
+				{KwJump, &Vec{Int(0), nil}, &Vec{Int(1), nil}},
 			},
 			kwCondNC: {
-				{Intern("JP"), &Vec{Int(1), nil}, &Vec{Int(0), nil}},
+				{KwJump, &Vec{Int(0), nil}, &Vec{Int(1), nil}},
 			},
 			kwCondC: {
-				{Intern("JP"), &Vec{Int(1), nil}, &Vec{Int(0), nil}},
+				{KwJump, &Vec{Int(0), nil}, &Vec{Int(1), nil}},
 			},
 			kwCondPO: {
-				{Intern("JP"), &Vec{Int(1), nil}, &Vec{Int(0), nil}},
+				{KwJump, &Vec{Int(0), nil}, &Vec{Int(1), nil}},
 			},
 			kwCondPE: {
-				{Intern("JP"), &Vec{Int(1), nil}, &Vec{Int(0), nil}},
+				{KwJump, &Vec{Int(0), nil}, &Vec{Int(1), nil}},
 			},
 			kwCondP: {
-				{Intern("JP"), &Vec{Int(1), nil}, &Vec{Int(0), nil}},
+				{KwJump, &Vec{Int(0), nil}, &Vec{Int(1), nil}},
 			},
 			kwCondM: {
-				{Intern("JP"), &Vec{Int(1), nil}, &Vec{Int(0), nil}},
+				{KwJump, &Vec{Int(0), nil}, &Vec{Int(1), nil}},
 			},
 		},
 	},
 	Intern("-jump-unless"): {
 		kwImmNN: {
 			kwCondNZ: {
-				{Intern("JP"), &Operand{Kind: kwCondZ}, &Vec{Int(0), nil}},
+				{KwJump, &Vec{Int(0), nil}, &Operand{Kind: kwCondZ}},
 			},
 			kwCondZ: {
-				{Intern("JP"), &Operand{Kind: kwCondNZ}, &Vec{Int(0), nil}},
+				{KwJump, &Vec{Int(0), nil}, &Operand{Kind: kwCondNZ}},
 			},
 			kwCondNC: {
-				{Intern("JP"), &Operand{Kind: kwCondC}, &Vec{Int(0), nil}},
+				{KwJump, &Vec{Int(0), nil}, &Operand{Kind: kwCondC}},
 			},
 			kwCondC: {
-				{Intern("JP"), &Operand{Kind: kwCondNC}, &Vec{Int(0), nil}},
+				{KwJump, &Vec{Int(0), nil}, &Operand{Kind: kwCondNC}},
 			},
 			kwCondPO: {
-				{Intern("JP"), &Operand{Kind: kwCondPE}, &Vec{Int(0), nil}},
+				{KwJump, &Vec{Int(0), nil}, &Operand{Kind: kwCondPE}},
 			},
 			kwCondPE: {
-				{Intern("JP"), &Operand{Kind: kwCondPO}, &Vec{Int(0), nil}},
+				{KwJump, &Vec{Int(0), nil}, &Operand{Kind: kwCondPO}},
 			},
 			kwCondM: {
-				{Intern("JP"), &Operand{Kind: kwCondP}, &Vec{Int(0), nil}},
+				{KwJump, &Vec{Int(0), nil}, &Operand{Kind: kwCondP}},
 			},
 			kwCondP: {
-				{Intern("JP"), &Operand{Kind: kwCondM}, &Vec{Int(0), nil}},
+				{KwJump, &Vec{Int(0), nil}, &Operand{Kind: kwCondM}},
+			},
+		},
+	},
+}
+
+var kwRegIXH = Intern("IXH")
+var kwRegIXL = Intern("IXL")
+var kwRegIYH = Intern("IYH")
+var kwRegIYL = Intern("IYL")
+
+var asmOperandsUndocumented = map[*Keyword]AsmOperand{
+	kwRegIXH: {"IXH", false},
+	kwRegIXL: {"IXL", false},
+	kwRegIYH: {"IYH", false},
+	kwRegIYL: {"IYL", false},
+}
+
+var tokenWordsUndocumented = [][]string{
+	{"IXH", "IXL", "IYH", "IYL"},
+	{},
+	{},
+	{"<<<"},
+}
+
+var instMapUndocumented = InstPat{
+	kwLD: InstPat{
+		kwRegA: InstPat{
+			kwRegIXH: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xdd},
+					{Kind: BcByte, A0: 0x7c},
+				},
+			},
+			kwRegIXL: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xdd},
+					{Kind: BcByte, A0: 0x7d},
+				},
+			},
+			kwRegIYH: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xfd},
+					{Kind: BcByte, A0: 0x7c},
+				},
+			},
+			kwRegIYL: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xfd},
+					{Kind: BcByte, A0: 0x7d},
+				},
+			},
+		},
+		kwRegB: InstPat{
+			kwRegIXH: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xdd},
+					{Kind: BcByte, A0: 0x44},
+				},
+			},
+			kwRegIXL: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xdd},
+					{Kind: BcByte, A0: 0x45},
+				},
+			},
+			kwRegIYH: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xfd},
+					{Kind: BcByte, A0: 0x44},
+				},
+			},
+			kwRegIYL: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xfd},
+					{Kind: BcByte, A0: 0x45},
+				},
+			},
+		},
+		kwRegC: InstPat{
+			kwRegIXH: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xdd},
+					{Kind: BcByte, A0: 0x4c},
+				},
+			},
+			kwRegIXL: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xdd},
+					{Kind: BcByte, A0: 0x4d},
+				},
+			},
+			kwRegIYH: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xfd},
+					{Kind: BcByte, A0: 0x4c},
+				},
+			},
+			kwRegIYL: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xfd},
+					{Kind: BcByte, A0: 0x4d},
+				},
+			},
+		},
+		kwRegD: InstPat{
+			kwRegIXH: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xdd},
+					{Kind: BcByte, A0: 0x54},
+				},
+			},
+			kwRegIXL: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xdd},
+					{Kind: BcByte, A0: 0x55},
+				},
+			},
+			kwRegIYH: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xfd},
+					{Kind: BcByte, A0: 0x54},
+				},
+			},
+			kwRegIYL: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xfd},
+					{Kind: BcByte, A0: 0x55},
+				},
+			},
+		},
+		kwRegE: InstPat{
+			kwRegIXH: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xdd},
+					{Kind: BcByte, A0: 0x5c},
+				},
+			},
+			kwRegIXL: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xdd},
+					{Kind: BcByte, A0: 0x5d},
+				},
+			},
+			kwRegIYH: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xfd},
+					{Kind: BcByte, A0: 0x5c},
+				},
+			},
+			kwRegIYL: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xfd},
+					{Kind: BcByte, A0: 0x5d},
+				},
+			},
+		},
+		kwRegIXH: InstPat{
+			kwRegIXH: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xdd},
+					{Kind: BcByte, A0: 0x64},
+				},
+			},
+			kwRegA: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xdd},
+					{Kind: BcByte, A0: 0x67},
+				},
+			},
+			kwRegB: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xdd},
+					{Kind: BcByte, A0: 0x60},
+				},
+			},
+			kwRegC: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xdd},
+					{Kind: BcByte, A0: 0x61},
+				},
+			},
+			kwRegD: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xdd},
+					{Kind: BcByte, A0: 0x62},
+				},
+			},
+			kwRegE: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xdd},
+					{Kind: BcByte, A0: 0x63},
+				},
+			},
+			kwRegIXL: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xdd},
+					{Kind: BcByte, A0: 0x65},
+				},
+			},
+			kwImmN: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xdd},
+					{Kind: BcByte, A0: 0x26},
+					{Kind: BcLow, A0: 0x01},
+				},
+			},
+			kwImmNN: InstPat{
+				nil: InstDat{
+					{Kind: BcTemp, A0: 0x00},
+					{Kind: BcTemp, A0: 0x00},
+					{Kind: BcTemp, A0: 0x00},
+				},
+			},
+		},
+		kwRegIXL: InstPat{
+			kwRegIXH: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xdd},
+					{Kind: BcByte, A0: 0x6c},
+				},
+			},
+			kwRegIXL: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xdd},
+					{Kind: BcByte, A0: 0x6d},
+				},
+			},
+			kwRegA: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xdd},
+					{Kind: BcByte, A0: 0x6f},
+				},
+			},
+			kwRegB: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xdd},
+					{Kind: BcByte, A0: 0x68},
+				},
+			},
+			kwRegC: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xdd},
+					{Kind: BcByte, A0: 0x69},
+				},
+			},
+			kwRegD: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xdd},
+					{Kind: BcByte, A0: 0x6a},
+				},
+			},
+			kwRegE: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xdd},
+					{Kind: BcByte, A0: 0x6b},
+				},
+			},
+			kwImmN: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xdd},
+					{Kind: BcByte, A0: 0x2e},
+					{Kind: BcLow, A0: 0x01},
+				},
+			},
+			kwImmNN: InstPat{
+				nil: InstDat{
+					{Kind: BcTemp, A0: 0x00},
+					{Kind: BcTemp, A0: 0x00},
+					{Kind: BcTemp, A0: 0x00},
+				},
+			},
+		},
+		kwRegIYH: InstPat{
+			kwRegIYH: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xfd},
+					{Kind: BcByte, A0: 0x64},
+				},
+			},
+			kwRegA: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xfd},
+					{Kind: BcByte, A0: 0x67},
+				},
+			},
+			kwRegB: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xfd},
+					{Kind: BcByte, A0: 0x60},
+				},
+			},
+			kwRegC: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xfd},
+					{Kind: BcByte, A0: 0x61},
+				},
+			},
+			kwRegD: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xfd},
+					{Kind: BcByte, A0: 0x62},
+				},
+			},
+			kwRegE: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xfd},
+					{Kind: BcByte, A0: 0x63},
+				},
+			},
+			kwRegIYL: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xfd},
+					{Kind: BcByte, A0: 0x65},
+				},
+			},
+			kwImmN: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xfd},
+					{Kind: BcByte, A0: 0x26},
+					{Kind: BcLow, A0: 0x01},
+				},
+			},
+			kwImmNN: InstPat{
+				nil: InstDat{
+					{Kind: BcTemp, A0: 0x00},
+					{Kind: BcTemp, A0: 0x00},
+					{Kind: BcTemp, A0: 0x00},
+				},
+			},
+		},
+		kwRegIYL: InstPat{
+			kwRegIYH: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xfd},
+					{Kind: BcByte, A0: 0x6c},
+				},
+			},
+			kwRegIYL: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xfd},
+					{Kind: BcByte, A0: 0x6d},
+				},
+			},
+			kwRegA: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xfd},
+					{Kind: BcByte, A0: 0x6f},
+				},
+			},
+			kwRegB: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xfd},
+					{Kind: BcByte, A0: 0x68},
+				},
+			},
+			kwRegC: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xfd},
+					{Kind: BcByte, A0: 0x69},
+				},
+			},
+			kwRegD: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xfd},
+					{Kind: BcByte, A0: 0x6a},
+				},
+			},
+			kwRegE: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xfd},
+					{Kind: BcByte, A0: 0x6b},
+				},
+			},
+			kwImmN: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xfd},
+					{Kind: BcByte, A0: 0x2e},
+					{Kind: BcLow, A0: 0x01},
+				},
+			},
+			kwImmNN: InstPat{
+				nil: InstDat{
+					{Kind: BcTemp, A0: 0x00},
+					{Kind: BcTemp, A0: 0x00},
+					{Kind: BcTemp, A0: 0x00},
+				},
+			},
+		},
+	},
+	kwADD: InstPat{
+		kwRegA: InstPat{
+			kwRegIXH: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xdd},
+					{Kind: BcByte, A0: 0x84},
+				},
+			},
+			kwRegIXL: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xdd},
+					{Kind: BcByte, A0: 0x85},
+				},
+			},
+			kwRegIYH: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xfd},
+					{Kind: BcByte, A0: 0x84},
+				},
+			},
+			kwRegIYL: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xfd},
+					{Kind: BcByte, A0: 0x85},
+				},
+			},
+		},
+	},
+	kwADC: InstPat{
+		kwRegA: InstPat{
+			kwRegIXH: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xdd},
+					{Kind: BcByte, A0: 0x8c},
+				},
+			},
+			kwRegIXL: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xdd},
+					{Kind: BcByte, A0: 0x8d},
+				},
+			},
+			kwRegIYH: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xfd},
+					{Kind: BcByte, A0: 0x8c},
+				},
+			},
+			kwRegIYL: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xfd},
+					{Kind: BcByte, A0: 0x8d},
+				},
+			},
+		},
+	},
+	kwSUB: InstPat{
+		kwRegIXH: InstPat{
+			nil: InstDat{
+				{Kind: BcByte, A0: 0xdd},
+				{Kind: BcByte, A0: 0x94},
+			},
+		},
+		kwRegIXL: InstPat{
+			nil: InstDat{
+				{Kind: BcByte, A0: 0xdd},
+				{Kind: BcByte, A0: 0x95},
+			},
+		},
+		kwRegIYH: InstPat{
+			nil: InstDat{
+				{Kind: BcByte, A0: 0xfd},
+				{Kind: BcByte, A0: 0x94},
+			},
+		},
+		kwRegIYL: InstPat{
+			nil: InstDat{
+				{Kind: BcByte, A0: 0xfd},
+				{Kind: BcByte, A0: 0x95},
+			},
+		},
+	},
+	kwSBC: InstPat{
+		kwRegA: InstPat{
+			kwRegIXH: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xdd},
+					{Kind: BcByte, A0: 0x9c},
+				},
+			},
+			kwRegIXL: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xdd},
+					{Kind: BcByte, A0: 0x9d},
+				},
+			},
+			kwRegIYH: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xfd},
+					{Kind: BcByte, A0: 0x9c},
+				},
+			},
+			kwRegIYL: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xfd},
+					{Kind: BcByte, A0: 0x9d},
+				},
+			},
+		},
+	},
+	kwAND: InstPat{
+		kwRegIXH: InstPat{
+			nil: InstDat{
+				{Kind: BcByte, A0: 0xdd},
+				{Kind: BcByte, A0: 0xa4},
+			},
+		},
+		kwRegIXL: InstPat{
+			nil: InstDat{
+				{Kind: BcByte, A0: 0xdd},
+				{Kind: BcByte, A0: 0xa5},
+			},
+		},
+		kwRegIYH: InstPat{
+			nil: InstDat{
+				{Kind: BcByte, A0: 0xfd},
+				{Kind: BcByte, A0: 0xa4},
+			},
+		},
+		kwRegIYL: InstPat{
+			nil: InstDat{
+				{Kind: BcByte, A0: 0xfd},
+				{Kind: BcByte, A0: 0xa5},
+			},
+		},
+	},
+	kwOR: InstPat{
+		kwRegIXH: InstPat{
+			nil: InstDat{
+				{Kind: BcByte, A0: 0xdd},
+				{Kind: BcByte, A0: 0xb4},
+			},
+		},
+		kwRegIXL: InstPat{
+			nil: InstDat{
+				{Kind: BcByte, A0: 0xdd},
+				{Kind: BcByte, A0: 0xb5},
+			},
+		},
+		kwRegIYH: InstPat{
+			nil: InstDat{
+				{Kind: BcByte, A0: 0xfd},
+				{Kind: BcByte, A0: 0xb4},
+			},
+		},
+		kwRegIYL: InstPat{
+			nil: InstDat{
+				{Kind: BcByte, A0: 0xfd},
+				{Kind: BcByte, A0: 0xb5},
+			},
+		},
+	},
+	kwXOR: InstPat{
+		kwRegIXH: InstPat{
+			nil: InstDat{
+				{Kind: BcByte, A0: 0xdd},
+				{Kind: BcByte, A0: 0xac},
+			},
+		},
+		kwRegIXL: InstPat{
+			nil: InstDat{
+				{Kind: BcByte, A0: 0xdd},
+				{Kind: BcByte, A0: 0xad},
+			},
+		},
+		kwRegIYH: InstPat{
+			nil: InstDat{
+				{Kind: BcByte, A0: 0xfd},
+				{Kind: BcByte, A0: 0xac},
+			},
+		},
+		kwRegIYL: InstPat{
+			nil: InstDat{
+				{Kind: BcByte, A0: 0xfd},
+				{Kind: BcByte, A0: 0xad},
+			},
+		},
+	},
+	kwCP: InstPat{
+		kwRegIXH: InstPat{
+			nil: InstDat{
+				{Kind: BcByte, A0: 0xdd},
+				{Kind: BcByte, A0: 0xbc},
+			},
+		},
+		kwRegIXL: InstPat{
+			nil: InstDat{
+				{Kind: BcByte, A0: 0xdd},
+				{Kind: BcByte, A0: 0xbd},
+			},
+		},
+		kwRegIYH: InstPat{
+			nil: InstDat{
+				{Kind: BcByte, A0: 0xfd},
+				{Kind: BcByte, A0: 0xbc},
+			},
+		},
+		kwRegIYL: InstPat{
+			nil: InstDat{
+				{Kind: BcByte, A0: 0xfd},
+				{Kind: BcByte, A0: 0xbd},
+			},
+		},
+	},
+	kwINC: InstPat{
+		kwRegIXH: InstPat{
+			nil: InstDat{
+				{Kind: BcByte, A0: 0xdd},
+				{Kind: BcByte, A0: 0x24},
+			},
+		},
+		kwRegIXL: InstPat{
+			nil: InstDat{
+				{Kind: BcByte, A0: 0xdd},
+				{Kind: BcByte, A0: 0x2c},
+			},
+		},
+		kwRegIYH: InstPat{
+			nil: InstDat{
+				{Kind: BcByte, A0: 0xfd},
+				{Kind: BcByte, A0: 0x24},
+			},
+		},
+		kwRegIYL: InstPat{
+			nil: InstDat{
+				{Kind: BcByte, A0: 0xfd},
+				{Kind: BcByte, A0: 0x2c},
+			},
+		},
+	},
+	kwDEC: InstPat{
+		kwRegIXH: InstPat{
+			nil: InstDat{
+				{Kind: BcByte, A0: 0xdd},
+				{Kind: BcByte, A0: 0x25},
+			},
+		},
+		kwRegIXL: InstPat{
+			nil: InstDat{
+				{Kind: BcByte, A0: 0xdd},
+				{Kind: BcByte, A0: 0x2d},
+			},
+		},
+		kwRegIYH: InstPat{
+			nil: InstDat{
+				{Kind: BcByte, A0: 0xfd},
+				{Kind: BcByte, A0: 0x25},
+			},
+		},
+		kwRegIYL: InstPat{
+			nil: InstDat{
+				{Kind: BcByte, A0: 0xfd},
+				{Kind: BcByte, A0: 0x2d},
+			},
+		},
+	},
+	kwRLC: InstPat{
+		kwRegA: InstPat{
+			kwMemIX: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xdd},
+					{Kind: BcByte, A0: 0xcb},
+					{Kind: BcLow, A0: 0x01},
+					{Kind: BcByte, A0: 0x07},
+				},
+			},
+			kwMemIY: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xfd},
+					{Kind: BcByte, A0: 0xcb},
+					{Kind: BcLow, A0: 0x01},
+					{Kind: BcByte, A0: 0x07},
+				},
+			},
+		},
+		kwRegB: InstPat{
+			kwMemIX: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xdd},
+					{Kind: BcByte, A0: 0xcb},
+					{Kind: BcLow, A0: 0x01},
+					{Kind: BcByte, A0: 0x00},
+				},
+			},
+			kwMemIY: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xfd},
+					{Kind: BcByte, A0: 0xcb},
+					{Kind: BcLow, A0: 0x01},
+					{Kind: BcByte, A0: 0x00},
+				},
+			},
+		},
+		kwRegC: InstPat{
+			kwMemIX: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xdd},
+					{Kind: BcByte, A0: 0xcb},
+					{Kind: BcLow, A0: 0x01},
+					{Kind: BcByte, A0: 0x01},
+				},
+			},
+			kwMemIY: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xfd},
+					{Kind: BcByte, A0: 0xcb},
+					{Kind: BcLow, A0: 0x01},
+					{Kind: BcByte, A0: 0x01},
+				},
+			},
+		},
+		kwRegD: InstPat{
+			kwMemIX: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xdd},
+					{Kind: BcByte, A0: 0xcb},
+					{Kind: BcLow, A0: 0x01},
+					{Kind: BcByte, A0: 0x02},
+				},
+			},
+			kwMemIY: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xfd},
+					{Kind: BcByte, A0: 0xcb},
+					{Kind: BcLow, A0: 0x01},
+					{Kind: BcByte, A0: 0x02},
+				},
+			},
+		},
+		kwRegE: InstPat{
+			kwMemIX: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xdd},
+					{Kind: BcByte, A0: 0xcb},
+					{Kind: BcLow, A0: 0x01},
+					{Kind: BcByte, A0: 0x03},
+				},
+			},
+			kwMemIY: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xfd},
+					{Kind: BcByte, A0: 0xcb},
+					{Kind: BcLow, A0: 0x01},
+					{Kind: BcByte, A0: 0x03},
+				},
+			},
+		},
+		kwRegH: InstPat{
+			kwMemIX: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xdd},
+					{Kind: BcByte, A0: 0xcb},
+					{Kind: BcLow, A0: 0x01},
+					{Kind: BcByte, A0: 0x04},
+				},
+			},
+			kwMemIY: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xfd},
+					{Kind: BcByte, A0: 0xcb},
+					{Kind: BcLow, A0: 0x01},
+					{Kind: BcByte, A0: 0x04},
+				},
+			},
+		},
+		kwRegL: InstPat{
+			kwMemIX: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xdd},
+					{Kind: BcByte, A0: 0xcb},
+					{Kind: BcLow, A0: 0x01},
+					{Kind: BcByte, A0: 0x05},
+				},
+			},
+			kwMemIY: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xfd},
+					{Kind: BcByte, A0: 0xcb},
+					{Kind: BcLow, A0: 0x01},
+					{Kind: BcByte, A0: 0x05},
+				},
+			},
+		},
+	},
+	kwRL: InstPat{
+		kwRegA: InstPat{
+			kwMemIX: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xdd},
+					{Kind: BcByte, A0: 0xcb},
+					{Kind: BcLow, A0: 0x01},
+					{Kind: BcByte, A0: 0x17},
+				},
+			},
+			kwMemIY: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xfd},
+					{Kind: BcByte, A0: 0xcb},
+					{Kind: BcLow, A0: 0x01},
+					{Kind: BcByte, A0: 0x17},
+				},
+			},
+		},
+		kwRegB: InstPat{
+			kwMemIX: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xdd},
+					{Kind: BcByte, A0: 0xcb},
+					{Kind: BcLow, A0: 0x01},
+					{Kind: BcByte, A0: 0x10},
+				},
+			},
+			kwMemIY: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xfd},
+					{Kind: BcByte, A0: 0xcb},
+					{Kind: BcLow, A0: 0x01},
+					{Kind: BcByte, A0: 0x10},
+				},
+			},
+		},
+		kwRegC: InstPat{
+			kwMemIX: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xdd},
+					{Kind: BcByte, A0: 0xcb},
+					{Kind: BcLow, A0: 0x01},
+					{Kind: BcByte, A0: 0x11},
+				},
+			},
+			kwMemIY: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xfd},
+					{Kind: BcByte, A0: 0xcb},
+					{Kind: BcLow, A0: 0x01},
+					{Kind: BcByte, A0: 0x11},
+				},
+			},
+		},
+		kwRegD: InstPat{
+			kwMemIX: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xdd},
+					{Kind: BcByte, A0: 0xcb},
+					{Kind: BcLow, A0: 0x01},
+					{Kind: BcByte, A0: 0x12},
+				},
+			},
+			kwMemIY: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xfd},
+					{Kind: BcByte, A0: 0xcb},
+					{Kind: BcLow, A0: 0x01},
+					{Kind: BcByte, A0: 0x12},
+				},
+			},
+		},
+		kwRegE: InstPat{
+			kwMemIX: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xdd},
+					{Kind: BcByte, A0: 0xcb},
+					{Kind: BcLow, A0: 0x01},
+					{Kind: BcByte, A0: 0x13},
+				},
+			},
+			kwMemIY: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xfd},
+					{Kind: BcByte, A0: 0xcb},
+					{Kind: BcLow, A0: 0x01},
+					{Kind: BcByte, A0: 0x13},
+				},
+			},
+		},
+		kwRegH: InstPat{
+			kwMemIX: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xdd},
+					{Kind: BcByte, A0: 0xcb},
+					{Kind: BcLow, A0: 0x01},
+					{Kind: BcByte, A0: 0x14},
+				},
+			},
+			kwMemIY: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xfd},
+					{Kind: BcByte, A0: 0xcb},
+					{Kind: BcLow, A0: 0x01},
+					{Kind: BcByte, A0: 0x14},
+				},
+			},
+		},
+		kwRegL: InstPat{
+			kwMemIX: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xdd},
+					{Kind: BcByte, A0: 0xcb},
+					{Kind: BcLow, A0: 0x01},
+					{Kind: BcByte, A0: 0x15},
+				},
+			},
+			kwMemIY: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xfd},
+					{Kind: BcByte, A0: 0xcb},
+					{Kind: BcLow, A0: 0x01},
+					{Kind: BcByte, A0: 0x15},
+				},
+			},
+		},
+	},
+	kwRRC: InstPat{
+		kwRegA: InstPat{
+			kwMemIX: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xdd},
+					{Kind: BcByte, A0: 0xcb},
+					{Kind: BcLow, A0: 0x01},
+					{Kind: BcByte, A0: 0x0f},
+				},
+			},
+			kwMemIY: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xfd},
+					{Kind: BcByte, A0: 0xcb},
+					{Kind: BcLow, A0: 0x01},
+					{Kind: BcByte, A0: 0x0f},
+				},
+			},
+		},
+		kwRegB: InstPat{
+			kwMemIX: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xdd},
+					{Kind: BcByte, A0: 0xcb},
+					{Kind: BcLow, A0: 0x01},
+					{Kind: BcByte, A0: 0x08},
+				},
+			},
+			kwMemIY: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xfd},
+					{Kind: BcByte, A0: 0xcb},
+					{Kind: BcLow, A0: 0x01},
+					{Kind: BcByte, A0: 0x08},
+				},
+			},
+		},
+		kwRegC: InstPat{
+			kwMemIX: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xdd},
+					{Kind: BcByte, A0: 0xcb},
+					{Kind: BcLow, A0: 0x01},
+					{Kind: BcByte, A0: 0x09},
+				},
+			},
+			kwMemIY: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xfd},
+					{Kind: BcByte, A0: 0xcb},
+					{Kind: BcLow, A0: 0x01},
+					{Kind: BcByte, A0: 0x09},
+				},
+			},
+		},
+		kwRegD: InstPat{
+			kwMemIX: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xdd},
+					{Kind: BcByte, A0: 0xcb},
+					{Kind: BcLow, A0: 0x01},
+					{Kind: BcByte, A0: 0x0a},
+				},
+			},
+			kwMemIY: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xfd},
+					{Kind: BcByte, A0: 0xcb},
+					{Kind: BcLow, A0: 0x01},
+					{Kind: BcByte, A0: 0x0a},
+				},
+			},
+		},
+		kwRegE: InstPat{
+			kwMemIX: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xdd},
+					{Kind: BcByte, A0: 0xcb},
+					{Kind: BcLow, A0: 0x01},
+					{Kind: BcByte, A0: 0x0b},
+				},
+			},
+			kwMemIY: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xfd},
+					{Kind: BcByte, A0: 0xcb},
+					{Kind: BcLow, A0: 0x01},
+					{Kind: BcByte, A0: 0x0b},
+				},
+			},
+		},
+		kwRegH: InstPat{
+			kwMemIX: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xdd},
+					{Kind: BcByte, A0: 0xcb},
+					{Kind: BcLow, A0: 0x01},
+					{Kind: BcByte, A0: 0x0c},
+				},
+			},
+			kwMemIY: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xfd},
+					{Kind: BcByte, A0: 0xcb},
+					{Kind: BcLow, A0: 0x01},
+					{Kind: BcByte, A0: 0x0c},
+				},
+			},
+		},
+		kwRegL: InstPat{
+			kwMemIX: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xdd},
+					{Kind: BcByte, A0: 0xcb},
+					{Kind: BcLow, A0: 0x01},
+					{Kind: BcByte, A0: 0x0d},
+				},
+			},
+			kwMemIY: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xfd},
+					{Kind: BcByte, A0: 0xcb},
+					{Kind: BcLow, A0: 0x01},
+					{Kind: BcByte, A0: 0x0d},
+				},
+			},
+		},
+	},
+	kwRR: InstPat{
+		kwRegA: InstPat{
+			kwMemIX: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xdd},
+					{Kind: BcByte, A0: 0xcb},
+					{Kind: BcLow, A0: 0x01},
+					{Kind: BcByte, A0: 0x1f},
+				},
+			},
+			kwMemIY: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xfd},
+					{Kind: BcByte, A0: 0xcb},
+					{Kind: BcLow, A0: 0x01},
+					{Kind: BcByte, A0: 0x1f},
+				},
+			},
+		},
+		kwRegB: InstPat{
+			kwMemIX: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xdd},
+					{Kind: BcByte, A0: 0xcb},
+					{Kind: BcLow, A0: 0x01},
+					{Kind: BcByte, A0: 0x18},
+				},
+			},
+			kwMemIY: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xfd},
+					{Kind: BcByte, A0: 0xcb},
+					{Kind: BcLow, A0: 0x01},
+					{Kind: BcByte, A0: 0x18},
+				},
+			},
+		},
+		kwRegC: InstPat{
+			kwMemIX: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xdd},
+					{Kind: BcByte, A0: 0xcb},
+					{Kind: BcLow, A0: 0x01},
+					{Kind: BcByte, A0: 0x19},
+				},
+			},
+			kwMemIY: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xfd},
+					{Kind: BcByte, A0: 0xcb},
+					{Kind: BcLow, A0: 0x01},
+					{Kind: BcByte, A0: 0x19},
+				},
+			},
+		},
+		kwRegD: InstPat{
+			kwMemIX: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xdd},
+					{Kind: BcByte, A0: 0xcb},
+					{Kind: BcLow, A0: 0x01},
+					{Kind: BcByte, A0: 0x1a},
+				},
+			},
+			kwMemIY: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xfd},
+					{Kind: BcByte, A0: 0xcb},
+					{Kind: BcLow, A0: 0x01},
+					{Kind: BcByte, A0: 0x1a},
+				},
+			},
+		},
+		kwRegE: InstPat{
+			kwMemIX: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xdd},
+					{Kind: BcByte, A0: 0xcb},
+					{Kind: BcLow, A0: 0x01},
+					{Kind: BcByte, A0: 0x1b},
+				},
+			},
+			kwMemIY: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xfd},
+					{Kind: BcByte, A0: 0xcb},
+					{Kind: BcLow, A0: 0x01},
+					{Kind: BcByte, A0: 0x1b},
+				},
+			},
+		},
+		kwRegH: InstPat{
+			kwMemIX: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xdd},
+					{Kind: BcByte, A0: 0xcb},
+					{Kind: BcLow, A0: 0x01},
+					{Kind: BcByte, A0: 0x1c},
+				},
+			},
+			kwMemIY: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xfd},
+					{Kind: BcByte, A0: 0xcb},
+					{Kind: BcLow, A0: 0x01},
+					{Kind: BcByte, A0: 0x1c},
+				},
+			},
+		},
+		kwRegL: InstPat{
+			kwMemIX: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xdd},
+					{Kind: BcByte, A0: 0xcb},
+					{Kind: BcLow, A0: 0x01},
+					{Kind: BcByte, A0: 0x1d},
+				},
+			},
+			kwMemIY: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xfd},
+					{Kind: BcByte, A0: 0xcb},
+					{Kind: BcLow, A0: 0x01},
+					{Kind: BcByte, A0: 0x1d},
+				},
+			},
+		},
+	},
+	kwSLA: InstPat{
+		kwRegA: InstPat{
+			kwMemIX: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xdd},
+					{Kind: BcByte, A0: 0xcb},
+					{Kind: BcLow, A0: 0x01},
+					{Kind: BcByte, A0: 0x27},
+				},
+			},
+			kwMemIY: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xfd},
+					{Kind: BcByte, A0: 0xcb},
+					{Kind: BcLow, A0: 0x01},
+					{Kind: BcByte, A0: 0x27},
+				},
+			},
+		},
+		kwRegB: InstPat{
+			kwMemIX: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xdd},
+					{Kind: BcByte, A0: 0xcb},
+					{Kind: BcLow, A0: 0x01},
+					{Kind: BcByte, A0: 0x20},
+				},
+			},
+			kwMemIY: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xfd},
+					{Kind: BcByte, A0: 0xcb},
+					{Kind: BcLow, A0: 0x01},
+					{Kind: BcByte, A0: 0x20},
+				},
+			},
+		},
+		kwRegC: InstPat{
+			kwMemIX: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xdd},
+					{Kind: BcByte, A0: 0xcb},
+					{Kind: BcLow, A0: 0x01},
+					{Kind: BcByte, A0: 0x21},
+				},
+			},
+			kwMemIY: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xfd},
+					{Kind: BcByte, A0: 0xcb},
+					{Kind: BcLow, A0: 0x01},
+					{Kind: BcByte, A0: 0x21},
+				},
+			},
+		},
+		kwRegD: InstPat{
+			kwMemIX: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xdd},
+					{Kind: BcByte, A0: 0xcb},
+					{Kind: BcLow, A0: 0x01},
+					{Kind: BcByte, A0: 0x22},
+				},
+			},
+			kwMemIY: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xfd},
+					{Kind: BcByte, A0: 0xcb},
+					{Kind: BcLow, A0: 0x01},
+					{Kind: BcByte, A0: 0x22},
+				},
+			},
+		},
+		kwRegE: InstPat{
+			kwMemIX: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xdd},
+					{Kind: BcByte, A0: 0xcb},
+					{Kind: BcLow, A0: 0x01},
+					{Kind: BcByte, A0: 0x23},
+				},
+			},
+			kwMemIY: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xfd},
+					{Kind: BcByte, A0: 0xcb},
+					{Kind: BcLow, A0: 0x01},
+					{Kind: BcByte, A0: 0x23},
+				},
+			},
+		},
+		kwRegH: InstPat{
+			kwMemIX: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xdd},
+					{Kind: BcByte, A0: 0xcb},
+					{Kind: BcLow, A0: 0x01},
+					{Kind: BcByte, A0: 0x24},
+				},
+			},
+			kwMemIY: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xfd},
+					{Kind: BcByte, A0: 0xcb},
+					{Kind: BcLow, A0: 0x01},
+					{Kind: BcByte, A0: 0x24},
+				},
+			},
+		},
+		kwRegL: InstPat{
+			kwMemIX: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xdd},
+					{Kind: BcByte, A0: 0xcb},
+					{Kind: BcLow, A0: 0x01},
+					{Kind: BcByte, A0: 0x25},
+				},
+			},
+			kwMemIY: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xfd},
+					{Kind: BcByte, A0: 0xcb},
+					{Kind: BcLow, A0: 0x01},
+					{Kind: BcByte, A0: 0x25},
+				},
+			},
+		},
+	},
+	kwSLL: InstPat{
+		kwRegA: InstPat{
+			nil: InstDat{
+				{Kind: BcByte, A0: 0xcb},
+				{Kind: BcByte, A0: 0x37},
+			},
+			kwMemIX: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xdd},
+					{Kind: BcByte, A0: 0xcb},
+					{Kind: BcLow, A0: 0x01},
+					{Kind: BcByte, A0: 0x37},
+				},
+			},
+			kwMemIY: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xfd},
+					{Kind: BcByte, A0: 0xcb},
+					{Kind: BcLow, A0: 0x01},
+					{Kind: BcByte, A0: 0x37},
+				},
+			},
+		},
+		kwRegB: InstPat{
+			nil: InstDat{
+				{Kind: BcByte, A0: 0xcb},
+				{Kind: BcByte, A0: 0x30},
+			},
+			kwMemIX: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xdd},
+					{Kind: BcByte, A0: 0xcb},
+					{Kind: BcLow, A0: 0x01},
+					{Kind: BcByte, A0: 0x30},
+				},
+			},
+			kwMemIY: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xfd},
+					{Kind: BcByte, A0: 0xcb},
+					{Kind: BcLow, A0: 0x01},
+					{Kind: BcByte, A0: 0x30},
+				},
+			},
+		},
+		kwRegC: InstPat{
+			nil: InstDat{
+				{Kind: BcByte, A0: 0xcb},
+				{Kind: BcByte, A0: 0x31},
+			},
+			kwMemIX: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xdd},
+					{Kind: BcByte, A0: 0xcb},
+					{Kind: BcLow, A0: 0x01},
+					{Kind: BcByte, A0: 0x31},
+				},
+			},
+			kwMemIY: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xfd},
+					{Kind: BcByte, A0: 0xcb},
+					{Kind: BcLow, A0: 0x01},
+					{Kind: BcByte, A0: 0x31},
+				},
+			},
+		},
+		kwRegD: InstPat{
+			nil: InstDat{
+				{Kind: BcByte, A0: 0xcb},
+				{Kind: BcByte, A0: 0x32},
+			},
+			kwMemIX: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xdd},
+					{Kind: BcByte, A0: 0xcb},
+					{Kind: BcLow, A0: 0x01},
+					{Kind: BcByte, A0: 0x32},
+				},
+			},
+			kwMemIY: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xfd},
+					{Kind: BcByte, A0: 0xcb},
+					{Kind: BcLow, A0: 0x01},
+					{Kind: BcByte, A0: 0x32},
+				},
+			},
+		},
+		kwRegE: InstPat{
+			nil: InstDat{
+				{Kind: BcByte, A0: 0xcb},
+				{Kind: BcByte, A0: 0x33},
+			},
+			kwMemIX: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xdd},
+					{Kind: BcByte, A0: 0xcb},
+					{Kind: BcLow, A0: 0x01},
+					{Kind: BcByte, A0: 0x33},
+				},
+			},
+			kwMemIY: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xfd},
+					{Kind: BcByte, A0: 0xcb},
+					{Kind: BcLow, A0: 0x01},
+					{Kind: BcByte, A0: 0x33},
+				},
+			},
+		},
+		kwRegH: InstPat{
+			nil: InstDat{
+				{Kind: BcByte, A0: 0xcb},
+				{Kind: BcByte, A0: 0x34},
+			},
+			kwMemIX: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xdd},
+					{Kind: BcByte, A0: 0xcb},
+					{Kind: BcLow, A0: 0x01},
+					{Kind: BcByte, A0: 0x34},
+				},
+			},
+			kwMemIY: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xfd},
+					{Kind: BcByte, A0: 0xcb},
+					{Kind: BcLow, A0: 0x01},
+					{Kind: BcByte, A0: 0x34},
+				},
+			},
+		},
+		kwRegL: InstPat{
+			nil: InstDat{
+				{Kind: BcByte, A0: 0xcb},
+				{Kind: BcByte, A0: 0x35},
+			},
+			kwMemIX: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xdd},
+					{Kind: BcByte, A0: 0xcb},
+					{Kind: BcLow, A0: 0x01},
+					{Kind: BcByte, A0: 0x35},
+				},
+			},
+			kwMemIY: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xfd},
+					{Kind: BcByte, A0: 0xcb},
+					{Kind: BcLow, A0: 0x01},
+					{Kind: BcByte, A0: 0x35},
+				},
+			},
+		},
+		kwMemHL: InstPat{
+			nil: InstDat{
+				{Kind: BcByte, A0: 0xcb},
+				{Kind: BcByte, A0: 0x36},
+			},
+		},
+		kwMemIX: InstPat{
+			nil: InstDat{
+				{Kind: BcByte, A0: 0xdd},
+				{Kind: BcByte, A0: 0xcb},
+				{Kind: BcLow, A0: 0x00},
+				{Kind: BcByte, A0: 0x36},
+			},
+		},
+		kwMemIY: InstPat{
+			nil: InstDat{
+				{Kind: BcByte, A0: 0xfd},
+				{Kind: BcByte, A0: 0xcb},
+				{Kind: BcLow, A0: 0x00},
+				{Kind: BcByte, A0: 0x36},
+			},
+		},
+	},
+	kwSRA: InstPat{
+		kwRegA: InstPat{
+			kwMemIX: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xdd},
+					{Kind: BcByte, A0: 0xcb},
+					{Kind: BcLow, A0: 0x01},
+					{Kind: BcByte, A0: 0x2f},
+				},
+			},
+			kwMemIY: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xfd},
+					{Kind: BcByte, A0: 0xcb},
+					{Kind: BcLow, A0: 0x01},
+					{Kind: BcByte, A0: 0x2f},
+				},
+			},
+		},
+		kwRegB: InstPat{
+			kwMemIX: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xdd},
+					{Kind: BcByte, A0: 0xcb},
+					{Kind: BcLow, A0: 0x01},
+					{Kind: BcByte, A0: 0x28},
+				},
+			},
+			kwMemIY: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xfd},
+					{Kind: BcByte, A0: 0xcb},
+					{Kind: BcLow, A0: 0x01},
+					{Kind: BcByte, A0: 0x28},
+				},
+			},
+		},
+		kwRegC: InstPat{
+			kwMemIX: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xdd},
+					{Kind: BcByte, A0: 0xcb},
+					{Kind: BcLow, A0: 0x01},
+					{Kind: BcByte, A0: 0x29},
+				},
+			},
+			kwMemIY: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xfd},
+					{Kind: BcByte, A0: 0xcb},
+					{Kind: BcLow, A0: 0x01},
+					{Kind: BcByte, A0: 0x29},
+				},
+			},
+		},
+		kwRegD: InstPat{
+			kwMemIX: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xdd},
+					{Kind: BcByte, A0: 0xcb},
+					{Kind: BcLow, A0: 0x01},
+					{Kind: BcByte, A0: 0x2a},
+				},
+			},
+			kwMemIY: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xfd},
+					{Kind: BcByte, A0: 0xcb},
+					{Kind: BcLow, A0: 0x01},
+					{Kind: BcByte, A0: 0x2a},
+				},
+			},
+		},
+		kwRegE: InstPat{
+			kwMemIX: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xdd},
+					{Kind: BcByte, A0: 0xcb},
+					{Kind: BcLow, A0: 0x01},
+					{Kind: BcByte, A0: 0x2b},
+				},
+			},
+			kwMemIY: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xfd},
+					{Kind: BcByte, A0: 0xcb},
+					{Kind: BcLow, A0: 0x01},
+					{Kind: BcByte, A0: 0x2b},
+				},
+			},
+		},
+		kwRegH: InstPat{
+			kwMemIX: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xdd},
+					{Kind: BcByte, A0: 0xcb},
+					{Kind: BcLow, A0: 0x01},
+					{Kind: BcByte, A0: 0x2c},
+				},
+			},
+			kwMemIY: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xfd},
+					{Kind: BcByte, A0: 0xcb},
+					{Kind: BcLow, A0: 0x01},
+					{Kind: BcByte, A0: 0x2c},
+				},
+			},
+		},
+		kwRegL: InstPat{
+			kwMemIX: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xdd},
+					{Kind: BcByte, A0: 0xcb},
+					{Kind: BcLow, A0: 0x01},
+					{Kind: BcByte, A0: 0x2d},
+				},
+			},
+			kwMemIY: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xfd},
+					{Kind: BcByte, A0: 0xcb},
+					{Kind: BcLow, A0: 0x01},
+					{Kind: BcByte, A0: 0x2d},
+				},
+			},
+		},
+	},
+	kwSRL: InstPat{
+		kwRegA: InstPat{
+			kwMemIX: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xdd},
+					{Kind: BcByte, A0: 0xcb},
+					{Kind: BcLow, A0: 0x01},
+					{Kind: BcByte, A0: 0x3f},
+				},
+			},
+			kwMemIY: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xfd},
+					{Kind: BcByte, A0: 0xcb},
+					{Kind: BcLow, A0: 0x01},
+					{Kind: BcByte, A0: 0x3f},
+				},
+			},
+		},
+		kwRegB: InstPat{
+			kwMemIX: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xdd},
+					{Kind: BcByte, A0: 0xcb},
+					{Kind: BcLow, A0: 0x01},
+					{Kind: BcByte, A0: 0x38},
+				},
+			},
+			kwMemIY: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xfd},
+					{Kind: BcByte, A0: 0xcb},
+					{Kind: BcLow, A0: 0x01},
+					{Kind: BcByte, A0: 0x38},
+				},
+			},
+		},
+		kwRegC: InstPat{
+			kwMemIX: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xdd},
+					{Kind: BcByte, A0: 0xcb},
+					{Kind: BcLow, A0: 0x01},
+					{Kind: BcByte, A0: 0x39},
+				},
+			},
+			kwMemIY: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xfd},
+					{Kind: BcByte, A0: 0xcb},
+					{Kind: BcLow, A0: 0x01},
+					{Kind: BcByte, A0: 0x39},
+				},
+			},
+		},
+		kwRegD: InstPat{
+			kwMemIX: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xdd},
+					{Kind: BcByte, A0: 0xcb},
+					{Kind: BcLow, A0: 0x01},
+					{Kind: BcByte, A0: 0x3a},
+				},
+			},
+			kwMemIY: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xfd},
+					{Kind: BcByte, A0: 0xcb},
+					{Kind: BcLow, A0: 0x01},
+					{Kind: BcByte, A0: 0x3a},
+				},
+			},
+		},
+		kwRegE: InstPat{
+			kwMemIX: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xdd},
+					{Kind: BcByte, A0: 0xcb},
+					{Kind: BcLow, A0: 0x01},
+					{Kind: BcByte, A0: 0x3b},
+				},
+			},
+			kwMemIY: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xfd},
+					{Kind: BcByte, A0: 0xcb},
+					{Kind: BcLow, A0: 0x01},
+					{Kind: BcByte, A0: 0x3b},
+				},
+			},
+		},
+		kwRegH: InstPat{
+			kwMemIX: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xdd},
+					{Kind: BcByte, A0: 0xcb},
+					{Kind: BcLow, A0: 0x01},
+					{Kind: BcByte, A0: 0x3c},
+				},
+			},
+			kwMemIY: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xfd},
+					{Kind: BcByte, A0: 0xcb},
+					{Kind: BcLow, A0: 0x01},
+					{Kind: BcByte, A0: 0x3c},
+				},
+			},
+		},
+		kwRegL: InstPat{
+			kwMemIX: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xdd},
+					{Kind: BcByte, A0: 0xcb},
+					{Kind: BcLow, A0: 0x01},
+					{Kind: BcByte, A0: 0x3d},
+				},
+			},
+			kwMemIY: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xfd},
+					{Kind: BcByte, A0: 0xcb},
+					{Kind: BcLow, A0: 0x01},
+					{Kind: BcByte, A0: 0x3d},
+				},
+			},
+		},
+	},
+	kwBIT: InstPat{
+		kwRegA: InstPat{
+			kwImmN: InstPat{
+				kwMemIX: InstPat{
+					nil: InstDat{
+						{Kind: BcByte, A0: 0xdd},
+						{Kind: BcByte, A0: 0xcb},
+						{Kind: BcLow, A0: 0x02},
+						{Kind: BcImp, A0: 0x01, A1: 0x47, A2: 0x07, A3: 0x03},
+					},
+				},
+				kwMemIY: InstPat{
+					nil: InstDat{
+						{Kind: BcByte, A0: 0xfd},
+						{Kind: BcByte, A0: 0xcb},
+						{Kind: BcLow, A0: 0x02},
+						{Kind: BcImp, A0: 0x01, A1: 0x47, A2: 0x07, A3: 0x03},
+					},
+				},
+			},
+			kwImmNN: InstPat{
+				kwMemIX: InstPat{
+					nil: InstDat{
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+					},
+				},
+				kwMemIY: InstPat{
+					nil: InstDat{
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+					},
+				},
+			},
+		},
+		kwRegB: InstPat{
+			kwImmN: InstPat{
+				kwMemIX: InstPat{
+					nil: InstDat{
+						{Kind: BcByte, A0: 0xdd},
+						{Kind: BcByte, A0: 0xcb},
+						{Kind: BcLow, A0: 0x02},
+						{Kind: BcImp, A0: 0x01, A1: 0x40, A2: 0x07, A3: 0x03},
+					},
+				},
+				kwMemIY: InstPat{
+					nil: InstDat{
+						{Kind: BcByte, A0: 0xfd},
+						{Kind: BcByte, A0: 0xcb},
+						{Kind: BcLow, A0: 0x02},
+						{Kind: BcImp, A0: 0x01, A1: 0x40, A2: 0x07, A3: 0x03},
+					},
+				},
+			},
+			kwImmNN: InstPat{
+				kwMemIX: InstPat{
+					nil: InstDat{
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+					},
+				},
+				kwMemIY: InstPat{
+					nil: InstDat{
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+					},
+				},
+			},
+		},
+		kwRegC: InstPat{
+			kwImmN: InstPat{
+				kwMemIX: InstPat{
+					nil: InstDat{
+						{Kind: BcByte, A0: 0xdd},
+						{Kind: BcByte, A0: 0xcb},
+						{Kind: BcLow, A0: 0x02},
+						{Kind: BcImp, A0: 0x01, A1: 0x41, A2: 0x07, A3: 0x03},
+					},
+				},
+				kwMemIY: InstPat{
+					nil: InstDat{
+						{Kind: BcByte, A0: 0xfd},
+						{Kind: BcByte, A0: 0xcb},
+						{Kind: BcLow, A0: 0x02},
+						{Kind: BcImp, A0: 0x01, A1: 0x41, A2: 0x07, A3: 0x03},
+					},
+				},
+			},
+			kwImmNN: InstPat{
+				kwMemIX: InstPat{
+					nil: InstDat{
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+					},
+				},
+				kwMemIY: InstPat{
+					nil: InstDat{
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+					},
+				},
+			},
+		},
+		kwRegD: InstPat{
+			kwImmN: InstPat{
+				kwMemIX: InstPat{
+					nil: InstDat{
+						{Kind: BcByte, A0: 0xdd},
+						{Kind: BcByte, A0: 0xcb},
+						{Kind: BcLow, A0: 0x02},
+						{Kind: BcImp, A0: 0x01, A1: 0x42, A2: 0x07, A3: 0x03},
+					},
+				},
+				kwMemIY: InstPat{
+					nil: InstDat{
+						{Kind: BcByte, A0: 0xfd},
+						{Kind: BcByte, A0: 0xcb},
+						{Kind: BcLow, A0: 0x02},
+						{Kind: BcImp, A0: 0x01, A1: 0x42, A2: 0x07, A3: 0x03},
+					},
+				},
+			},
+			kwImmNN: InstPat{
+				kwMemIX: InstPat{
+					nil: InstDat{
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+					},
+				},
+				kwMemIY: InstPat{
+					nil: InstDat{
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+					},
+				},
+			},
+		},
+		kwRegE: InstPat{
+			kwImmN: InstPat{
+				kwMemIX: InstPat{
+					nil: InstDat{
+						{Kind: BcByte, A0: 0xdd},
+						{Kind: BcByte, A0: 0xcb},
+						{Kind: BcLow, A0: 0x02},
+						{Kind: BcImp, A0: 0x01, A1: 0x43, A2: 0x07, A3: 0x03},
+					},
+				},
+				kwMemIY: InstPat{
+					nil: InstDat{
+						{Kind: BcByte, A0: 0xfd},
+						{Kind: BcByte, A0: 0xcb},
+						{Kind: BcLow, A0: 0x02},
+						{Kind: BcImp, A0: 0x01, A1: 0x43, A2: 0x07, A3: 0x03},
+					},
+				},
+			},
+			kwImmNN: InstPat{
+				kwMemIX: InstPat{
+					nil: InstDat{
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+					},
+				},
+				kwMemIY: InstPat{
+					nil: InstDat{
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+					},
+				},
+			},
+		},
+		kwRegH: InstPat{
+			kwImmN: InstPat{
+				kwMemIX: InstPat{
+					nil: InstDat{
+						{Kind: BcByte, A0: 0xdd},
+						{Kind: BcByte, A0: 0xcb},
+						{Kind: BcLow, A0: 0x02},
+						{Kind: BcImp, A0: 0x01, A1: 0x44, A2: 0x07, A3: 0x03},
+					},
+				},
+				kwMemIY: InstPat{
+					nil: InstDat{
+						{Kind: BcByte, A0: 0xfd},
+						{Kind: BcByte, A0: 0xcb},
+						{Kind: BcLow, A0: 0x02},
+						{Kind: BcImp, A0: 0x01, A1: 0x44, A2: 0x07, A3: 0x03},
+					},
+				},
+			},
+			kwImmNN: InstPat{
+				kwMemIX: InstPat{
+					nil: InstDat{
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+					},
+				},
+				kwMemIY: InstPat{
+					nil: InstDat{
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+					},
+				},
+			},
+		},
+		kwRegL: InstPat{
+			kwImmN: InstPat{
+				kwMemIX: InstPat{
+					nil: InstDat{
+						{Kind: BcByte, A0: 0xdd},
+						{Kind: BcByte, A0: 0xcb},
+						{Kind: BcLow, A0: 0x02},
+						{Kind: BcImp, A0: 0x01, A1: 0x45, A2: 0x07, A3: 0x03},
+					},
+				},
+				kwMemIY: InstPat{
+					nil: InstDat{
+						{Kind: BcByte, A0: 0xfd},
+						{Kind: BcByte, A0: 0xcb},
+						{Kind: BcLow, A0: 0x02},
+						{Kind: BcImp, A0: 0x01, A1: 0x45, A2: 0x07, A3: 0x03},
+					},
+				},
+			},
+			kwImmNN: InstPat{
+				kwMemIX: InstPat{
+					nil: InstDat{
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+					},
+				},
+				kwMemIY: InstPat{
+					nil: InstDat{
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+					},
+				},
+			},
+		},
+		kwImmN: InstPat{
+			kwMemIX: InstPat{
+				kwRegA: InstPat{
+					nil: InstDat{
+						{Kind: BcByte, A0: 0xdd},
+						{Kind: BcByte, A0: 0xcb},
+						{Kind: BcLow, A0: 0x01},
+						{Kind: BcImp, A0: 0x00, A1: 0x47, A2: 0x07, A3: 0x03},
+					},
+				},
+				kwRegB: InstPat{
+					nil: InstDat{
+						{Kind: BcByte, A0: 0xdd},
+						{Kind: BcByte, A0: 0xcb},
+						{Kind: BcLow, A0: 0x01},
+						{Kind: BcImp, A0: 0x00, A1: 0x40, A2: 0x07, A3: 0x03},
+					},
+				},
+				kwRegC: InstPat{
+					nil: InstDat{
+						{Kind: BcByte, A0: 0xdd},
+						{Kind: BcByte, A0: 0xcb},
+						{Kind: BcLow, A0: 0x01},
+						{Kind: BcImp, A0: 0x00, A1: 0x41, A2: 0x07, A3: 0x03},
+					},
+				},
+				kwRegD: InstPat{
+					nil: InstDat{
+						{Kind: BcByte, A0: 0xdd},
+						{Kind: BcByte, A0: 0xcb},
+						{Kind: BcLow, A0: 0x01},
+						{Kind: BcImp, A0: 0x00, A1: 0x42, A2: 0x07, A3: 0x03},
+					},
+				},
+				kwRegE: InstPat{
+					nil: InstDat{
+						{Kind: BcByte, A0: 0xdd},
+						{Kind: BcByte, A0: 0xcb},
+						{Kind: BcLow, A0: 0x01},
+						{Kind: BcImp, A0: 0x00, A1: 0x43, A2: 0x07, A3: 0x03},
+					},
+				},
+				kwRegH: InstPat{
+					nil: InstDat{
+						{Kind: BcByte, A0: 0xdd},
+						{Kind: BcByte, A0: 0xcb},
+						{Kind: BcLow, A0: 0x01},
+						{Kind: BcImp, A0: 0x00, A1: 0x44, A2: 0x07, A3: 0x03},
+					},
+				},
+				kwRegL: InstPat{
+					nil: InstDat{
+						{Kind: BcByte, A0: 0xdd},
+						{Kind: BcByte, A0: 0xcb},
+						{Kind: BcLow, A0: 0x01},
+						{Kind: BcImp, A0: 0x00, A1: 0x45, A2: 0x07, A3: 0x03},
+					},
+				},
+			},
+			kwMemIY: InstPat{
+				kwRegA: InstPat{
+					nil: InstDat{
+						{Kind: BcByte, A0: 0xfd},
+						{Kind: BcByte, A0: 0xcb},
+						{Kind: BcLow, A0: 0x01},
+						{Kind: BcImp, A0: 0x00, A1: 0x47, A2: 0x07, A3: 0x03},
+					},
+				},
+				kwRegB: InstPat{
+					nil: InstDat{
+						{Kind: BcByte, A0: 0xfd},
+						{Kind: BcByte, A0: 0xcb},
+						{Kind: BcLow, A0: 0x01},
+						{Kind: BcImp, A0: 0x00, A1: 0x40, A2: 0x07, A3: 0x03},
+					},
+				},
+				kwRegC: InstPat{
+					nil: InstDat{
+						{Kind: BcByte, A0: 0xfd},
+						{Kind: BcByte, A0: 0xcb},
+						{Kind: BcLow, A0: 0x01},
+						{Kind: BcImp, A0: 0x00, A1: 0x41, A2: 0x07, A3: 0x03},
+					},
+				},
+				kwRegD: InstPat{
+					nil: InstDat{
+						{Kind: BcByte, A0: 0xfd},
+						{Kind: BcByte, A0: 0xcb},
+						{Kind: BcLow, A0: 0x01},
+						{Kind: BcImp, A0: 0x00, A1: 0x42, A2: 0x07, A3: 0x03},
+					},
+				},
+				kwRegE: InstPat{
+					nil: InstDat{
+						{Kind: BcByte, A0: 0xfd},
+						{Kind: BcByte, A0: 0xcb},
+						{Kind: BcLow, A0: 0x01},
+						{Kind: BcImp, A0: 0x00, A1: 0x43, A2: 0x07, A3: 0x03},
+					},
+				},
+				kwRegH: InstPat{
+					nil: InstDat{
+						{Kind: BcByte, A0: 0xfd},
+						{Kind: BcByte, A0: 0xcb},
+						{Kind: BcLow, A0: 0x01},
+						{Kind: BcImp, A0: 0x00, A1: 0x44, A2: 0x07, A3: 0x03},
+					},
+				},
+				kwRegL: InstPat{
+					nil: InstDat{
+						{Kind: BcByte, A0: 0xfd},
+						{Kind: BcByte, A0: 0xcb},
+						{Kind: BcLow, A0: 0x01},
+						{Kind: BcImp, A0: 0x00, A1: 0x45, A2: 0x07, A3: 0x03},
+					},
+				},
+			},
+		},
+		kwImmNN: InstPat{
+			kwMemIX: InstPat{
+				kwRegA: InstPat{
+					nil: InstDat{
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+					},
+				},
+				kwRegB: InstPat{
+					nil: InstDat{
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+					},
+				},
+				kwRegC: InstPat{
+					nil: InstDat{
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+					},
+				},
+				kwRegD: InstPat{
+					nil: InstDat{
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+					},
+				},
+				kwRegE: InstPat{
+					nil: InstDat{
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+					},
+				},
+				kwRegH: InstPat{
+					nil: InstDat{
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+					},
+				},
+				kwRegL: InstPat{
+					nil: InstDat{
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+					},
+				},
+			},
+			kwMemIY: InstPat{
+				kwRegA: InstPat{
+					nil: InstDat{
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+					},
+				},
+				kwRegB: InstPat{
+					nil: InstDat{
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+					},
+				},
+				kwRegC: InstPat{
+					nil: InstDat{
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+					},
+				},
+				kwRegD: InstPat{
+					nil: InstDat{
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+					},
+				},
+				kwRegE: InstPat{
+					nil: InstDat{
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+					},
+				},
+				kwRegH: InstPat{
+					nil: InstDat{
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+					},
+				},
+				kwRegL: InstPat{
+					nil: InstDat{
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+					},
+				},
+			},
+		},
+	},
+	kwSET: InstPat{
+		kwRegA: InstPat{
+			kwImmN: InstPat{
+				kwMemIX: InstPat{
+					nil: InstDat{
+						{Kind: BcByte, A0: 0xdd},
+						{Kind: BcByte, A0: 0xcb},
+						{Kind: BcLow, A0: 0x02},
+						{Kind: BcImp, A0: 0x01, A1: 0xc7, A2: 0x07, A3: 0x03},
+					},
+				},
+				kwMemIY: InstPat{
+					nil: InstDat{
+						{Kind: BcByte, A0: 0xfd},
+						{Kind: BcByte, A0: 0xcb},
+						{Kind: BcLow, A0: 0x02},
+						{Kind: BcImp, A0: 0x01, A1: 0xc7, A2: 0x07, A3: 0x03},
+					},
+				},
+			},
+			kwImmNN: InstPat{
+				kwMemIX: InstPat{
+					nil: InstDat{
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+					},
+				},
+				kwMemIY: InstPat{
+					nil: InstDat{
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+					},
+				},
+			},
+		},
+		kwRegB: InstPat{
+			kwImmN: InstPat{
+				kwMemIX: InstPat{
+					nil: InstDat{
+						{Kind: BcByte, A0: 0xdd},
+						{Kind: BcByte, A0: 0xcb},
+						{Kind: BcLow, A0: 0x02},
+						{Kind: BcImp, A0: 0x01, A1: 0xc0, A2: 0x07, A3: 0x03},
+					},
+				},
+				kwMemIY: InstPat{
+					nil: InstDat{
+						{Kind: BcByte, A0: 0xfd},
+						{Kind: BcByte, A0: 0xcb},
+						{Kind: BcLow, A0: 0x02},
+						{Kind: BcImp, A0: 0x01, A1: 0xc0, A2: 0x07, A3: 0x03},
+					},
+				},
+			},
+			kwImmNN: InstPat{
+				kwMemIX: InstPat{
+					nil: InstDat{
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+					},
+				},
+				kwMemIY: InstPat{
+					nil: InstDat{
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+					},
+				},
+			},
+		},
+		kwRegC: InstPat{
+			kwImmN: InstPat{
+				kwMemIX: InstPat{
+					nil: InstDat{
+						{Kind: BcByte, A0: 0xdd},
+						{Kind: BcByte, A0: 0xcb},
+						{Kind: BcLow, A0: 0x02},
+						{Kind: BcImp, A0: 0x01, A1: 0xc1, A2: 0x07, A3: 0x03},
+					},
+				},
+				kwMemIY: InstPat{
+					nil: InstDat{
+						{Kind: BcByte, A0: 0xfd},
+						{Kind: BcByte, A0: 0xcb},
+						{Kind: BcLow, A0: 0x02},
+						{Kind: BcImp, A0: 0x01, A1: 0xc1, A2: 0x07, A3: 0x03},
+					},
+				},
+			},
+			kwImmNN: InstPat{
+				kwMemIX: InstPat{
+					nil: InstDat{
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+					},
+				},
+				kwMemIY: InstPat{
+					nil: InstDat{
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+					},
+				},
+			},
+		},
+		kwRegD: InstPat{
+			kwImmN: InstPat{
+				kwMemIX: InstPat{
+					nil: InstDat{
+						{Kind: BcByte, A0: 0xdd},
+						{Kind: BcByte, A0: 0xcb},
+						{Kind: BcLow, A0: 0x02},
+						{Kind: BcImp, A0: 0x01, A1: 0xc2, A2: 0x07, A3: 0x03},
+					},
+				},
+				kwMemIY: InstPat{
+					nil: InstDat{
+						{Kind: BcByte, A0: 0xfd},
+						{Kind: BcByte, A0: 0xcb},
+						{Kind: BcLow, A0: 0x02},
+						{Kind: BcImp, A0: 0x01, A1: 0xc2, A2: 0x07, A3: 0x03},
+					},
+				},
+			},
+			kwImmNN: InstPat{
+				kwMemIX: InstPat{
+					nil: InstDat{
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+					},
+				},
+				kwMemIY: InstPat{
+					nil: InstDat{
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+					},
+				},
+			},
+		},
+		kwRegE: InstPat{
+			kwImmN: InstPat{
+				kwMemIX: InstPat{
+					nil: InstDat{
+						{Kind: BcByte, A0: 0xdd},
+						{Kind: BcByte, A0: 0xcb},
+						{Kind: BcLow, A0: 0x02},
+						{Kind: BcImp, A0: 0x01, A1: 0xc3, A2: 0x07, A3: 0x03},
+					},
+				},
+				kwMemIY: InstPat{
+					nil: InstDat{
+						{Kind: BcByte, A0: 0xfd},
+						{Kind: BcByte, A0: 0xcb},
+						{Kind: BcLow, A0: 0x02},
+						{Kind: BcImp, A0: 0x01, A1: 0xc3, A2: 0x07, A3: 0x03},
+					},
+				},
+			},
+			kwImmNN: InstPat{
+				kwMemIX: InstPat{
+					nil: InstDat{
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+					},
+				},
+				kwMemIY: InstPat{
+					nil: InstDat{
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+					},
+				},
+			},
+		},
+		kwRegH: InstPat{
+			kwImmN: InstPat{
+				kwMemIX: InstPat{
+					nil: InstDat{
+						{Kind: BcByte, A0: 0xdd},
+						{Kind: BcByte, A0: 0xcb},
+						{Kind: BcLow, A0: 0x02},
+						{Kind: BcImp, A0: 0x01, A1: 0xc4, A2: 0x07, A3: 0x03},
+					},
+				},
+				kwMemIY: InstPat{
+					nil: InstDat{
+						{Kind: BcByte, A0: 0xfd},
+						{Kind: BcByte, A0: 0xcb},
+						{Kind: BcLow, A0: 0x02},
+						{Kind: BcImp, A0: 0x01, A1: 0xc4, A2: 0x07, A3: 0x03},
+					},
+				},
+			},
+			kwImmNN: InstPat{
+				kwMemIX: InstPat{
+					nil: InstDat{
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+					},
+				},
+				kwMemIY: InstPat{
+					nil: InstDat{
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+					},
+				},
+			},
+		},
+		kwRegL: InstPat{
+			kwImmN: InstPat{
+				kwMemIX: InstPat{
+					nil: InstDat{
+						{Kind: BcByte, A0: 0xdd},
+						{Kind: BcByte, A0: 0xcb},
+						{Kind: BcLow, A0: 0x02},
+						{Kind: BcImp, A0: 0x01, A1: 0xc5, A2: 0x07, A3: 0x03},
+					},
+				},
+				kwMemIY: InstPat{
+					nil: InstDat{
+						{Kind: BcByte, A0: 0xfd},
+						{Kind: BcByte, A0: 0xcb},
+						{Kind: BcLow, A0: 0x02},
+						{Kind: BcImp, A0: 0x01, A1: 0xc5, A2: 0x07, A3: 0x03},
+					},
+				},
+			},
+			kwImmNN: InstPat{
+				kwMemIX: InstPat{
+					nil: InstDat{
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+					},
+				},
+				kwMemIY: InstPat{
+					nil: InstDat{
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+					},
+				},
+			},
+		},
+		kwImmN: InstPat{
+			kwMemIX: InstPat{
+				kwRegA: InstPat{
+					nil: InstDat{
+						{Kind: BcByte, A0: 0xdd},
+						{Kind: BcByte, A0: 0xcb},
+						{Kind: BcLow, A0: 0x01},
+						{Kind: BcImp, A0: 0x00, A1: 0xc7, A2: 0x07, A3: 0x03},
+					},
+				},
+				kwRegB: InstPat{
+					nil: InstDat{
+						{Kind: BcByte, A0: 0xdd},
+						{Kind: BcByte, A0: 0xcb},
+						{Kind: BcLow, A0: 0x01},
+						{Kind: BcImp, A0: 0x00, A1: 0xc0, A2: 0x07, A3: 0x03},
+					},
+				},
+				kwRegC: InstPat{
+					nil: InstDat{
+						{Kind: BcByte, A0: 0xdd},
+						{Kind: BcByte, A0: 0xcb},
+						{Kind: BcLow, A0: 0x01},
+						{Kind: BcImp, A0: 0x00, A1: 0xc1, A2: 0x07, A3: 0x03},
+					},
+				},
+				kwRegD: InstPat{
+					nil: InstDat{
+						{Kind: BcByte, A0: 0xdd},
+						{Kind: BcByte, A0: 0xcb},
+						{Kind: BcLow, A0: 0x01},
+						{Kind: BcImp, A0: 0x00, A1: 0xc2, A2: 0x07, A3: 0x03},
+					},
+				},
+				kwRegE: InstPat{
+					nil: InstDat{
+						{Kind: BcByte, A0: 0xdd},
+						{Kind: BcByte, A0: 0xcb},
+						{Kind: BcLow, A0: 0x01},
+						{Kind: BcImp, A0: 0x00, A1: 0xc3, A2: 0x07, A3: 0x03},
+					},
+				},
+				kwRegH: InstPat{
+					nil: InstDat{
+						{Kind: BcByte, A0: 0xdd},
+						{Kind: BcByte, A0: 0xcb},
+						{Kind: BcLow, A0: 0x01},
+						{Kind: BcImp, A0: 0x00, A1: 0xc4, A2: 0x07, A3: 0x03},
+					},
+				},
+				kwRegL: InstPat{
+					nil: InstDat{
+						{Kind: BcByte, A0: 0xdd},
+						{Kind: BcByte, A0: 0xcb},
+						{Kind: BcLow, A0: 0x01},
+						{Kind: BcImp, A0: 0x00, A1: 0xc5, A2: 0x07, A3: 0x03},
+					},
+				},
+			},
+			kwMemIY: InstPat{
+				kwRegA: InstPat{
+					nil: InstDat{
+						{Kind: BcByte, A0: 0xfd},
+						{Kind: BcByte, A0: 0xcb},
+						{Kind: BcLow, A0: 0x01},
+						{Kind: BcImp, A0: 0x00, A1: 0xc7, A2: 0x07, A3: 0x03},
+					},
+				},
+				kwRegB: InstPat{
+					nil: InstDat{
+						{Kind: BcByte, A0: 0xfd},
+						{Kind: BcByte, A0: 0xcb},
+						{Kind: BcLow, A0: 0x01},
+						{Kind: BcImp, A0: 0x00, A1: 0xc0, A2: 0x07, A3: 0x03},
+					},
+				},
+				kwRegC: InstPat{
+					nil: InstDat{
+						{Kind: BcByte, A0: 0xfd},
+						{Kind: BcByte, A0: 0xcb},
+						{Kind: BcLow, A0: 0x01},
+						{Kind: BcImp, A0: 0x00, A1: 0xc1, A2: 0x07, A3: 0x03},
+					},
+				},
+				kwRegD: InstPat{
+					nil: InstDat{
+						{Kind: BcByte, A0: 0xfd},
+						{Kind: BcByte, A0: 0xcb},
+						{Kind: BcLow, A0: 0x01},
+						{Kind: BcImp, A0: 0x00, A1: 0xc2, A2: 0x07, A3: 0x03},
+					},
+				},
+				kwRegE: InstPat{
+					nil: InstDat{
+						{Kind: BcByte, A0: 0xfd},
+						{Kind: BcByte, A0: 0xcb},
+						{Kind: BcLow, A0: 0x01},
+						{Kind: BcImp, A0: 0x00, A1: 0xc3, A2: 0x07, A3: 0x03},
+					},
+				},
+				kwRegH: InstPat{
+					nil: InstDat{
+						{Kind: BcByte, A0: 0xfd},
+						{Kind: BcByte, A0: 0xcb},
+						{Kind: BcLow, A0: 0x01},
+						{Kind: BcImp, A0: 0x00, A1: 0xc4, A2: 0x07, A3: 0x03},
+					},
+				},
+				kwRegL: InstPat{
+					nil: InstDat{
+						{Kind: BcByte, A0: 0xfd},
+						{Kind: BcByte, A0: 0xcb},
+						{Kind: BcLow, A0: 0x01},
+						{Kind: BcImp, A0: 0x00, A1: 0xc5, A2: 0x07, A3: 0x03},
+					},
+				},
+			},
+		},
+		kwImmNN: InstPat{
+			kwMemIX: InstPat{
+				kwRegA: InstPat{
+					nil: InstDat{
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+					},
+				},
+				kwRegB: InstPat{
+					nil: InstDat{
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+					},
+				},
+				kwRegC: InstPat{
+					nil: InstDat{
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+					},
+				},
+				kwRegD: InstPat{
+					nil: InstDat{
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+					},
+				},
+				kwRegE: InstPat{
+					nil: InstDat{
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+					},
+				},
+				kwRegH: InstPat{
+					nil: InstDat{
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+					},
+				},
+				kwRegL: InstPat{
+					nil: InstDat{
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+					},
+				},
+			},
+			kwMemIY: InstPat{
+				kwRegA: InstPat{
+					nil: InstDat{
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+					},
+				},
+				kwRegB: InstPat{
+					nil: InstDat{
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+					},
+				},
+				kwRegC: InstPat{
+					nil: InstDat{
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+					},
+				},
+				kwRegD: InstPat{
+					nil: InstDat{
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+					},
+				},
+				kwRegE: InstPat{
+					nil: InstDat{
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+					},
+				},
+				kwRegH: InstPat{
+					nil: InstDat{
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+					},
+				},
+				kwRegL: InstPat{
+					nil: InstDat{
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+					},
+				},
+			},
+		},
+	},
+	kwRES: InstPat{
+		kwRegA: InstPat{
+			kwImmN: InstPat{
+				kwMemIX: InstPat{
+					nil: InstDat{
+						{Kind: BcByte, A0: 0xdd},
+						{Kind: BcByte, A0: 0xcb},
+						{Kind: BcLow, A0: 0x02},
+						{Kind: BcImp, A0: 0x01, A1: 0x87, A2: 0x07, A3: 0x03},
+					},
+				},
+				kwMemIY: InstPat{
+					nil: InstDat{
+						{Kind: BcByte, A0: 0xfd},
+						{Kind: BcByte, A0: 0xcb},
+						{Kind: BcLow, A0: 0x02},
+						{Kind: BcImp, A0: 0x01, A1: 0x87, A2: 0x07, A3: 0x03},
+					},
+				},
+			},
+			kwImmNN: InstPat{
+				kwMemIX: InstPat{
+					nil: InstDat{
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+					},
+				},
+				kwMemIY: InstPat{
+					nil: InstDat{
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+					},
+				},
+			},
+		},
+		kwRegB: InstPat{
+			kwImmN: InstPat{
+				kwMemIX: InstPat{
+					nil: InstDat{
+						{Kind: BcByte, A0: 0xdd},
+						{Kind: BcByte, A0: 0xcb},
+						{Kind: BcLow, A0: 0x02},
+						{Kind: BcImp, A0: 0x01, A1: 0x80, A2: 0x07, A3: 0x03},
+					},
+				},
+				kwMemIY: InstPat{
+					nil: InstDat{
+						{Kind: BcByte, A0: 0xfd},
+						{Kind: BcByte, A0: 0xcb},
+						{Kind: BcLow, A0: 0x02},
+						{Kind: BcImp, A0: 0x01, A1: 0x80, A2: 0x07, A3: 0x03},
+					},
+				},
+			},
+			kwImmNN: InstPat{
+				kwMemIX: InstPat{
+					nil: InstDat{
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+					},
+				},
+				kwMemIY: InstPat{
+					nil: InstDat{
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+					},
+				},
+			},
+		},
+		kwRegC: InstPat{
+			kwImmN: InstPat{
+				kwMemIX: InstPat{
+					nil: InstDat{
+						{Kind: BcByte, A0: 0xdd},
+						{Kind: BcByte, A0: 0xcb},
+						{Kind: BcLow, A0: 0x02},
+						{Kind: BcImp, A0: 0x01, A1: 0x81, A2: 0x07, A3: 0x03},
+					},
+				},
+				kwMemIY: InstPat{
+					nil: InstDat{
+						{Kind: BcByte, A0: 0xfd},
+						{Kind: BcByte, A0: 0xcb},
+						{Kind: BcLow, A0: 0x02},
+						{Kind: BcImp, A0: 0x01, A1: 0x81, A2: 0x07, A3: 0x03},
+					},
+				},
+			},
+			kwImmNN: InstPat{
+				kwMemIX: InstPat{
+					nil: InstDat{
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+					},
+				},
+				kwMemIY: InstPat{
+					nil: InstDat{
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+					},
+				},
+			},
+		},
+		kwRegD: InstPat{
+			kwImmN: InstPat{
+				kwMemIX: InstPat{
+					nil: InstDat{
+						{Kind: BcByte, A0: 0xdd},
+						{Kind: BcByte, A0: 0xcb},
+						{Kind: BcLow, A0: 0x02},
+						{Kind: BcImp, A0: 0x01, A1: 0x82, A2: 0x07, A3: 0x03},
+					},
+				},
+				kwMemIY: InstPat{
+					nil: InstDat{
+						{Kind: BcByte, A0: 0xfd},
+						{Kind: BcByte, A0: 0xcb},
+						{Kind: BcLow, A0: 0x02},
+						{Kind: BcImp, A0: 0x01, A1: 0x82, A2: 0x07, A3: 0x03},
+					},
+				},
+			},
+			kwImmNN: InstPat{
+				kwMemIX: InstPat{
+					nil: InstDat{
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+					},
+				},
+				kwMemIY: InstPat{
+					nil: InstDat{
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+					},
+				},
+			},
+		},
+		kwRegE: InstPat{
+			kwImmN: InstPat{
+				kwMemIX: InstPat{
+					nil: InstDat{
+						{Kind: BcByte, A0: 0xdd},
+						{Kind: BcByte, A0: 0xcb},
+						{Kind: BcLow, A0: 0x02},
+						{Kind: BcImp, A0: 0x01, A1: 0x83, A2: 0x07, A3: 0x03},
+					},
+				},
+				kwMemIY: InstPat{
+					nil: InstDat{
+						{Kind: BcByte, A0: 0xfd},
+						{Kind: BcByte, A0: 0xcb},
+						{Kind: BcLow, A0: 0x02},
+						{Kind: BcImp, A0: 0x01, A1: 0x83, A2: 0x07, A3: 0x03},
+					},
+				},
+			},
+			kwImmNN: InstPat{
+				kwMemIX: InstPat{
+					nil: InstDat{
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+					},
+				},
+				kwMemIY: InstPat{
+					nil: InstDat{
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+					},
+				},
+			},
+		},
+		kwRegH: InstPat{
+			kwImmN: InstPat{
+				kwMemIX: InstPat{
+					nil: InstDat{
+						{Kind: BcByte, A0: 0xdd},
+						{Kind: BcByte, A0: 0xcb},
+						{Kind: BcLow, A0: 0x02},
+						{Kind: BcImp, A0: 0x01, A1: 0x84, A2: 0x07, A3: 0x03},
+					},
+				},
+				kwMemIY: InstPat{
+					nil: InstDat{
+						{Kind: BcByte, A0: 0xfd},
+						{Kind: BcByte, A0: 0xcb},
+						{Kind: BcLow, A0: 0x02},
+						{Kind: BcImp, A0: 0x01, A1: 0x84, A2: 0x07, A3: 0x03},
+					},
+				},
+			},
+			kwImmNN: InstPat{
+				kwMemIX: InstPat{
+					nil: InstDat{
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+					},
+				},
+				kwMemIY: InstPat{
+					nil: InstDat{
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+					},
+				},
+			},
+		},
+		kwRegL: InstPat{
+			kwImmN: InstPat{
+				kwMemIX: InstPat{
+					nil: InstDat{
+						{Kind: BcByte, A0: 0xdd},
+						{Kind: BcByte, A0: 0xcb},
+						{Kind: BcLow, A0: 0x02},
+						{Kind: BcImp, A0: 0x01, A1: 0x85, A2: 0x07, A3: 0x03},
+					},
+				},
+				kwMemIY: InstPat{
+					nil: InstDat{
+						{Kind: BcByte, A0: 0xfd},
+						{Kind: BcByte, A0: 0xcb},
+						{Kind: BcLow, A0: 0x02},
+						{Kind: BcImp, A0: 0x01, A1: 0x85, A2: 0x07, A3: 0x03},
+					},
+				},
+			},
+			kwImmNN: InstPat{
+				kwMemIX: InstPat{
+					nil: InstDat{
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+					},
+				},
+				kwMemIY: InstPat{
+					nil: InstDat{
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+					},
+				},
+			},
+		},
+		kwImmN: InstPat{
+			kwMemIX: InstPat{
+				kwRegA: InstPat{
+					nil: InstDat{
+						{Kind: BcByte, A0: 0xdd},
+						{Kind: BcByte, A0: 0xcb},
+						{Kind: BcLow, A0: 0x01},
+						{Kind: BcImp, A0: 0x00, A1: 0x87, A2: 0x07, A3: 0x03},
+					},
+				},
+				kwRegB: InstPat{
+					nil: InstDat{
+						{Kind: BcByte, A0: 0xdd},
+						{Kind: BcByte, A0: 0xcb},
+						{Kind: BcLow, A0: 0x01},
+						{Kind: BcImp, A0: 0x00, A1: 0x80, A2: 0x07, A3: 0x03},
+					},
+				},
+				kwRegC: InstPat{
+					nil: InstDat{
+						{Kind: BcByte, A0: 0xdd},
+						{Kind: BcByte, A0: 0xcb},
+						{Kind: BcLow, A0: 0x01},
+						{Kind: BcImp, A0: 0x00, A1: 0x81, A2: 0x07, A3: 0x03},
+					},
+				},
+				kwRegD: InstPat{
+					nil: InstDat{
+						{Kind: BcByte, A0: 0xdd},
+						{Kind: BcByte, A0: 0xcb},
+						{Kind: BcLow, A0: 0x01},
+						{Kind: BcImp, A0: 0x00, A1: 0x82, A2: 0x07, A3: 0x03},
+					},
+				},
+				kwRegE: InstPat{
+					nil: InstDat{
+						{Kind: BcByte, A0: 0xdd},
+						{Kind: BcByte, A0: 0xcb},
+						{Kind: BcLow, A0: 0x01},
+						{Kind: BcImp, A0: 0x00, A1: 0x83, A2: 0x07, A3: 0x03},
+					},
+				},
+				kwRegH: InstPat{
+					nil: InstDat{
+						{Kind: BcByte, A0: 0xdd},
+						{Kind: BcByte, A0: 0xcb},
+						{Kind: BcLow, A0: 0x01},
+						{Kind: BcImp, A0: 0x00, A1: 0x84, A2: 0x07, A3: 0x03},
+					},
+				},
+				kwRegL: InstPat{
+					nil: InstDat{
+						{Kind: BcByte, A0: 0xdd},
+						{Kind: BcByte, A0: 0xcb},
+						{Kind: BcLow, A0: 0x01},
+						{Kind: BcImp, A0: 0x00, A1: 0x85, A2: 0x07, A3: 0x03},
+					},
+				},
+			},
+			kwMemIY: InstPat{
+				kwRegA: InstPat{
+					nil: InstDat{
+						{Kind: BcByte, A0: 0xfd},
+						{Kind: BcByte, A0: 0xcb},
+						{Kind: BcLow, A0: 0x01},
+						{Kind: BcImp, A0: 0x00, A1: 0x87, A2: 0x07, A3: 0x03},
+					},
+				},
+				kwRegB: InstPat{
+					nil: InstDat{
+						{Kind: BcByte, A0: 0xfd},
+						{Kind: BcByte, A0: 0xcb},
+						{Kind: BcLow, A0: 0x01},
+						{Kind: BcImp, A0: 0x00, A1: 0x80, A2: 0x07, A3: 0x03},
+					},
+				},
+				kwRegC: InstPat{
+					nil: InstDat{
+						{Kind: BcByte, A0: 0xfd},
+						{Kind: BcByte, A0: 0xcb},
+						{Kind: BcLow, A0: 0x01},
+						{Kind: BcImp, A0: 0x00, A1: 0x81, A2: 0x07, A3: 0x03},
+					},
+				},
+				kwRegD: InstPat{
+					nil: InstDat{
+						{Kind: BcByte, A0: 0xfd},
+						{Kind: BcByte, A0: 0xcb},
+						{Kind: BcLow, A0: 0x01},
+						{Kind: BcImp, A0: 0x00, A1: 0x82, A2: 0x07, A3: 0x03},
+					},
+				},
+				kwRegE: InstPat{
+					nil: InstDat{
+						{Kind: BcByte, A0: 0xfd},
+						{Kind: BcByte, A0: 0xcb},
+						{Kind: BcLow, A0: 0x01},
+						{Kind: BcImp, A0: 0x00, A1: 0x83, A2: 0x07, A3: 0x03},
+					},
+				},
+				kwRegH: InstPat{
+					nil: InstDat{
+						{Kind: BcByte, A0: 0xfd},
+						{Kind: BcByte, A0: 0xcb},
+						{Kind: BcLow, A0: 0x01},
+						{Kind: BcImp, A0: 0x00, A1: 0x84, A2: 0x07, A3: 0x03},
+					},
+				},
+				kwRegL: InstPat{
+					nil: InstDat{
+						{Kind: BcByte, A0: 0xfd},
+						{Kind: BcByte, A0: 0xcb},
+						{Kind: BcLow, A0: 0x01},
+						{Kind: BcImp, A0: 0x00, A1: 0x85, A2: 0x07, A3: 0x03},
+					},
+				},
+			},
+		},
+		kwImmNN: InstPat{
+			kwMemIX: InstPat{
+				kwRegA: InstPat{
+					nil: InstDat{
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+					},
+				},
+				kwRegB: InstPat{
+					nil: InstDat{
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+					},
+				},
+				kwRegC: InstPat{
+					nil: InstDat{
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+					},
+				},
+				kwRegD: InstPat{
+					nil: InstDat{
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+					},
+				},
+				kwRegE: InstPat{
+					nil: InstDat{
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+					},
+				},
+				kwRegH: InstPat{
+					nil: InstDat{
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+					},
+				},
+				kwRegL: InstPat{
+					nil: InstDat{
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+					},
+				},
+			},
+			kwMemIY: InstPat{
+				kwRegA: InstPat{
+					nil: InstDat{
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+					},
+				},
+				kwRegB: InstPat{
+					nil: InstDat{
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+					},
+				},
+				kwRegC: InstPat{
+					nil: InstDat{
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+					},
+				},
+				kwRegD: InstPat{
+					nil: InstDat{
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+					},
+				},
+				kwRegE: InstPat{
+					nil: InstDat{
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+					},
+				},
+				kwRegH: InstPat{
+					nil: InstDat{
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+					},
+				},
+				kwRegL: InstPat{
+					nil: InstDat{
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+						{Kind: BcTemp, A0: 0x00},
+					},
+				},
+			},
+		},
+	},
+	kwIN: InstPat{
+		kwMemC: InstPat{
+			nil: InstDat{
+				{Kind: BcByte, A0: 0xed},
+				{Kind: BcByte, A0: 0x70},
+			},
+		},
+		kwRegF: InstPat{
+			kwMemC: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xed},
+					{Kind: BcByte, A0: 0x70},
+				},
+			},
+		},
+	},
+	kwOUT: InstPat{
+		kwMemC: InstPat{
+			kwImmN: InstPat{
+				nil: InstDat{
+					{Kind: BcByte, A0: 0xed},
+					{Kind: BcImp, A0: 0x01, A1: 0x71, A2: 0x00, A3: 0x00},
+				},
+			},
+			kwImmNN: InstPat{
+				nil: InstDat{
+					{Kind: BcTemp, A0: 0x00},
+					{Kind: BcTemp, A0: 0x00},
+				},
+			},
+		},
+	},
+}
+
+var ctxOpMapUndocumented = CtxOpMap{
+	Intern("<-"): {
+		kwRegIXH: {
+			KwAny: {
+				{kwLD, &Vec{Int(0), nil}, &Vec{Int(1), nil}},
+			},
+		},
+		kwRegIXL: {
+			KwAny: {
+				{kwLD, &Vec{Int(0), nil}, &Vec{Int(1), nil}},
+			},
+		},
+		kwRegIYH: {
+			KwAny: {
+				{kwLD, &Vec{Int(0), nil}, &Vec{Int(1), nil}},
+			},
+		},
+		kwRegIYL: {
+			KwAny: {
+				{kwLD, &Vec{Int(0), nil}, &Vec{Int(1), nil}},
+			},
+		},
+	},
+	Intern("->"): {
+		kwRegIXH: {
+			KwAny: {
+				{kwLD, &Vec{Int(1), nil}, &Vec{Int(0), nil}},
+			},
+		},
+		kwRegIXL: {
+			KwAny: {
+				{kwLD, &Vec{Int(1), nil}, &Vec{Int(0), nil}},
+			},
+		},
+		kwRegIYH: {
+			KwAny: {
+				{kwLD, &Vec{Int(1), nil}, &Vec{Int(0), nil}},
+			},
+		},
+		kwRegIYL: {
+			KwAny: {
+				{kwLD, &Vec{Int(1), nil}, &Vec{Int(0), nil}},
+			},
+		},
+	},
+	Intern("<<<"): {
+		KwAny: {
+			kwImmNN: {
+				{KwREP, &Vec{Int(1), nil}, &Vec{
+					&Vec{kwSLL, &Vec{Int(0), nil}},
+				}},
 			},
 		},
 	},

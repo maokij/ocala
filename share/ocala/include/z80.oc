@@ -24,11 +24,11 @@ macro goto/HL() {
 }
 
 macro goto(addr) {
-    JP %=addr
+    $(%=addr) -jump
 }
 
 macro goto-if(cond addr) {
-    JP %=cond %=addr
+    $(%=addr) -jump-if %=cond
 }
 
 macro goto-rel(addr) {
@@ -43,7 +43,7 @@ macro goto-rel-if(cond addr) {
 // while macros
 ////////////////////////////////////////////////////////////
 macro while(cond) {
-    JP %=cond _BEG
+    $(_BEG) -jump-if %=cond
 }
 
 macro while/B-() {
@@ -51,33 +51,34 @@ macro while/B-() {
 }
 
 macro while/A-() {
-    DEC A
-    JP NZ? _BEG
+    A --
+    $(_BEG) -jump-if NZ?
 }
 
 macro while/C-() {
-    DEC C
-    JP NZ? _BEG
+    C --
+    $(_BEG) -jump-if NZ?
 }
 
 macro while/D-() {
-    DEC D
-    JP NZ? _BEG
+    D --
+    $(_BEG) -jump-if NZ?
 }
 
 macro while/E-() {
-    DEC E
-    JP NZ? _BEG
+    E --
+    $(_BEG) -jump-if NZ?
 }
 
 macro while/H-() {
-    DEC H
+    H --
+    $(_BEG) -jump-if NZ?
     JP NZ? _BEG
 }
 
 macro while/L-() {
-    DEC L
-    JP NZ? _BEG
+    L --
+    $(_BEG) -jump-if NZ?
 }
 
 macro while/B-C-() {

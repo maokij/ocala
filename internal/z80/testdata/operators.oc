@@ -1,5 +1,6 @@
     arch z80
     flat!
+    optimize near-jump 0
     A <- A
     A <- B
     A <- C

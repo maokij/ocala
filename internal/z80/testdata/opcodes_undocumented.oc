@@ -1,4 +1,4 @@
-    arch z80
+    arch z80 +undocumented
     flat!
     optimize near-jump 0
 L1:
@@ -154,6 +154,58 @@ L1:
     LD [5] SP
     LD [5] IX
     LD [5] IY
+    LD A IXH
+    LD B IXH
+    LD C IXH
+    LD D IXH
+    LD E IXH
+    LD IXH IXH
+    LD IXL IXH
+    LD IXH A
+    LD IXH B
+    LD IXH C
+    LD IXH D
+    LD IXH E
+    LD A IXL
+    LD B IXL
+    LD C IXL
+    LD D IXL
+    LD E IXL
+    LD IXH IXL
+    LD IXL IXL
+    LD IXL A
+    LD IXL B
+    LD IXL C
+    LD IXL D
+    LD IXL E
+    LD A IYH
+    LD B IYH
+    LD C IYH
+    LD D IYH
+    LD E IYH
+    LD IYH IYH
+    LD IYL IYH
+    LD IYH A
+    LD IYH B
+    LD IYH C
+    LD IYH D
+    LD IYH E
+    LD A IYL
+    LD B IYL
+    LD C IYL
+    LD D IYL
+    LD E IYL
+    LD IYH IYL
+    LD IYL IYL
+    LD IYL A
+    LD IYL B
+    LD IYL C
+    LD IYL D
+    LD IYL E
+    LD IXH 5
+    LD IXL 5
+    LD IYH 5
+    LD IYL 5
 L2:
     PUSH BC
     PUSH DE
@@ -216,6 +268,10 @@ L14:
     ADD IY DE
     ADD IY IY
     ADD IY SP
+    ADD A IXH
+    ADD A IXL
+    ADD A IYH
+    ADD A IYL
 L15:
     ADC A A
     ADC A B
@@ -232,6 +288,10 @@ L15:
     ADC HL DE
     ADC HL HL
     ADC HL SP
+    ADC A IXH
+    ADC A IXL
+    ADC A IYH
+    ADC A IYL
 L16:
     SUB A
     SUB B
@@ -244,6 +304,10 @@ L16:
     SUB [HL]
     SUB [IX 5]
     SUB [IY 5]
+    SUB IXH
+    SUB IXL
+    SUB IYH
+    SUB IYL
 L17:
     SBC A A
     SBC A B
@@ -260,6 +324,10 @@ L17:
     SBC HL DE
     SBC HL HL
     SBC HL SP
+    SBC A IXH
+    SBC A IXL
+    SBC A IYH
+    SBC A IYL
 L18:
     AND A
     AND B
@@ -272,6 +340,10 @@ L18:
     AND [HL]
     AND [IX 5]
     AND [IY 5]
+    AND IXH
+    AND IXL
+    AND IYH
+    AND IYL
 L19:
     OR A
     OR B
@@ -284,6 +356,10 @@ L19:
     OR [HL]
     OR [IX 5]
     OR [IY 5]
+    OR IXH
+    OR IXL
+    OR IYH
+    OR IYL
 L20:
     XOR A
     XOR B
@@ -296,6 +372,10 @@ L20:
     XOR [HL]
     XOR [IX 5]
     XOR [IY 5]
+    XOR IXH
+    XOR IXL
+    XOR IYH
+    XOR IYL
 L21:
     CP A
     CP B
@@ -308,6 +388,10 @@ L21:
     CP [HL]
     CP [IX 5]
     CP [IY 5]
+    CP IXH
+    CP IXL
+    CP IYH
+    CP IYL
 L22:
     INC A
     INC B
@@ -325,6 +409,10 @@ L22:
     INC SP
     INC IX
     INC IY
+    INC IXH
+    INC IXL
+    INC IYH
+    INC IYL
 L23:
     DEC A
     DEC B
@@ -342,6 +430,10 @@ L23:
     DEC SP
     DEC IX
     DEC IY
+    DEC IXH
+    DEC IXL
+    DEC IYH
+    DEC IYL
 L24:
     RLCA 
 L25:
@@ -361,6 +453,20 @@ L28:
     RLC [HL]
     RLC [IX 5]
     RLC [IY 5]
+    RLC A [IX 5]
+    RLC B [IX 5]
+    RLC C [IX 5]
+    RLC D [IX 5]
+    RLC E [IX 5]
+    RLC H [IX 5]
+    RLC L [IX 5]
+    RLC A [IY 5]
+    RLC B [IY 5]
+    RLC C [IY 5]
+    RLC D [IY 5]
+    RLC E [IY 5]
+    RLC H [IY 5]
+    RLC L [IY 5]
 L29:
     RL A
     RL B
@@ -372,6 +478,20 @@ L29:
     RL [HL]
     RL [IX 5]
     RL [IY 5]
+    RL A [IX 5]
+    RL B [IX 5]
+    RL C [IX 5]
+    RL D [IX 5]
+    RL E [IX 5]
+    RL H [IX 5]
+    RL L [IX 5]
+    RL A [IY 5]
+    RL B [IY 5]
+    RL C [IY 5]
+    RL D [IY 5]
+    RL E [IY 5]
+    RL H [IY 5]
+    RL L [IY 5]
 L30:
     RRC A
     RRC B
@@ -383,6 +503,20 @@ L30:
     RRC [HL]
     RRC [IX 5]
     RRC [IY 5]
+    RRC A [IX 5]
+    RRC B [IX 5]
+    RRC C [IX 5]
+    RRC D [IX 5]
+    RRC E [IX 5]
+    RRC H [IX 5]
+    RRC L [IX 5]
+    RRC A [IY 5]
+    RRC B [IY 5]
+    RRC C [IY 5]
+    RRC D [IY 5]
+    RRC E [IY 5]
+    RRC H [IY 5]
+    RRC L [IY 5]
 L31:
     RR A
     RR B
@@ -394,6 +528,20 @@ L31:
     RR [HL]
     RR [IX 5]
     RR [IY 5]
+    RR A [IX 5]
+    RR B [IX 5]
+    RR C [IX 5]
+    RR D [IX 5]
+    RR E [IX 5]
+    RR H [IX 5]
+    RR L [IX 5]
+    RR A [IY 5]
+    RR B [IY 5]
+    RR C [IY 5]
+    RR D [IY 5]
+    RR E [IY 5]
+    RR H [IY 5]
+    RR L [IY 5]
 L32:
     SLA A
     SLA B
@@ -405,6 +553,20 @@ L32:
     SLA [HL]
     SLA [IX 5]
     SLA [IY 5]
+    SLA A [IX 5]
+    SLA B [IX 5]
+    SLA C [IX 5]
+    SLA D [IX 5]
+    SLA E [IX 5]
+    SLA H [IX 5]
+    SLA L [IX 5]
+    SLA A [IY 5]
+    SLA B [IY 5]
+    SLA C [IY 5]
+    SLA D [IY 5]
+    SLA E [IY 5]
+    SLA H [IY 5]
+    SLA L [IY 5]
 L33:
     SRA A
     SRA B
@@ -416,6 +578,20 @@ L33:
     SRA [HL]
     SRA [IX 5]
     SRA [IY 5]
+    SRA A [IX 5]
+    SRA B [IX 5]
+    SRA C [IX 5]
+    SRA D [IX 5]
+    SRA E [IX 5]
+    SRA H [IX 5]
+    SRA L [IX 5]
+    SRA A [IY 5]
+    SRA B [IY 5]
+    SRA C [IY 5]
+    SRA D [IY 5]
+    SRA E [IY 5]
+    SRA H [IY 5]
+    SRA L [IY 5]
 L34:
     SRL A
     SRL B
@@ -427,6 +603,20 @@ L34:
     SRL [HL]
     SRL [IX 5]
     SRL [IY 5]
+    SRL A [IX 5]
+    SRL B [IX 5]
+    SRL C [IX 5]
+    SRL D [IX 5]
+    SRL E [IX 5]
+    SRL H [IX 5]
+    SRL L [IX 5]
+    SRL A [IY 5]
+    SRL B [IY 5]
+    SRL C [IY 5]
+    SRL D [IY 5]
+    SRL E [IY 5]
+    SRL H [IY 5]
+    SRL L [IY 5]
 L35:
     RLD 
 L36:
@@ -442,6 +632,34 @@ L37:
     BIT 5 [HL]
     BIT 5 [IX 5]
     BIT 5 [IY 5]
+    BIT A 5 [IX 5]
+    BIT B 5 [IX 5]
+    BIT C 5 [IX 5]
+    BIT D 5 [IX 5]
+    BIT E 5 [IX 5]
+    BIT H 5 [IX 5]
+    BIT L 5 [IX 5]
+    BIT A 5 [IY 5]
+    BIT B 5 [IY 5]
+    BIT C 5 [IY 5]
+    BIT D 5 [IY 5]
+    BIT E 5 [IY 5]
+    BIT H 5 [IY 5]
+    BIT L 5 [IY 5]
+    BIT 5 [IX 5] A
+    BIT 5 [IX 5] B
+    BIT 5 [IX 5] C
+    BIT 5 [IX 5] D
+    BIT 5 [IX 5] E
+    BIT 5 [IX 5] H
+    BIT 5 [IX 5] L
+    BIT 5 [IY 5] A
+    BIT 5 [IY 5] B
+    BIT 5 [IY 5] C
+    BIT 5 [IY 5] D
+    BIT 5 [IY 5] E
+    BIT 5 [IY 5] H
+    BIT 5 [IY 5] L
 L38:
     SET 5 A
     SET 5 B
@@ -453,6 +671,34 @@ L38:
     SET 5 [HL]
     SET 5 [IX 5]
     SET 5 [IY 5]
+    SET A 5 [IX 5]
+    SET B 5 [IX 5]
+    SET C 5 [IX 5]
+    SET D 5 [IX 5]
+    SET E 5 [IX 5]
+    SET H 5 [IX 5]
+    SET L 5 [IX 5]
+    SET A 5 [IY 5]
+    SET B 5 [IY 5]
+    SET C 5 [IY 5]
+    SET D 5 [IY 5]
+    SET E 5 [IY 5]
+    SET H 5 [IY 5]
+    SET L 5 [IY 5]
+    SET 5 [IX 5] A
+    SET 5 [IX 5] B
+    SET 5 [IX 5] C
+    SET 5 [IX 5] D
+    SET 5 [IX 5] E
+    SET 5 [IX 5] H
+    SET 5 [IX 5] L
+    SET 5 [IY 5] A
+    SET 5 [IY 5] B
+    SET 5 [IY 5] C
+    SET 5 [IY 5] D
+    SET 5 [IY 5] E
+    SET 5 [IY 5] H
+    SET 5 [IY 5] L
 L39:
     RES 5 A
     RES 5 B
@@ -464,6 +710,34 @@ L39:
     RES 5 [HL]
     RES 5 [IX 5]
     RES 5 [IY 5]
+    RES A 5 [IX 5]
+    RES B 5 [IX 5]
+    RES C 5 [IX 5]
+    RES D 5 [IX 5]
+    RES E 5 [IX 5]
+    RES H 5 [IX 5]
+    RES L 5 [IX 5]
+    RES A 5 [IY 5]
+    RES B 5 [IY 5]
+    RES C 5 [IY 5]
+    RES D 5 [IY 5]
+    RES E 5 [IY 5]
+    RES H 5 [IY 5]
+    RES L 5 [IY 5]
+    RES 5 [IX 5] A
+    RES 5 [IX 5] B
+    RES 5 [IX 5] C
+    RES 5 [IX 5] D
+    RES 5 [IX 5] E
+    RES 5 [IX 5] H
+    RES 5 [IX 5] L
+    RES 5 [IY 5] A
+    RES 5 [IY 5] B
+    RES 5 [IY 5] C
+    RES 5 [IY 5] D
+    RES 5 [IY 5] E
+    RES 5 [IY 5] H
+    RES 5 [IY 5] L
 L40:
     JP 1234
     JP [HL]
@@ -558,6 +832,8 @@ L50:
     IN E [C]
     IN H [C]
     IN L [C]
+    IN [C]
+    IN F [C]
 L51:
     INI 
 L52:
@@ -575,6 +851,7 @@ L55:
     OUT [C] E
     OUT [C] H
     OUT [C] L
+    OUT [C] 0
 L56:
     OUTI 
 L57:
@@ -603,3 +880,28 @@ L68:
     EI 
 L69:
     IM 1
+L70:
+    SLL A
+    SLL B
+    SLL C
+    SLL D
+    SLL E
+    SLL H
+    SLL L
+    SLL [HL]
+    SLL [IX 5]
+    SLL [IY 5]
+    SLL A [IX 5]
+    SLL B [IX 5]
+    SLL C [IX 5]
+    SLL D [IX 5]
+    SLL E [IX 5]
+    SLL H [IX 5]
+    SLL L [IX 5]
+    SLL A [IY 5]
+    SLL B [IY 5]
+    SLL C [IY 5]
+    SLL D [IY 5]
+    SLL E [IY 5]
+    SLL H [IY 5]
+    SLL L [IY 5]

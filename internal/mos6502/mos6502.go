@@ -2,18 +2,16 @@ package mos6502
 
 import (
 	. "ocala/internal/core" //lint:ignore ST1001 core
-	"strings"
 )
 
 func BuildCompiler() *Compiler {
 	return &Compiler{
 		Arch:            "mos6502",
 		InstMap:         instMap,
-		InstAliases:     instAliases,
 		SyntaxMap:       syntaxMap,
 		CtxOpMap:        ctxOpMap,
 		ExprToOperand:   exprToOperand,
-		OperandToAsm:    operandToAsm,
+		AsmOperands:     asmOperands,
 		CollectRegs:     collectRegs,
 		KwRegA:          kwRegA,
 		TokenWords:      tokenWords,
@@ -22,18 +20,15 @@ func BuildCompiler() *Compiler {
 		TokenAliases:    tokenAliases,
 		IsValidProcTail: isValidProcTail,
 		AdjustInline:    adjustInline,
+		OptimizeBCode:   optimizeBCode,
 	}
 }
 
-var kwJMP = Intern("JMP")
-var kwJSR = Intern("JSR")
-var kwRTS = Intern("RTS")
-var kwRTI = Intern("RTI")
 var kwOutOfRangeMem = Intern("out-of-range")
+var kwNearJump = Intern("near-jump")
 
 var syntaxMap = map[*Keyword]SyntaxFn{
-	KwJump: SyntaxFn(sJump), // for loop syntax
-	KwCall: SyntaxFn(sCall),
+	KwOptimize: SyntaxFn(sOptimize),
 }
 
 //
@@ -76,15 +71,7 @@ func exprToOperand(cc *Compiler, e Value) *Operand {
 	return InvalidOperand
 }
 
-func adjustOperand(cc *Compiler, e *Operand, etag *Identifier) {
-	c, ok := e.A0.(*Constexpr)
-	if !ok {
-		return
-	}
-
-	n := EvalConstAs(c, c.Env, IntT, "operand", etag, cc)
-	cc.Constvals[c] = n
-
+func adjustOperand(cc *Compiler, e *Operand, n int, etag *Identifier) {
 	switch e.Kind {
 	case kwImmN:
 		if n < -128 || n > 255 {
@@ -129,16 +116,8 @@ func adjustOperand(cc *Compiler, e *Operand, etag *Identifier) {
 	}
 }
 
-func operandToAsm(g *Generator, e *Operand) string {
-	a := operandToAsmMap[e.Kind]
-	if a.t {
-		return strings.Replace(a.s, "%", g.ValueToAsm(nil, e.A0), 1)
-	}
-	return a.s
-}
-
 func isValidProcTail(cc *Compiler, inst *Inst) bool {
-	return inst.MatchCode(kwJMP, kwRTS, kwRTI)
+	return inst.MatchCode(kwJMP, kwRTS, kwRTI, KwJump)
 }
 
 func adjustInline(cc *Compiler, insts []*Inst) {
@@ -166,26 +145,101 @@ func adjustInline(cc *Compiler, insts []*Inst) {
 	}
 }
 
+func updateInst(inst *Inst, kw *Keyword) {
+	inst.Args[1].(*Operand).Kind = kwMemAN
+	inst.Args = []Value{kw, inst.Args[1]}
+}
+
+var optJumpNames = map[byte]*Keyword{
+	0x10: kwBPL,
+	0x30: kwBMI,
+	0x50: kwBVC,
+	0x70: kwBVS,
+	0x90: kwBCC,
+	0xB0: kwBCS,
+	0xD0: kwBNE,
+	0xF0: kwBEQ,
+	0x4C: kwJMP,
+}
+
+var optJumpCodes = map[byte]byte{
+	0x10: 0x30,
+	0x30: 0x10,
+	0x50: 0x70,
+	0x70: 0x50,
+	0x90: 0xB0,
+	0xB0: 0x90,
+	0xD0: 0xF0,
+	0xF0: 0xD0,
+}
+
+func optimizeBCode(cc *Compiler, inst *Inst, bcodes []BCode, commit bool) []BCode {
+	n := len(inst.Args)
+	switch inst.Args[0].(*Keyword) {
+	case KwJump:
+		code := bcodes[0].A0
+		if n == 3 {
+			c := inst.Args[1].(*Operand).A0.(*Constexpr)
+			v := cc.Constvals[c].(Int)
+			d := int(v) - cc.Pc
+			if d > 0 { // forward
+				d -= inst.Size
+			} else { // backward
+				d -= 2
+			}
+			if d >= -128 && d <= 127 {
+				code = optJumpCodes[code]
+				bcodes = []BCode{{Kind: BcByte, A0: code}, {Kind: BcByte, A0: byte(d)}}
+			}
+		}
+		if commit && len(bcodes) < 5 {
+			updateInst(inst, optJumpNames[code])
+		}
+	case KwCall:
+		if commit {
+			updateInst(inst, kwJSR)
+		}
+	}
+	return bcodes
+}
+
+func noOptimizeBCode(cc *Compiler, inst *Inst, bcodes []BCode, commit bool) []BCode {
+	if commit {
+		switch inst.Args[0].(*Keyword) {
+		case KwJump:
+			if len(inst.Args) == 2 {
+				updateInst(inst, kwJMP)
+			}
+		case KwCall:
+			updateInst(inst, kwJSR)
+		}
+	}
+	return bcodes
+}
+
 func collectRegs(regs []*Keyword, reg *Keyword) []*Keyword {
 	return append(regs, reg)
 }
 
-// SYNTAX: (#.jump addr cond)
-func sJump(cc *Compiler, env *Env, e *Vec) Value {
-	etag, _ := CheckExpr(e, 3, 3, CtProc, cc)
-	jump := &Vec{etag.ExpandedBy.Expand(kwJMP), &Vec{etag.ExpandedBy.Expand(KwMem), e.At(1)}}
-	if e.At(2) != NIL {
-		cc.ErrorAt(etag).With("conditional jump is not supported")
-	}
-	return cc.CompileExpr(env, jump)
-}
+// SYNTAX: (optimize ...)
+func sOptimize(cc *Compiler, env *Env, e *Vec) Value {
+	etag, n := CheckExpr(e, 2, -1, CtModule|CtProc, cc)
+	k := CheckConstPlainId(e.At(1), "kind", etag, cc)
 
-// SYNTAX: (#.call addr cond)
-func sCall(cc *Compiler, env *Env, e *Vec) Value {
-	etag, _ := CheckExpr(e, 3, 3, CtProc, cc)
-	call := &Vec{etag.ExpandedBy.Expand(kwJSR), &Vec{etag.ExpandedBy.Expand(KwMem), e.At(1)}}
-	if e.At(2) != NIL {
-		cc.ErrorAt(etag).With("conditional call is not supported")
+	CheckToplevelEnv(env, etag, cc)
+	switch k.Name {
+	case kwNearJump:
+		v := Int(1)
+		if n == 3 {
+			v = CheckAndEvalConstAs(e.At(2), env, IntT, "option", etag, cc)
+		}
+
+		cc.OptimizeBCode = noOptimizeBCode
+		if v != Int(0) {
+			cc.OptimizeBCode = optimizeBCode
+		}
+	default:
+		cc.ErrorAt(etag).With("unknown optimizer: %s", k)
 	}
-	return cc.CompileExpr(env, call)
+	return NIL
 }

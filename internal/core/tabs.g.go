@@ -18,7 +18,6 @@ var SyntaxMap = map[*Keyword]SyntaxFn{
 	Intern("#.prog"):              SyntaxFn((*Compiler).sProg),
 	Intern("#.block"):             SyntaxFn((*Compiler).sBlock),
 	Intern("do"):                  SyntaxFn((*Compiler).sDo),
-	Intern("<volatile>"):          SyntaxFn((*Compiler).sVolatile),
 	Intern("apply"):               SyntaxFn((*Compiler).sApply),
 	Intern("loop"):                SyntaxFn((*Compiler).sLoop),
 	Intern("if"):                  SyntaxFn((*Compiler).sIf),

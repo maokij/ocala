@@ -32,8 +32,6 @@ var KwConst = Intern("#.const")
 var KwData = Intern("#.data")
 var KwMem = Intern("#.mem")
 var KwJump = Intern("#.jump")
-var KwJumpIf = Intern("-jump-if")
-var KwJumpUnless = Intern("-jump-unless")
 var KwTpl = Intern("#.tpl")
 var KwProg = Intern("#.prog")
 var KwBlock = Intern("#.block")
@@ -54,6 +52,8 @@ var KwStructData = Intern("#.structdata")
 var KwDataList = Intern("#.datalist")
 var KwArray = Intern("#.array")
 var KwField = Intern("#.field")
+var KwREP = Intern("#.REP")
+var KwINVALID = Intern("#.INVALID")
 
 var KwLeftArrow = Intern("<-")
 var KwPlusOp = Intern("+")
@@ -61,6 +61,8 @@ var KwMulOp = Intern("*")
 var KwDivOp = Intern("/")
 var KwLogicalNotOp = Intern("!")
 var KwNotOp = Intern("~")
+var KwJumpIfOp = Intern("-jump-if")
+var KwJumpUnlessOp = Intern("-jump-unless")
 var KwToplevel = Intern(":")
 var KwInclude = Intern("include")
 var KwDo = Intern("do")
@@ -122,8 +124,14 @@ const (
 
 var PhaseLabels = []string{"compile", "link"}
 
+type AsmOperand struct {
+	Base   string
+	Expand bool
+}
+
 type Compiler struct {
 	Arch      string
+	Variant   string
 	Toplevel  *Env
 	Builtins  *Env
 	Contexts  []byte
@@ -144,18 +152,19 @@ type Compiler struct {
 		beforeLink func(*Compiler)
 	}
 
-	InstMap     map[*Keyword]InstTab
+	InstMap     InstPat
 	InstAliases map[string][]string
-	CtxOpMap    map[*Keyword]map[*Keyword]map[*Keyword][][]Value
+	CtxOpMap    CtxOpMap
 	SyntaxMap   map[*Keyword]SyntaxFn
 	FunMap      map[*Keyword]SyntaxFn
 	CollectRegs func([]*Keyword, *Keyword) []*Keyword
 
 	ExprToOperand   func(*Compiler, Value) *Operand
-	AdjustOperand   func(*Compiler, *Operand, *Identifier)
+	AdjustOperand   func(*Compiler, *Operand, int, *Identifier)
 	IsValidProcTail func(*Compiler, *Inst) bool
 	AdjustInline    func(*Compiler, []*Inst)
-	OperandToAsm    func(*Generator, *Operand) string
+	AsmOperands     map[*Keyword]AsmOperand
+	TrimAsmOperand  bool
 
 	BMaps         [][]byte
 	KwRegA        *Keyword
@@ -166,6 +175,8 @@ type Compiler struct {
 	ReservedWords map[string]int32
 	MacroNesting  int
 	InlineInsts   []*Inst
+
+	OptimizeBCode func(*Compiler, *Inst, []BCode, bool) []BCode
 }
 
 func (cc *Compiler) ErrorAt(values ...Value) *InternalError {
@@ -409,10 +420,6 @@ func (cc *Compiler) Parse(path string, text []byte) *Vec {
 	p := &Parser{Scanner: Scanner{Path: path, Text: text, cc: cc}, contexts: []byte{'{'}}
 	res, _ := p._parse()
 	return res.(*Vec)
-}
-
-func (cc *Compiler) GetOptimizer() *Optimizer {
-	return &cc.g.Optimizer
 }
 
 //
@@ -1094,4 +1101,42 @@ func (cc *Compiler) doLink() []*Inst {
 	flatten := []*Inst{}
 	flattenInsts(&flatten, cc.LeaveCodeBlock())
 	return flatten
+}
+
+func MergeInstMap(a InstPat, b InstPat) InstPat {
+	a = maps.Clone(a)
+	for k, tb := range b {
+		if pb, ok := tb.(InstPat); ok {
+			pa, ok := a[k].(InstPat)
+			if !ok || pa == nil {
+				pa = InstPat{}
+			}
+			a[k] = MergeInstMap(pa, pb)
+		} else {
+			a[k] = tb
+		}
+	}
+	return a
+}
+
+func MergeCtxOpMap(a, b CtxOpMap) CtxOpMap {
+	a = maps.Clone(a)
+	for k0, b0 := range b {
+		if a[k0] == nil {
+			a[k0] = b0
+			continue
+		}
+
+		a[k0] = maps.Clone(a[k0])
+		a0 := a[k0]
+		for k1, b1 := range b0 {
+			if a0[k1] == nil {
+				a0[k1] = b1
+				continue
+			}
+			a0[k1] = maps.Clone(a0[k1])
+			maps.Copy(a0[k1], b1)
+		}
+	}
+	return a
 }

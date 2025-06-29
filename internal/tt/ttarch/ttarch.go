@@ -2,9 +2,10 @@ package ttarch
 
 import (
 	"bytes"
+	"maps"
 	. "ocala/internal/core" //lint:ignore ST1001 core
 	"os"
-	"strings"
+	"slices"
 )
 
 func BuildGenerator(cc *Compiler, src string) *Generator {
@@ -66,7 +67,7 @@ func BuildCompiler() *Compiler {
 		SyntaxMap:       syntaxMap,
 		CtxOpMap:        ctxOpMap,
 		ExprToOperand:   exprToOperand,
-		OperandToAsm:    operandToAsm,
+		AsmOperands:     asmOperands,
 		CollectRegs:     collectRegs,
 		KwRegA:          kwRegA,
 		TokenWords:      tokenWords,
@@ -75,16 +76,29 @@ func BuildCompiler() *Compiler {
 		TokenAliases:    tokenAliases,
 		IsValidProcTail: isValidProcTail,
 		AdjustInline:    adjustInline,
+		OptimizeBCode:   optimizeBCode,
 	}
 }
 
-var kwJMP = Intern("JMP")
-var kwJSR = Intern("JSR")
-var kwRET = Intern("RET")
+func BuildCompilerExt() *Compiler {
+	cc := BuildCompiler()
+	cc.Variant = "+ext"
+
+	cc.AsmOperands = maps.Clone(cc.AsmOperands)
+	maps.Copy(cc.AsmOperands, asmOperandsExt)
+
+	cc.TokenWords = slices.Clone(cc.TokenWords)
+	cc.TokenWords[0] = append(cc.TokenWords[0], tokenWordsExt[0]...)
+	cc.TokenWords[1] = append(cc.TokenWords[1], tokenWordsExt[1]...)
+	cc.TokenWords[2] = append(cc.TokenWords[2], tokenWordsExt[2]...)
+	cc.TokenWords[3] = append(cc.TokenWords[3], tokenWordsExt[3]...)
+
+	cc.InstMap = MergeInstMap(cc.InstMap, instMapExt)
+	cc.CtxOpMap = MergeCtxOpMap(cc.CtxOpMap, ctxOpMapExt)
+	return cc
+}
 
 var syntaxMap = map[*Keyword]SyntaxFn{
-	KwJump:       SyntaxFn(sJump), // for loop syntax
-	KwCall:       SyntaxFn(sCall),
 	Intern("db"): SyntaxFn(sDb),
 	Intern("dw"): SyntaxFn(sDw),
 	Intern("ds"): SyntaxFn(sDs),
@@ -121,15 +135,7 @@ func exprToOperand(cc *Compiler, e Value) *Operand {
 	return InvalidOperand
 }
 
-func adjustOperand(cc *Compiler, e *Operand, etag *Identifier) {
-	c, ok := e.A0.(*Constexpr)
-	if !ok {
-		return
-	}
-
-	n := EvalConstAs(c, c.Env, IntT, "operand", etag, cc)
-	cc.Constvals[c] = n
-
+func adjustOperand(cc *Compiler, e *Operand, n int, etag *Identifier) {
 	switch e.Kind {
 	case kwImmN:
 		if n < -128 || n > 255 {
@@ -142,16 +148,8 @@ func adjustOperand(cc *Compiler, e *Operand, etag *Identifier) {
 	}
 }
 
-func operandToAsm(g *Generator, e *Operand) string {
-	a := operandToAsmMap[e.Kind]
-	if a.t {
-		return strings.Replace(a.s, "%", g.ValueToAsm(nil, e.A0), 1)
-	}
-	return a.s
-}
-
 func isValidProcTail(cc *Compiler, inst *Inst) bool {
-	return inst.MatchCode(kwJMP, kwRET)
+	return inst.MatchCode(kwJMP, kwRET, KwJump)
 }
 
 func adjustInline(cc *Compiler, insts []*Inst) {
@@ -177,28 +175,25 @@ func adjustInline(cc *Compiler, insts []*Inst) {
 	}
 }
 
+func optimizeBCode(cc *Compiler, inst *Inst, bcodes []BCode, commit bool) []BCode {
+	if inst.MatchCode(KwJump, KwCall) && commit {
+		n := len(inst.Args)
+		switch kw := inst.Args[0].(*Keyword); kw {
+		case KwJump:
+			if n == 2 {
+				inst.Args[0] = kwJMP
+			} else {
+				inst.Args[0] = kwBCO
+			}
+		case KwCall:
+			inst.Args[0] = kwJSR
+		}
+	}
+	return bcodes
+}
+
 func collectRegs(regs []*Keyword, reg *Keyword) []*Keyword {
 	return append(regs, reg)
-}
-
-// SYNTAX: (#.jump addr cond)
-func sJump(cc *Compiler, env *Env, e *Vec) Value {
-	etag, _ := CheckExpr(e, 3, 3, CtProc, cc)
-	jump := &Vec{etag.ExpandedBy.Expand(kwJMP), e.At(1)}
-	if e.At(2) != NIL {
-		cc.ErrorAt(etag).With("conditional jump is not supported")
-	}
-	return cc.CompileExpr(env, jump)
-}
-
-// SYNTAX: (#.call addr cond)
-func sCall(cc *Compiler, env *Env, e *Vec) Value {
-	etag, _ := CheckExpr(e, 3, 3, CtProc, cc)
-	call := &Vec{etag.ExpandedBy.Expand(kwJSR), e.At(1)}
-	if e.At(2) != NIL {
-		cc.ErrorAt(etag).With("conditional call is not supported")
-	}
-	return cc.CompileExpr(env, call)
 }
 
 // SYNTAX: (db a)

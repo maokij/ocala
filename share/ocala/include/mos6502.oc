@@ -16,7 +16,7 @@ macro return(call: _) {
 // goto macros
 ////////////////////////////////////////////////////////////
 macro goto(addr) {
-    JMP [%=addr]
+    $(%=addr) -jump
 }
 
 macro goto-if(cond addr) {
@@ -31,13 +31,13 @@ macro while(cond) {
 }
 
 macro while/X-() {
-    DEX
-    BNE _BEG
+    X --
+    $(_BEG) -jump-if NE?
 }
 
 macro while/Y-() {
-    DEY
-    BNE _BEG
+    Y --
+    $(_BEG) -jump-if NE?
 }
 
 ////////////////////////////////////////////////////////////

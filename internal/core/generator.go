@@ -35,7 +35,6 @@ type Generator struct {
 	DebugMode bool
 	GenList   bool
 	IsSub     bool
-	Optimizer Optimizer
 	InReader  io.Reader
 	OutWriter io.Writer
 	ErrWriter io.Writer
@@ -48,10 +47,6 @@ type Generator struct {
 	Err       *InternalError
 	changes   int
 	cc        *Compiler
-}
-
-type Optimizer struct {
-	OptimizeBCode func(*Compiler, *Inst, []BCode, bool) []BCode
 }
 
 func (g *Generator) ErrorAt(values ...Value) *InternalError {
@@ -164,8 +159,14 @@ func (g *Generator) findArchDirective(text []byte) string {
 	if nl || !p.Scan(reIdentifier) || p.Matched[1] != "" {
 		return ""
 	}
+	arch := p.Matched[2]
 
-	return p.Matched[2]
+	_, _, nl = p.seekToNextToken(true)
+	if nl || !p.Scan(reIdentifier) || p.Matched[1] != "" {
+		return arch
+	}
+
+	return arch + p.Matched[2]
 }
 
 func (g *Generator) prependList(list []byte) {

@@ -7,6 +7,13 @@ import (
 	"strings"
 )
 
+const (
+	asmPassEstimate = iota
+	asmPassAdjust
+	asmPassVerify
+	asmPassCommit
+)
+
 func (g *Generator) validateProcTail(inst *Inst) {
 	if (inst.Kind == InstCode && g.cc.IsValidProcTail(g.cc, inst)) ||
 		(inst.Kind == InstMisc && inst.Args[0] == KwFallthrough) {
@@ -76,7 +83,7 @@ func (g *Generator) validateInsts(insts []*Inst) {
 				if s.inner == 0 {
 					s.inner = x
 				}
-				states, s = append(states, s), &state{from: x}
+				states, s = append(states, s), &state{from: x, to: x}
 			case label.LinkedToData():
 				// SKIP
 			default:
@@ -104,7 +111,7 @@ func (g *Generator) validateInsts(insts []*Inst) {
 	}
 }
 
-func (g *Generator) findInstBody(inst *Inst, adjust bool) []BCode {
+func (g *Generator) findInstBody(inst *Inst, pass int) []BCode {
 	etag := inst.ExprTag()
 	op := inst.Args[0].(*Keyword)
 
@@ -113,12 +120,18 @@ func (g *Generator) findInstBody(inst *Inst, adjust bool) []BCode {
 		g.cc.ErrorAt(etag).With("[BUG] unknown instruction: %s", op)
 	}
 
+	adjust := pass == asmPassAdjust || pass == asmPassVerify
 	p := m.(InstPat)
 	for x, i := range inst.Args[1:] {
 		i := i.(*Operand)
 		if adjust {
-			g.cc.AdjustOperand(g.cc, i, etag)
+			if c, ok := i.A0.(*Constexpr); ok {
+				n := EvalConstAs(c, c.Env, IntT, "operand", etag, g.cc)
+				g.cc.Constvals[c] = n
+				g.cc.AdjustOperand(g.cc, i, int(n), etag)
+			}
 		}
+
 		p, ok = p[i.Kind].(InstPat)
 		if !ok {
 			g.cc.ErrorAt(i, etag).With("cannot use %s as operand#%d for %s", i.Kind, x+1, op)
@@ -126,23 +139,15 @@ func (g *Generator) findInstBody(inst *Inst, adjust bool) []BCode {
 	}
 
 	body, ok := p[nil].(InstDat)
-	if !ok || (!adjust && body[0].Kind == BcTemp) {
+	if !ok || (pass == asmPassVerify && body[0].Kind == BcTemp) {
 		g.cc.ErrorAt(etag).With("invalid operands for %s. "+
 			"some operand values may be out of range", op)
 	}
 
-	if g.Optimizer.OptimizeBCode != nil {
-		body = g.Optimizer.OptimizeBCode(g.cc, inst, body, !adjust)
+	if pass != asmPassEstimate {
+		body = g.cc.OptimizeBCode(g.cc, inst, body, pass == asmPassCommit)
 	}
 	return body
-}
-
-func (g *Generator) resolveInstsWithoutOptimize(insts []*Inst, verify bool) int {
-	optimize := g.Optimizer.OptimizeBCode
-	g.Optimizer.OptimizeBCode = nil
-	codeSize := g.resolveInsts(insts, false)
-	g.Optimizer.OptimizeBCode = optimize
-	return codeSize
 }
 
 // Resolve and flatten nested data using the datatype.
@@ -240,7 +245,7 @@ func (g *Generator) resolveInstData(inst *Inst) {
 	inst.Args[2] = NewVec(acc[1:])
 }
 
-func (g *Generator) resolveInsts(insts []*Inst, verify bool) int {
+func (g *Generator) resolveInsts(insts []*Inst, pass int) int {
 	g.cc.Pc = 0
 	g.changes = 0
 	g.cc.initConstvals(PhLink)
@@ -249,7 +254,7 @@ func (g *Generator) resolveInsts(insts []*Inst, verify bool) int {
 	limit := 0
 	codeSize := 0
 	for _, i := range insts {
-		size := i.size
+		size := i.Size
 
 		switch i.Kind {
 		case InstMisc:
@@ -272,7 +277,7 @@ func (g *Generator) resolveInsts(insts []*Inst, verify bool) int {
 		case InstBind:
 			EvalAndCacheIfConst(GetNamedValue(i.Args[0], LabelT).At, g.cc)
 		case InstOrg:
-			if n := g.cc.Pc - org; verify && limit > 0 && n > limit {
+			if n := g.cc.Pc - org; pass == asmPassVerify && limit > 0 && n > limit {
 				g.cc.ErrorAt(i).With("size limit exceeded(%d/%d)", n, limit)
 			}
 			if addr := int(i.Args[0].(Int)); addr >= 0 {
@@ -282,37 +287,37 @@ func (g *Generator) resolveInsts(insts []*Inst, verify bool) int {
 				g.cc.Org = org
 			}
 		case InstCode:
-			i.size = len(g.findInstBody(i, true))
-			g.cc.Pc += i.size
-			codeSize += i.size
+			i.Size = len(g.findInstBody(i, pass))
+			g.cc.Pc += i.Size
+			codeSize += i.Size
 		case InstData:
 			pc := g.cc.Pc // increment the field directly on each iteration for __PC__
 			g.resolveInstData(i)
-			i.size = (g.cc.Pc - pc) * int(i.Args[1].(Int))
-			g.cc.Pc = pc + i.size
+			i.Size = (g.cc.Pc - pc) * int(i.Args[1].(Int))
+			g.cc.Pc = pc + i.Size
 		case InstDS:
-			i.size = i.Args[0].(*Datatype).Size * int(i.Args[1].(Int))
-			g.cc.Pc += i.size
+			i.Size = i.Args[0].(*Datatype).Size * int(i.Args[1].(Int))
+			g.cc.Pc += i.Size
 		case InstAlign:
 			n := int(i.Args[0].(Int)) - 1
 			if n < 0 || (n&(n+1)) != 0 {
 				g.cc.ErrorAt(i).With("the alignment size must be power of 2")
 			}
-			i.size = ((g.cc.Pc + n) & ^n) - g.cc.Pc
-			g.cc.Pc += i.size
+			i.Size = ((g.cc.Pc + n) & ^n) - g.cc.Pc
+			g.cc.Pc += i.Size
 		case InstBlob:
-			i.size = len(i.Args[2].(*Blob).data)
-			g.cc.Pc += i.size
+			i.Size = len(i.Args[2].(*Blob).data)
+			g.cc.Pc += i.Size
 		default:
 			g.cc.ErrorAt(i).With("[BUG] invalid inst kind %v", i)
 		}
 
-		if size != i.size {
+		if size != i.Size {
 			g.Changed()
 		}
 
-		if verify && g.changes > 0 {
-			g.cc.ErrorAt(i).With("cannot determine the size of the instruction(%d or %d)", size, i.size)
+		if pass == asmPassVerify && g.changes > 0 {
+			g.cc.ErrorAt(i).With("cannot determine the size of the instruction(%d or %d)", size, i.Size)
 		}
 	}
 
@@ -366,8 +371,23 @@ func (g *Generator) expandBCode(c BCode, ab []*Operand, pc int) byte {
 			g.cc.ErrorAt(e).With("the operand only accepts %d..%d", min, max)
 		}
 		return items[(byte(v)-min)&mask]
+	case BcUnsupported:
+		e := ab[c.A0]
+		g.cc.ErrorAt(e).With("unsupported operand(#%d)", c.A0+1)
 	}
 	panic("[BUG] cannot happen")
+}
+
+func (g *Generator) OperandToAsm(e *Operand) string {
+	a := g.cc.AsmOperands[e.Kind]
+	s := a.Base
+	if a.Expand {
+		s = strings.Replace(a.Base, "%", g.ValueToAsm(nil, e.A0), 1)
+	}
+	if g.cc.TrimAsmOperand && s[0] == '0' && s[1] == '+' && s[2] == ' ' && s[3] != '(' {
+		s = s[3:]
+	}
+	return s
 }
 
 func (g *Generator) ValueToAsm(env *Env, v Value) string {
@@ -396,7 +416,7 @@ func (g *Generator) ValueToAsm(env *Env, v Value) string {
 		}
 		return fmt.Sprintf("%s(%s)", op, strings.Join(a, " "))
 	case *Operand:
-		return g.cc.OperandToAsm(g, v)
+		return g.OperandToAsm(v)
 	case *Keyword:
 		return v.String()
 	case *Identifier:
@@ -534,15 +554,14 @@ func (g *Generator) generateList(insts []*Inst, code []byte) {
 			writes("    %s = %s", a, b)
 		case InstCode:
 			kw := i.Args[0]
-			if len(i.Args) > 2 {
-				a := g.ValueToAsm(nil, i.Args[1])
-				b := g.ValueToAsm(nil, i.Args[2])
-				writeh(i.size, i.size, "    %-6s %s, %s", kw, a, b)
-			} else if len(i.Args) == 2 {
-				a := g.ValueToAsm(nil, i.Args[1])
-				writeh(i.size, i.size, "    %-6s %s", kw, a)
+			if len(i.Args) == 1 {
+				writeh(i.Size, i.Size, "    %s", kw)
 			} else {
-				writeh(i.size, i.size, "    %s", kw)
+				s := []string{}
+				for _, a := range i.Args[1:] {
+					s = append(s, g.ValueToAsm(nil, a))
+				}
+				writeh(i.Size, i.Size, "    %-6s %s", kw, strings.Join(s, ", "))
 			}
 		case InstData:
 			p := pc
@@ -578,12 +597,12 @@ func (g *Generator) generateList(insts []*Inst, code []byte) {
 			}
 		case InstDS:
 			if i.Args[0] == WordType {
-				writeh(0, i.size, "    .defw %d", int(i.size/2))
+				writeh(0, i.Size, "    .defw %d", int(i.Size/2))
 			} else {
-				writeh(0, i.size, "    .defb %d", int(i.size))
+				writeh(0, i.Size, "    .defb %d", int(i.Size))
 			}
 		case InstAlign:
-			writeh(0, i.size, "    .align %d ; (.defb %d)", int(i.Args[0].(Int)), i.size)
+			writeh(0, i.Size, "    .align %d ; (.defb %d)", int(i.Args[0].(Int)), i.Size)
 		case InstBlob:
 			blob := i.Args[2].(*Blob)
 			s := g.ValueToAsm(nil, NewStr(blob.origPath))
@@ -602,25 +621,25 @@ func (g *Generator) generateList(insts []*Inst, code []byte) {
 func (g *Generator) prepareToGenerateBin(insts []*Inst) {
 	g.validateInsts(insts)
 
-	codeSizes := []int{}
-	oldCodeSize := g.resolveInstsWithoutOptimize(insts, false)
+	oldCodeSize := g.resolveInsts(insts, asmPassEstimate)
+	codeSizes := []int{oldCodeSize}
 	for {
-		codeSizes = append(codeSizes, oldCodeSize)
-		codeSize := g.resolveInsts(insts, false)
+		codeSize := g.resolveInsts(insts, asmPassAdjust)
+		codeSizes = append(codeSizes, codeSize)
 		if codeSize >= oldCodeSize {
 			break
 		}
 		oldCodeSize = codeSize
 	}
 
-	if g.DebugMode && g.Optimizer.OptimizeBCode != nil {
+	if g.DebugMode && g.cc.OptimizeBCode != nil {
 		v := []string{}
 		for _, i := range codeSizes {
 			v = append(v, strconv.Itoa(i))
 		}
 		fmt.Fprintln(g.ErrWriter, "code size:", strings.Join(v, " -> "))
 	}
-	g.resolveInsts(insts, true) // verify
+	g.resolveInsts(insts, asmPassVerify) // verify
 }
 
 func (g *Generator) GenerateBin(insts []*Inst) []byte {
@@ -691,7 +710,7 @@ func (g *Generator) GenerateBin(insts []*Inst) []byte {
 			for _, i := range i.Args[1:] {
 				ab = append(ab, i.(*Operand))
 			}
-			for _, i := range g.findInstBody(i, false) {
+			for _, i := range g.findInstBody(i, asmPassCommit) {
 				seq = append(seq, g.expandBCode(i, ab, g.cc.Pc))
 			}
 		case InstData:
@@ -719,14 +738,14 @@ func (g *Generator) GenerateBin(insts []*Inst) []byte {
 				}
 			}
 		case InstDS, InstAlign:
-			seq = append(seq, make([]byte, i.size)...)
+			seq = append(seq, make([]byte, i.Size)...)
 		case InstBlob:
 			seq = append(seq, i.Args[2].(*Blob).data...)
 		case InstLabel, InstMisc, InstConst, InstBind: // NOP
 		default:
 			panic("[BUG] cannot happen")
 		}
-		g.cc.Pc += i.size
+		g.cc.Pc += i.Size
 	}
 
 	if g.GenList {

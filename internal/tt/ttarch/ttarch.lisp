@@ -32,6 +32,15 @@
   (opcode  RET ()    ()       [0x04])
   (opcode  JR  (a)   (NN)     [0x05 (=rl a -2)])
   (opcode  BCO (a b) (NN CO)  [(+ 0x10 (CO b)) (=l a) (=h a)])
+
+  (opcode  #.jump (a)   (NN)    [0x01 (=l a) (=h a)])
+  (opcode  #.jump (a b) (NN CO) [(+ 0x10 (CO b)) (=l a) (=h a)])
+  (example #.jump (*) "" "")
+
+  (opcode  #.call (a)   (NN)    [0x03 (=l a) (=h a)])
+  (opcode  #.call (a b) (NN CO) [(=U b)])
+  (example #.call (*) "" "")
+
   (opcode  LD (a b)
     (A B)   [0x20]
     (A X$)  [0x21]
@@ -96,15 +105,21 @@
     (AB _)  [(LD (= a) (= b))]
     (AB PQ) [(LD (= a) 0x1234)])
 
-  (operator -jump-if (a b)
-    (NN CO) [(BCO (= a) (= b))])
+  (operator -jump    (a)   (NN)    [(#.jump (= a))])
+  (operator -jump-if (a b) (NN CO) [(#.jump (= a) (= b))])
 
   (operator -jump-unless (a b)
-    (NN NE?) [(BCO (= a) EQ?)]
-    (NN EQ?) [(BCO (= a) NE?)]
-    (NN CC?) [(BCO (= a) CS?)]
-    (NN CS?) [(BCO (= a) CC?)])
+    (NN NE?) [(#.jump(= a) EQ?)]
+    (NN EQ?) [(#.jump (= a) NE?)]
+    (NN CC?) [(#.jump (= a) CS?)]
+    (NN CS?) [(#.jump (= a) CC?)])
 
   (operator -dnnm (a) (NN$) [(DNN (= a NN))])
   (operator -byte (a) (NN) [(#.BYTE (= a))])
   (operator -rep (a b) (NN NN) [(#.REP (= b) `[(#.BYTE (= a))])]))
+
+(arch (+ext ttarch)
+  (opcode  EXT (a b) (A N) [0x70 (=l b)])
+  (operator <- (a b) (A NN) [(EXT A (= b))])
+  (operator -jump (a b) (A NN) [(EXT A (= b))])
+  (operator -ext (a b) (A NN) [(EXT A (= b))]))

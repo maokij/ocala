@@ -1,0 +1,207 @@
+    arch z80 +undocumented
+    flat!
+    optimize near-jump 0
+    A <- IXH
+    A <- IXL
+    A <- IYH
+    A <- IYL
+    B <- IXH
+    B <- IXL
+    B <- IYH
+    B <- IYL
+    C <- IXH
+    C <- IXL
+    C <- IYH
+    C <- IYL
+    D <- IXH
+    D <- IXL
+    D <- IYH
+    D <- IYL
+    E <- IXH
+    E <- IXL
+    E <- IYH
+    E <- IYL
+    IXH <- A
+    IXH <- B
+    IXH <- C
+    IXH <- D
+    IXH <- E
+    IXH <- 5
+    IXH <- IXH
+    IXH <- IXL
+    IXL <- A
+    IXL <- B
+    IXL <- C
+    IXL <- D
+    IXL <- E
+    IXL <- 5
+    IXL <- IXH
+    IXL <- IXL
+    IYH <- A
+    IYH <- B
+    IYH <- C
+    IYH <- D
+    IYH <- E
+    IYH <- 5
+    IYH <- IYH
+    IYH <- IYL
+    IYL <- A
+    IYL <- B
+    IYL <- C
+    IYL <- D
+    IYL <- E
+    IYL <- 5
+    IYL <- IYH
+    IYL <- IYL
+    A -> IXH
+    A -> IXL
+    A -> IYH
+    A -> IYL
+    B -> IXH
+    B -> IXL
+    B -> IYH
+    B -> IYL
+    C -> IXH
+    C -> IXL
+    C -> IYH
+    C -> IYL
+    D -> IXH
+    D -> IXL
+    D -> IYH
+    D -> IYL
+    E -> IXH
+    E -> IXL
+    E -> IYH
+    E -> IYL
+    $(5) -> IXH
+    $(5) -> IXL
+    $(5) -> IYH
+    $(5) -> IYL
+    IXH -> A
+    IXH -> B
+    IXH -> C
+    IXH -> D
+    IXH -> E
+    IXH -> IXH
+    IXH -> IXL
+    IXL -> A
+    IXL -> B
+    IXL -> C
+    IXL -> D
+    IXL -> E
+    IXL -> IXH
+    IXL -> IXL
+    IYH -> A
+    IYH -> B
+    IYH -> C
+    IYH -> D
+    IYH -> E
+    IYH -> IYH
+    IYH -> IYL
+    IYL -> A
+    IYL -> B
+    IYL -> C
+    IYL -> D
+    IYL -> E
+    IYL -> IYH
+    IYL -> IYL
+    AF <-> AF-
+    DE <-> HL
+    HL <-> DE
+    HL <-> [SP]
+    [SP] <-> HL
+    HL -push
+    BC -push
+    DE -push
+    AF -push
+    IX -push
+    IY -push
+    HL -pop
+    BC -pop
+    DE -pop
+    AF -pop
+    IX -pop
+    IY -pop
+    IXH ++
+    IXL ++
+    IYH ++
+    IYL ++
+    IXH --
+    IXL --
+    IYH --
+    IYL --
+    A -not
+    A -neg
+    A + IXH
+    A + IXL
+    A + IYH
+    A + IYL
+    A +$ IXH
+    A +$ IXL
+    A +$ IYH
+    A +$ IYL
+    A - IXH
+    A - IXL
+    A - IYH
+    A - IYL
+    A -$ IXH
+    A -$ IXL
+    A -$ IYH
+    A -$ IYL
+    A -? IXH
+    A -? IXL
+    A -? IYH
+    A -? IYL
+    A & IXH
+    A & IXL
+    A & IYH
+    A & IYL
+    A | IXH
+    A | IXL
+    A | IYH
+    A | IYL
+    A ^ IXH
+    A ^ IXL
+    A ^ IYH
+    A ^ IYL
+    F -in C
+    $(0) -out C
+    IXH -zero?
+    IXL -zero?
+    IYH -zero?
+    IYL -zero?
+    A <* 2
+    B <* 2
+    A <*$ 2
+    B <*$ 2
+    A >* 2
+    B >* 2
+    A >*$ 2
+    B >*$ 2
+    A << 2
+    B << 2
+    A >> 2
+    B >> 2
+    A >>> 2
+    B >>> 2
+    LBI:
+    $(LBI) -jump-if NZ?
+    $(LBI) -jump-if Z?
+    $(LBI) -jump-if NC?
+    $(LBI) -jump-if C?
+    $(LBI) -jump-if PO?
+    $(LBI) -jump-if PE?
+    $(LBI) -jump-if M?
+    $(LBI) -jump-if P?
+    LBU:
+    $(LBU) -jump-unless NZ?
+    $(LBU) -jump-unless Z?
+    $(LBU) -jump-unless NC?
+    $(LBU) -jump-unless C?
+    $(LBU) -jump-unless PO?
+    $(LBU) -jump-unless PE?
+    $(LBU) -jump-unless M?
+    $(LBU) -jump-unless P?
+    proc f(!){ RET }
+    f(!)
+    NC?.f(!)

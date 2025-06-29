@@ -199,20 +199,52 @@
     LSR 5
     LSR 5
     LBI:
-    BNE LBI
-    BEQ LBI
-    BCC LBI
-    BCS LBI
-    BVC LBI
-    BVS LBI
-    BPL LBI
-    BMI LBI
+    BEQ :+
+    JMP LBI
+    :
+    BNE :+
+    JMP LBI
+    :
+    BCS :+
+    JMP LBI
+    :
+    BCC :+
+    JMP LBI
+    :
+    BVS :+
+    JMP LBI
+    :
+    BVC :+
+    JMP LBI
+    :
+    BMI :+
+    JMP LBI
+    :
+    BPL :+
+    JMP LBI
+    :
     LBU:
-    BEQ LBU
-    BNE LBU
-    BCS LBU
-    BCC LBU
-    BVS LBU
-    BVC LBU
-    BMI LBU
-    BPL LBU
+    BNE :+
+    JMP LBU
+    :
+    BEQ :+
+    JMP LBU
+    :
+    BCC :+
+    JMP LBU
+    :
+    BCS :+
+    JMP LBU
+    :
+    BVC :+
+    JMP LBU
+    :
+    BVS :+
+    JMP LBU
+    :
+    BPL :+
+    JMP LBU
+    :
+    BMI :+
+    JMP LBU
+    :
