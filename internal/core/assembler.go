@@ -139,7 +139,11 @@ func (g *Generator) findInstBody(inst *Inst, pass int) []BCode {
 	}
 
 	body, ok := p[nil].(InstDat)
-	if !ok || (pass == asmPassVerify && body[0].Kind == BcTemp) {
+	if !ok {
+		g.cc.ErrorAt(etag).With("too few operands for %s", op)
+	}
+
+	if pass == asmPassVerify && body[0].Kind == BcTemp {
 		g.cc.ErrorAt(etag).With("invalid operands for %s. "+
 			"some operand values may be out of range", op)
 	}
@@ -411,7 +415,9 @@ func (g *Generator) ValueToAsm(env *Env, v Value) string {
 			a = append(a, g.ValueToAsm(env, i))
 		}
 
-		if g.cc.Precs[op.Name] > 0 && len(a) == 2 {
+		if op.Name == KwField {
+			return fmt.Sprintf("%s.%s", a[0], a[1])
+		} else if g.cc.Precs[op.Name] > 0 && len(a) == 2 {
 			return fmt.Sprintf("(%s %s %s)", a[0], op, a[1])
 		}
 		return fmt.Sprintf("%s(%s)", op, strings.Join(a, " "))

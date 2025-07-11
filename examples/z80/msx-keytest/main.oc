@@ -26,8 +26,8 @@ module device {
         @5 . msx:snsmat(A => A) // Z Y X W - - - -
         A >* 4 & 0x0F -> B
 
-        @8 . msx:snsmat(A => A) // LEFT DOWN UP RIGHT - - - -
-        A & 0xF0 | B -not -> B //  LEFT DOWN UP RIGHT Z Y X W
+        @8 . msx:snsmat(A => A) // RIGHT DOWN UP LEFT - - - -
+        A & 0xF0 | B -not -> B  // RIGHT DOWN UP LEFT Z Y X W
 
         @[key_states] ^ B -> [key_changes]
         @B -> [key_states]
@@ -45,7 +45,7 @@ module device {
 
     proc clear_namtab(!) {
         msx:set-vdp-write-addr msx:T32NAM/INI
-        msx:fill-vdp-data/wide ' ' asword(0 3)
+        msx:fill-vdp-data/wide ' ' (256 * 3)
         return
     }
 
@@ -57,19 +57,19 @@ module device {
 
     proc clear_chrtab(!) {
         msx:set-vdp-write-addr msx:T32CGP/INI
-        A - A . { msx:fill-vdp-data/wide _ asword(0 24) }
+        A - A . { msx:fill-vdp-data/wide _ (256 * 24) }
         return
     }
 
     proc load_chrdat(HL => !) {
         msx:set-vdp-write-addr msx:T32CGP/INI
-        msx:write-vdp-data/wide _ asword(0 4)
+        msx:write-vdp-data/wide _ (256 * 4)
         return
     }
 
     proc load_namdat(HL => !) {
         msx:set-vdp-write-addr msx:T32NAM/INI
-        msx:write-vdp-data/wide _ asword(0 3)
+        msx:write-vdp-data/wide _ (256 * 3)
         return
     }
 
@@ -88,7 +88,7 @@ module assets {
 module main {
     data sbuf = byte * 24 : bss
 
-    macro run-game-loop(addr) {
+    macro scene=>(addr) {
         SP <- msx:STACK_ADDR
         goto %=addr
     }
@@ -114,7 +114,7 @@ module main {
         @[device:key_changes] -> E
         @[device:key_states] -> D
         @D -? 0b0010_1010; if ==? {
-            run-game-loop stop
+            scene=> stop
         }
 
         B <- 8
@@ -149,7 +149,7 @@ module main {
         msx:wait-vsync
         msx:write-vdp-data/rect message msx:t32nam(12 10) 8 5 32
         device:wait_key_x()
-        run-game-loop init_game_states
+        scene=> init_game_states
     }
 
     proc HL+B(=> HL) {

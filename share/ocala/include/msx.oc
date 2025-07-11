@@ -887,8 +887,8 @@ module msx {
             HL <- %=from
         }
         if use?(%&size) {
-            A <- lobyte(%=size)
-            BC <- asword(hibyte(%=size) msx:VDP_DATA)
+            A <- hibyte(%=size + 0xff)
+            BC <- asword(lobyte(%=size) msx:VDP_DATA)
         } else {
             C <- msx:VDP_DATA
         }
@@ -934,7 +934,8 @@ module msx {
             A <- %=value
         }
         if use?(%&size) {
-            BC <- %=size
+            BC <- asword(lobyte(%=size) hibyte(%=size + 0xff))
+
         }
         loop {
             msx:out-vdp-data/while/B-

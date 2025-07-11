@@ -37,19 +37,19 @@ type Value interface {
 }
 
 type InstTab interface {
-	Find(*Keyword) InstTab
+	IsInstDat() bool
 }
 
 type InstPat map[*Keyword]InstTab
 
-func (v InstPat) Find(k *Keyword) InstTab {
-	return v[k]
+func (v InstPat) IsInstDat() bool {
+	return false
 }
 
 type InstDat []BCode
 
-func (v InstDat) Find(k *Keyword) InstTab {
-	return nil
+func (v InstDat) IsInstDat() bool {
+	return true
 }
 
 type CtxOpMap map[*Keyword]map[*Keyword]map[*Keyword][][]Value

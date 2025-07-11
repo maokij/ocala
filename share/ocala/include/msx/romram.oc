@@ -1,0 +1,153 @@
+arch z80
+include "msx.oc"
+
+module romram {
+    macro boot(if-abort: _) {
+        data byte romram:binary
+        if not-zero? ={
+            if use?(%&if-abort) ={
+                do %=if-abort
+            } else ={
+                BC@sizeof(message) . DE@msx:t32nam() . HL@message . msx:ldirvm(BC DE HL => !)
+                _loop: do {
+                    msx:wait
+                    goto-rel _loop
+                }
+                data message = byte [ "NO64KRAM" ]
+            }
+        }
+    }
+
+    if !loaded-as-main? ={
+        const binary = $$(compile-file(__FILE__))
+    }
+}
+
+if loaded-as-main? ={
+    link {
+        org (msx:PAGE1_ADDR + 16) (256 - 16) LINK/LOAD
+        merge text romram/boot
+
+        org msx:PAGE3_ADDR -1 LINK/LOAD
+        merge text romram/setup
+    }
+
+    optimize near-jump 2
+
+    module romram/boot {
+        proc main() {
+            SP <- msx:STACK_ADDR
+            msx:init32(!)
+            @[(msx:BOTTOM + 1)] - 0x80; if ==? {
+                memcpy msx:PAGE3_ADDR end-text (romram/setup:end-text - romram/setup:begin-text)
+                romram/setup:main()
+                EI
+            }
+            goto (end-text + (romram/setup:end-text - romram/setup:begin-text))
+        }
+        end-text:
+    }
+
+    module romram/setup {
+        begin-text:
+
+        data slot/self = byte @ <reserved>
+        data slot/ram = byte @ <reserved>
+        data target-page = byte @ <reserved>
+
+        proc main() {
+            A -in msx:PSL_STAT >* 2 -> D
+
+            // find-rom-slot/page1
+            A . get-slot-info(A => A BC ! HL) & 0b0000_1100 | C
+            A -> [slot/self]
+
+            // find-ram-slot/page2
+            @D >* 2 . get-slot-info(A => A BC ! HL) >* 2 & 0b0000_1100 | C
+            H@hibyte(msx:PAGE2_ADDR) . copy(A H => !)
+
+            find-ram-slot/page1(=> A !)
+            H@hibyte(msx:PAGE1_ADDR)
+            fallthrough
+
+            proc copy(A H => !) {
+                A -> [slot/ram]
+                H -> A -> D
+                L <- 0 -> E
+                A -> [target-page]
+                CALL twice // 8KB x 2
+
+                twice: do {
+                    A <- 0; *patch* slot/self byte
+                    enable-slot-and-set-BC(A => BC)
+                    push/pop DE { memcpy end-text _ _ }
+
+                    A <- 0; *patch* slot/ram byte
+                    enable-slot-and-set-BC(A => BC)
+                    push/pop HL { memcpy _ end-text _ }
+
+                    A - A // set zero-flag
+                    return
+                }
+            }
+
+            proc get-slot-info(A => A BC ! HL) {
+                A & 0b0000_0011 -> C . B@0
+                @[HL@msx:EXPTBL + BC] & 0b1000_0000 | C -> C
+                @[HL ++ ++ ++ ++]
+                return
+            }
+
+            proc enable-slot-and-set-BC(A => BC) {
+                ex-BC/DE/HL {
+                    H <- 0; *patch* target-page byte
+                    msx:enaslt(A HL => !)
+                }
+                BC <- 0x2000
+                return
+            }
+        }
+
+        proc find-ram-slot/page1(=> A !) {
+            HL <- msx:EXPTBL
+            BC <- asword(4 -1)
+            loop { // primary-slot: xx00 xx01 xx10 xx11
+                C ++
+                @[HL] & 0x80 | C -> D; HL ++
+
+                once {
+                    try-check-slot-and-return()
+                    @D + 0b0100 -> D // secondary-slot: 00xx 01xx 10xx 11xx
+                    break-if plus?
+                    A -? 0b1001_0000; redo-if <?
+                }
+            } while/B-
+
+            HL -pop // failed, return to boot:main
+            A <- [slot/self] // restore slot
+            fallthrough // enaslt, reset zero flag and return
+
+            proc try-check-slot-and-return() {
+                ex-BC/DE/HL {
+                    H@hibyte(msx:PAGE1_ADDR) . msx:enaslt(A HL => !)
+
+                    H <- hibyte(msx:PAGE1_ADDR)
+                    loop {
+                        L <- 0x10
+                        loop {
+                            @[HL] -> B -not -> [HL] -? [HL]
+                            B -> [HL]
+                            goto-if !=? done
+                        } while/L-
+                        @H + 4 -> H
+                    } while plus?
+                    HL -pop // ok, return to setup:main
+                    done:
+                }
+                A <- D
+                return
+            }
+        }
+        end-text:
+    }
+}

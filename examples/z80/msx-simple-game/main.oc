@@ -1,0 +1,220 @@
+arch z80
+include "msx.oc"
+include "msx/romram.oc"
+
+msx:link-as-rom main _
+
+module device {
+    data screen = [32 * 20]byte : bss
+    data screen-sync = byte @ <reserved>
+
+    macro screen-sync/enable() {
+        @0xfe -> [device:screen-sync] // CP <byte>
+    }
+
+    macro screen-sync/disable() {
+        @0x18 -> [device:screen-sync] // JR <byte> (default)
+    }
+
+    data key-changes = byte : bss
+    data key-states = byte : bss
+
+    proc init() {
+        msx:set-vdp-mode 0b0000_0000 0b1110_0000
+        clear-namtab()
+        clear-spratr()
+        msx:update-hook msx:H_TIMI timi
+        return
+    }
+
+    proc timi() {
+        push/pop AF {
+            *patch* screen-sync; once {
+                JR _END
+
+                msx:set-vdp-write-addr! msx:t32nam(0 2)
+                msx:write-vdp-data/wide screen sizeof(screen)
+            }
+
+            A - A -> [msx:SCNCNT] -> [msx:INTCNT] // skip default key scan
+            device:read-keys(=> B ! C)
+        }
+        return
+    }
+
+    proc read-keys(=> B ! C) {
+        @5 . msx:snsmat(A => A) // Z Y X W - - - -
+        A >* 4 & 0x0F -> B
+
+        @8 . msx:snsmat(A => A) // RIGHT DOWN UP LEFT - - - -
+        A & 0xF0 | B -not -> B  // RIGHT DOWN UP LEFT Z Y X W
+
+        @[key-states] ^ B -> [key-changes]
+        @B -> [key-states]
+        return
+    }
+
+    proc clear-namtab() {
+        msx:set-vdp-write-addr msx:T32NAM/INI
+        msx:fill-vdp-data/wide ' ' (256 * 3)
+        return
+    }
+
+    proc clear-spratr() {
+        msx:set-vdp-write-addr msx:T32ATR/INI
+        msx:fill-vdp-data 209 128
+        return
+    }
+}
+
+module main {
+    data player = struct {
+        x  byte
+        y  byte
+        dx byte
+        dy byte
+    } : bss
+    data score = word @ <reserved>
+    data count = byte : bss
+
+    macro scene=>(addr) {
+        SP <- msx:STACK_ADDR
+        goto %=addr
+    }
+
+    proc main() {
+        romram:boot
+        device:init()
+
+        fallthrough
+    }
+
+    proc game-main() {
+        data screen/default = byte [
+            "#[SCORE:000]####################"
+            "#                              #"
+            "#                              #"
+            "#                              #"
+            "#                              #"
+            "#                              #"
+            "#                              #"
+            "#                              #"
+            "#                              #"
+            "#                              #"
+            "#                              #"
+            "#                              #"
+            "#                              #"
+            "#                              #"
+            "#                              #"
+            "#                              #"
+            "#                              #"
+            "#                              #"
+            "#                              #"
+            "################################"
+        ] : rodata
+
+        memcpy device:screen screen/default sizeof(device:screen)
+        HL@0 -> [score]
+        A - A -> [player.dx] -- -> [player.dy]
+        @16 -> [count] -> [player.x] -> [player.y]
+        device:screen-sync/enable
+
+        fallthrough
+    }
+
+    proc game-main/loop() {
+        msx:wait-vsync
+
+        once {
+            A <- [device:key-states]
+            A <* 1; if carry? { // RIGHT
+                A - A -> [player.dy]
+                A ++  -> [player.dx]
+                break
+            }
+            A <* 1; if carry? { // DOWN
+                A - A -> [player.dx]
+                A ++  -> [player.dy]
+                break
+            }
+            A <* 1; if carry? { // UP
+                A - A -> [player.dx]
+                A --  -> [player.dy]
+                break
+            }
+            A <* 1; if carry? { // LEFT
+                A - A -> [player.dy]
+                A --  -> [player.dx]
+                // break
+            }
+        }
+
+        [HL@count] --; if zero? {
+            C@A@[player.x] . A@[player.y] . player/xy->addr(A C => HL ! BC)
+            @'*' -> [HL]
+
+            @[player.x] + [HL@player.dx] -> [player.x] -> C
+            @[player.y] + [HL@player.dy] -> [player.y]
+            player/xy->addr(A C => HL ! BC)
+
+            @[HL] -? ' '; if not-zero? {
+                scene=> game-over
+            }
+            @'@' -> [HL]
+
+            HL@[score] ++ -> [score] + HL + HL // HL << 2
+            @10 - H -> [count]
+
+            HL <- 0; *patch* score word
+            DE@(device:screen + 8) . itoa(HL DE => DE !)
+        }
+        recur
+    }
+
+    proc player/xy->addr(A C => HL ! BC) { // A: 000y_yyyy C: 000x_xxxx
+        A >* 3 -> L & 0b0001_1111 -> H     // L: {yyy}{0_00yy} ==> H: {000}{0_00yy}
+        A ^ L + C -> L                     // L: {yyy}{0_0000} ==> L: {yyy}{x_xxxx}
+        HL + BC@device:screen              // HL: {000}{0_00yy}_{yyy}{x_xxxx}
+        return
+    }
+
+    proc game-over() {
+        data message = byte [
+            "                  "
+            " *--------------* "
+            " |              | "
+            " |  GAME  OVER  | "
+            " |  [Z] RETRY   | "
+            " |              | "
+            " *--------------* "
+            "                  "
+        ] : rodata
+
+        device:screen-sync/disable
+        msx:write-vdp-data/rect message msx:t32nam(7 8) 18 8 32
+        never-return loop {
+            msx:wait-vsync
+            @[device:key-states] & BIT-3; if not-zero? {
+                scene=> game-main
+            }
+        }
+    }
+
+    proc itoa(HL DE => DE !) {
+        BC@-100 . count(BC => HL DE)
+        BC@-10 . count(BC => HL DE)
+        @L + '0' -> [DE]
+        return
+
+        proc count(BC => HL DE) {
+            A <- ('0' - 1)
+            loop {
+                A ++
+                HL + BC
+            } while carry?
+            HL -$ BC
+            A -> [DE]; DE ++
+            return
+        }
+    }
+}

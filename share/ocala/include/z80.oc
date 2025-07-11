@@ -31,6 +31,14 @@ macro goto-if(cond addr) {
     $(%=addr) -jump-if %=cond
 }
 
+macro goto-abs(addr) {
+    JP %=addr
+}
+
+macro goto-abs-if(cond addr) {
+    JP %=cond %=addr
+}
+
 macro goto-rel(addr) {
     JR %=addr
 }

@@ -75,6 +75,7 @@ func TestCompileExamples(t *testing.T) {
 		"../../examples/z80/msx-hello-world/main",
 		"../../examples/z80/msx-hello-world-vdp/main",
 		"../../examples/z80/msx-keytest/main",
+		"../../examples/z80/msx-simple-game/main",
 		"../../examples/z80/msx2-scroll/main",
 	}
 	for _, i := range paths {

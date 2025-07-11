@@ -102,6 +102,9 @@ var syntaxMap = map[*Keyword]SyntaxFn{
 	Intern("db"): SyntaxFn(sDb),
 	Intern("dw"): SyntaxFn(sDw),
 	Intern("ds"): SyntaxFn(sDs),
+
+	Intern("link-as-tests"): SyntaxFn(sLinkAsTests),
+	Intern("expect"):        SyntaxFn(sExpect),
 }
 
 func exprToOperand(cc *Compiler, e Value) *Operand {
@@ -227,4 +230,31 @@ func sDs(cc *Compiler, env *Env, e *Vec) Value {
 		cc.ErrorAt(etag).With("invalid repeat count %d", n)
 	}
 	return cc.EmitCode(NewInst(e, InstDS, ByteType, n))
+}
+
+var linkAsTests = []byte(`link { org 0 0 1; merge text { data byte ["ok"] }; ` +
+	`org 0 0 0; merge text _; merge bss _ }`)
+
+// SYNTAX: (link-as-tests )
+func sLinkAsTests(cc *Compiler, env *Env, e *Vec) Value {
+	CheckExpr(e, 1, 1, CtModule|CtProc, cc)
+	cc.CompileExpr(env, cc.Parse("@", linkAsTests))
+	return NIL
+}
+
+// SYNTAX: (expect )
+func sExpect(cc *Compiler, env *Env, e *Vec) Value {
+	etag, n := CheckExpr(e, 2, 3, CtModule|CtProc, cc)
+
+	a := e.At(1).(*Constexpr).Body
+	b := a
+	if n == 2 {
+		a = Value(Int(1))
+	} else {
+		b = e.At(2).(*Constexpr).Body
+	}
+	cond := &Constexpr{Token: etag.Token, Body: &Vec{etag.Expand(KwEqlOp), a, b}}
+	s := NewStr("assertion failed: " + cond.Inspect())
+	inst := NewInst(e, InstAssert, cc.CompileExpr(env, cond), s)
+	return cc.EmitCode(inst)
 }

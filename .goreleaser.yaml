@@ -43,6 +43,7 @@ archives:
       - README.md
       - share/ocala/include/mos6502.oc
       - share/ocala/include/msx.oc
+      - share/ocala/include/msx/romram.oc
       - share/ocala/include/noarch.oc
       - share/ocala/include/z80.oc
       - share/ocala/misc/ocala-mode.el

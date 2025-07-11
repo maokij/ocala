@@ -7,52 +7,88 @@ import (
 	"testing"
 )
 
-func sbyte(n int) byte {
-	return byte(n)
-}
-
 func TestCompileFunctions(t *testing.T) {
 	t.Run("ok: operators", func(t *testing.T) {
 		dat, mes := compile(`flat!
-			db (2 * 3) (3 * -5) (-5 * -5)
-			db (10 / 3) (12 / -4)  (-20 / -6)
-			db (10 % 3) (12 % -4)  (-20 % -6)
-			db (1 + 2) (10 + -5) (-1 + -2)
-			db (10 - 2) (10 - -5) (-3 - -5) -(32) +(32)
+			link-as-tests
+			expect 6   (2 * 3)
+			expect -15 (3 * -5)
+			expect 25  (-5 * -5)
+			expect 3   (10 / 3)
+			expect -3  (12 / -4)
+			expect 3   (-20 / -6)
+			expect 1   (10 % 3)
+			expect 0   (12 % -4)
+			expect -2  (-20 % -6)
+			expect 3   (1 + 2)
+			expect 5   (10 + -5)
+			expect -3  (-1 + -2)
+			expect 8   (10 - 2)
+			expect 15  (10 - -5)
+			expect 2   (-3 - -5)
+			expect -32 -(32)
+			expect 32  +(32)
 
-			db (1 << 3) (0x11 << 5) (0xd0 << 65)
-			db (-0xcd >> 3 == -0x1a) (0xaa >> 10 == 0) (0xd0 >> 65 == 0)
-			db (-0xcd >>> 60 == 0x0f) (0xaa >>> 10 == 0) (0xd0 >>> 65 == 0)
+			expect 8     (1 << 3)
+			expect 32    byte(0x11 << 5)
+			expect 0     byte(0xd0 << 65)
+			expect -0x1a (-0xcd >> 3)
+			expect 0     (0xaa >> 10)
+			expect 0     (0xd0 >> 65)
+			expect 0x0f  (-0xcd >>> 60)
+			expect 0     (0xaa >>> 10)
+			expect 0     (0xd0 >>> 65)
+			expect 0xff  byte(~0)
+			expect 0xfe  byte(~1)
+			expect 0     ~-1
 
-			db (1 > 0) (1 > 1) (2 > 1)
-			db (1 >= 0) (0 >= 1) (2 >= 2)
-			db (1 < 0) (1 < 1) (1 < 2)
-			db (1 <= 0) (1 <= 1) (2 <= 1)
-			db (1 == 1) (1 == 2) ("a" == "a") ("a" == "b")
-			db (1 != 1) (1 != 2) ("a" != "a") ("a" != "b")
-			db !0 !1 !-1 ~0 ~1 ~-1
+			expect 1 (1 > 0)
+			expect 0 (1 > 1)
+			expect 1 (2 > 1)
+			expect 1 (1 >= 0)
+			expect 0 (0 >= 1)
+			expect 1 (2 >= 2)
+			expect 0 (1 < 0)
+			expect 0 (1 < 1)
+			expect 1 (1 < 2)
+			expect 0 (1 <= 0)
+			expect 1 (1 <= 1)
+			expect 0 (2 <= 1)
+			expect 1 (1 == 1)
+			expect 0 (1 == 2)
+			expect 1 ("a" == "a")
+			expect 0 ("a" == "b")
+			expect 0 (1 != 1)
+			expect 1 (1 != 2)
+			expect 0 ("a" != "a")
+			expect 1 ("a" != "b")
+			expect 1 !0
+			expect 0 !1
+			expect 0 !-1
 
-			db (1 && 2) (0 && 2)
-			db (1 || 2) (0 || 2)
-			db (3 & 2)
-			db (3 | 4)
-			db (0xab ^ 0xcd)
-			db ~(0x10) ~(0) ~(-0x60)
-			db lobyte(0xabcd) hibyte(0xabcd)
-			dw asword(0xab 0xcd)
+			expect 2 (1 && 2)
+			expect 0 (0 && 2)
+			expect 1 (1 || 2)
+			expect 2 (0 || 2)
+			expect 2 (3 & 2)
+			expect 7 (3 | 4)
+
+			expect 0x66 byte(0xab ^ 0xcd)
+			expect 0xef byte(~(0x10))
+			expect 0xff byte(~(0))
+			expect 0x5f byte(~(-0x60))
+			expect 0xcd lobyte(0xabcd)
+			expect 0xab hibyte(0xabcd)
+			expect 0xabcd asword(0xab 0xcd)
+		`)
+		tt.Eq(t, "ok", string(dat), mes)
+	})
+
+	t.Run("ok: expand-binary", func(t *testing.T) {
+		dat, mes := compile(`flat!
 			$(0xFF) -byte; $(0xFE) -byte; $(0x01) -rep 6
 		`)
-		tt.EqSlice(t, []byte{
-			6, sbyte(-15), 25, 3, sbyte(-3), 3, 1, 0, sbyte(-2),
-			3, 5, sbyte(-3), 8, 15, 2, sbyte(-32), 32,
-			8, 32, 0, 1, 1, 1, 1, 1, 1,
-			1, 0, 1, 1, 0, 1,
-			0, 0, 1, 0, 1, 0,
-			1, 0, 1, 0, 0, 1, 0, 1,
-			1, 0, 0, 0xff, 0xfe, 0,
-			2, 0, 1, 2, 2, 7, 0x66, 0xef, 0xff, 0x5f,
-			0xcd, 0xab, 0xcd, 0xab, 0xff, 0xfe, 1, 1, 1, 1, 1, 1,
-		}, dat, mes, dat)
+		tt.EqSlice(t, []byte{0xff, 0xfe, 1, 1, 1, 1, 1, 1}, dat, mes, dat)
 	})
 
 	t.Run("ok: typecasts", func(t *testing.T) {
@@ -72,21 +108,19 @@ func TestCompileFunctions(t *testing.T) {
 
 	t.Run("ok: functions", func(t *testing.T) {
 		dat, mes := compile(`flat!
-			link { org 0 0 1; merge text _; org 0 0 0; merge bss _ }
+			link-as-tests
 			module ModA { const c001 = 1 }
 			module ModB { const c002 = 2 }
 			data d001 = byte * 5 : bss
-			db sizeof(d001)
-			db nameof(d001)
-			db defined?(d001)
-			db defined?(ModA:c001)
-			db defined?(ModB:c001)
-			db defined?(ModA:c002)
-			db defined?(ModC:c002)
+			expect (5 == sizeof(d001))
+			expect ("d001" == nameof(d001))
+			expect defined?(d001)
+			expect defined?(ModA:c001)
+			expect !defined?(ModB:c001)
+			expect !defined?(ModA:c002)
+			expect !defined?(ModC:c002)
 		`)
-		tt.EqSlice(t, []byte{
-			5, 'd', '0', '0', '1', 1, 1, 0, 0, 0,
-		}, dat, mes, dat)
+		tt.Eq(t, "ok", string(dat), mes)
 	})
 
 	t.Run("ok: others", func(t *testing.T) {
@@ -710,15 +744,59 @@ func TestCompileAssert(t *testing.T) {
 
 func TestCompileSizeof(t *testing.T) {
 	t.Run("ok", func(t *testing.T) {
-		dat, mes := compile(`
-			db (sizeof(d001) == 4)
-			db (sizeof(d002) == 6)
-			db (sizeof(d003) == 16)
-			data d001 = byte * 4
-			data d002 = byte [0 1 2 3 4 5]
-			data d003 = byte load-file("./testdata/embed01.dat")
+		dat, mes := compile(`flat!
+			link-as-tests
+			data d001 = byte * 4 : bss
+			expect 4 sizeof(d001)
+
+			data d002 = byte [0 1 2 3 4 5] : bss
+			expect 6 sizeof(d002)
+
+			data d003 = byte load-file("./testdata/embed01.dat") : bss
+			expect 16 sizeof(d003)
+
+			struct s001 { x byte; y word }
+			expect 3 sizeof(s001)
+			expect 1 sizeof(s001.x)
+			expect 2 sizeof(s001.y)
+
+			struct s002 { x [4]byte; y [4]word; z [4]s001; a s001 }
+			expect 27 sizeof(s002)
+			expect 4  sizeof(s002.x)
+			expect 8  sizeof(s002.y)
+			expect 12 sizeof(s002.z)
+			expect 1  sizeof(s002.z.x)
+			expect 2  sizeof(s002.z.y)
+			expect 3  sizeof(s002.a)
+			expect 1  sizeof(s002.a.x)
+			expect 2  sizeof(s002.a.y)
+
+			struct s003 { x [4][8]byte; y [4][8]word }
+			expect 96 sizeof(s003)
+			expect 32 sizeof(s003.x)
+			expect 64 sizeof(s003.y)
+
+			data d004 = s001 {} : bss
+			expect 1 sizeof(d004.x)
+			expect 2 sizeof(d004.y)
+
+			data d005 = s002 {} : bss
+			expect 27 sizeof(d005)
+			expect 4  sizeof(d005.x)
+			expect 8  sizeof(d005.y)
+			expect 12 sizeof(d005.z)
+			expect 1  sizeof(d005.z.x)
+			expect 2  sizeof(d005.z.y)
+			expect 3  sizeof(d005.a)
+			expect 1  sizeof(d005.a.x)
+			expect 2  sizeof(d005.a.y)
+
+			data d006 = s003 {} : bss
+			expect 96 sizeof(d006)
+			expect 32 sizeof(d006.x)
+			expect 64 sizeof(d006.y)
 		`)
-		tt.EqSlice(t, []byte{1, 1, 1}, dat[:3], mes, dat)
+		tt.Eq(t, "ok", string(dat), mes)
 	})
 
 	t.Run("error", func(t *testing.T) {
@@ -726,8 +804,24 @@ func TestCompileSizeof(t *testing.T) {
 			"unknown label name L1", `flat!
 				db sizeof(L1)
 			`,
-			"L1 is not a data", `flat!
+			"sizeof requires a data label or struct", `flat!
+				const a = 0
+				db sizeof(a)
+			`,
+			"L1 is not a data label", `flat!
 				L1: db sizeof(L1)
+			`,
+			"d001 is not a struct type", `flat!
+				data d001 = byte * 10
+				db sizeof(d001.a)
+			`,
+			"byte is not a struct type", `flat!
+				data d001 = byte * 10
+				db sizeof(byte.a)
+			`,
+			"unknown field b", `flat!
+				data d001 = struct { a byte }
+				db sizeof(d001.b)
 			`,
 		}
 		for x := 0; x < len(es); x += 2 {
@@ -740,27 +834,28 @@ func TestCompileSizeof(t *testing.T) {
 func TestCompileNametypeof(t *testing.T) {
 	t.Run("ok", func(t *testing.T) {
 		dat, mes := compile(`
+			link-as-tests
 			module ModA { const c002 = 2 }
 			macro m001() {}
 			const c001 = 1
 			proc f001(!) {
 				data d001 = byte [0]
 				L001:
-				if (nametypeof(ModA) == "module") { db 1 }
-				if (nametypeof(if) == "syntax") { db 2 }
-				if (nametypeof(m001) == "macro") { db 3 }
-				if (nametypeof(+) == "func") { db 4 }
-				if (nametypeof(LD) == "inst") { db 5 }
-				if (nametypeof(c001) == "const") { db 6 }
-				if (nametypeof(d001) == "label") { db 7 }
-				if (nametypeof(f001) == "label") { db 8 }
-				if (nametypeof(L001) == "label") { db 9 }
-				if (nametypeof(__PC__) == "special") { db 10 }
-				if (nametypeof(ModA:c002) == "const") { db 11 }
+				expect "module"  nametypeof(ModA)
+				expect "syntax"  nametypeof(if)
+				expect "macro"   nametypeof(m001)
+				expect "func"    nametypeof(+)
+				expect "inst"    nametypeof(LD)
+				expect "const"   nametypeof(c001)
+				expect "label"   nametypeof(d001)
+				expect "label"   nametypeof(f001)
+				expect "label"   nametypeof(L001)
+				expect "special" nametypeof(__PC__)
+				expect "const"   nametypeof(ModA:c002)
 				RET
 			}
 		`)
-		tt.EqSlice(t, []byte{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11}, dat[:12], mes, dat)
+		tt.Eq(t, "ok", string(dat), mes)
 	})
 
 	t.Run("error", func(t *testing.T) {

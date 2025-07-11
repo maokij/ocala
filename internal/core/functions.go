@@ -1085,21 +1085,70 @@ func (cc *Compiler) sOr(env *Env, e *Vec) Value {
 	return EvalConst(e.At(2), env, etag, cc)
 }
 
+func (cc *Compiler) sFieldSize(env *Env, e *Vec) Value {
+	etag, _ := CheckExpr(e, 3, -1, CtConstexpr, cc)
+	id := CheckValue(e.At(1), IdentifierT, "base", etag, cc)
+	nm := cc.LookupNamed(env, id)
+
+	var t *Datatype
+	switch nm.Kind {
+	case NmDatatype:
+		t = nm.Value.(*Datatype)
+	case NmLabel:
+		if v := nm.Value.(*Label); v.LinkedToData() {
+			t = v.Link.Args[0].(*Datatype)
+		}
+	}
+
+	n := 1
+	for _, v := range (*e)[2:] {
+		if t == nil || len(t.Map) == 0 {
+			cc.ErrorAt(id).With("%s is not a struct type", id)
+		}
+
+		id = CheckValue(v, IdentifierT, "field name", etag, cc)
+		field := t.GetField(id.Name)
+		if field == nil {
+			cc.ErrorAt(id).With("unknown field %s", id)
+		}
+
+		t = field.Datatype
+		n = field.Size
+	}
+	if n < 0 {
+		n = 1
+	}
+	return Int(t.Size * n)
+}
+
 // SYNTAX: (sizeof a)
 func (cc *Compiler) sSizeof(env *Env, e *Vec) Value {
 	etag, _ := CheckExpr(e, 2, 2, CtConstexpr, cc)
-	name := CheckValue(e.At(1), IdentifierT, "label", etag, cc)
 
+	if e := KwField.MatchExpr(e.At(1)); e != nil {
+		return cc.sFieldSize(env, e)
+	}
+
+	name := CheckValue(e.At(1), IdentifierT, "label", etag, cc)
 	nm := cc.LookupNamed(env, name)
-	if nm == nil || nm.Kind != NmLabel {
+	if nm == nil {
 		cc.ErrorAt(name, etag).With("unknown label name %s", name)
 	}
 
-	v := nm.Value.(*Label)
-	if !v.LinkedToData() {
-		cc.ErrorAt(name, etag).With("%s is not a data", name)
+	switch nm.Kind {
+	case NmLabel:
+		v := nm.Value.(*Label)
+		if !v.LinkedToData() {
+			cc.ErrorAt(name, etag).With("%s is not a data label", name)
+		}
+		return Int(v.Link.Size)
+	case NmDatatype:
+		v := nm.Value.(*Datatype)
+		return Int(v.Size)
 	}
-	return Int(v.Link.Size)
+
+	cc.ErrorAt(name, etag).With("sizeof requires a data label or struct")
+	return NIL
 }
 
 // SYNTAX: (nameof a)
