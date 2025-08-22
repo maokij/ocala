@@ -125,11 +125,10 @@ package core
     | mem               { v.Push(_1) }!
     | explicitval       { v.Push(_1) }!
     | '@-' prim         { v.Push(p.cc.KwRegA.ToId(_1), &Vec{KwLeftArrow.ToId(_1), _2}) }!
-    ) ( CONDDOT?:NILTK  { c := _1.Value }!
-          ( UOP         { v.Push(&Vec{_1.Value, NIL, c}) }!
-          | BOP oper    { v.Push(&Vec{_1.Value, _2, c}) }!
-          | DOP dotarg  { v.Push(&Vec{_1.Value, _2}) }!
-          ) )*          { RET v }!
+    ) ( UOP             { v.Push(&Vec{_1.Value, NIL}) }!
+      | BOP oper        { v.Push(&Vec{_1.Value, _2}) }!
+      | DOP dotarg      { v.Push(&Vec{_1.Value, _2}) }!
+      )*                { RET v }!
   ;
   oper:
     prim              { v := _1 }!

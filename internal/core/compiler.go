@@ -12,6 +12,7 @@ var KwFILENAME = Intern("__FILE__")
 var KwPROCNAME = Intern("__PROC__")
 var KwCURLOC = Intern("__PC__")
 var KwCURORG = Intern("__ORG__")
+var KwARCH = Intern("__ARCH__")
 var KwUBEG = Intern("_BEG")
 var KwUEND = Intern("_END")
 var KwUCOND = Intern("_COND")
@@ -124,6 +125,21 @@ const (
 
 var PhaseLabels = []string{"compile", "link"}
 
+type ArchMap map[string]func() *Compiler
+
+var archMap = ArchMap{}
+
+func RegisterArchs(archs ArchMap) {
+	maps.Copy(archMap, archs)
+}
+
+func NewCompiler(arch string) *Compiler {
+	if builder := archMap[arch]; builder != nil {
+		return builder()
+	}
+	return nil
+}
+
 type AsmOperand struct {
 	Base   string
 	Expand bool
@@ -185,6 +201,10 @@ func (cc *Compiler) ErrorAt(values ...Value) *InternalError {
 		at:        values,
 		DebugMode: cc.g.DebugMode,
 	}
+}
+
+func (cc *Compiler) FullArchName() string {
+	return cc.Arch + cc.Variant
 }
 
 func (cc *Compiler) EnterCodeBlock() {
@@ -378,12 +398,17 @@ func (cc *Compiler) buildSetupCode() *Vec {
 	tag.Token = &Token{From: parser, Value: tag}
 
 	r := &Vec{tag.Expand(KwBlock)}
+	e := &Vec{tag.Expand(KwConst), InternalId(KwARCH).ToConstexpr(nil), &Vec{},
+		InternalConstexpr(NewStr(cc.FullArchName()))}
+	r.Push(e)
+
 	for _, i := range cc.g.Defs {
 		id := &Identifier{Name: Intern(i)}
 		id.Token = &Token{From: parser, Value: id}
 		e := &Vec{tag.Expand(KwConst), id.ToConstexpr(nil), &Vec{}, InternalConstexpr(Int(1))}
 		r.Push(e)
 	}
+
 	return r
 }
 

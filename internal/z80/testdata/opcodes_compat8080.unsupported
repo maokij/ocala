@@ -1,0 +1,295 @@
+    LD A [IX 5]
+    LD B [IX 5]
+    LD C [IX 5]
+    LD D [IX 5]
+    LD E [IX 5]
+    LD H [IX 5]
+    LD L [IX 5]
+    LD A [IY 5]
+    LD B [IY 5]
+    LD C [IY 5]
+    LD D [IY 5]
+    LD E [IY 5]
+    LD H [IY 5]
+    LD L [IY 5]
+    LD [IX 5] A
+    LD [IX 5] B
+    LD [IX 5] C
+    LD [IX 5] D
+    LD [IX 5] E
+    LD [IX 5] H
+    LD [IX 5] L
+    LD [IY 5] A
+    LD [IY 5] B
+    LD [IY 5] C
+    LD [IY 5] D
+    LD [IY 5] E
+    LD [IY 5] H
+    LD [IY 5] L
+    LD [IX 5] 5
+    LD [IY 5] 5
+    LD A I
+    LD A R
+    LD I A
+    LD R A
+    LD IX 1234
+    LD IY 1234
+    LD HL [1234]
+    LD BC [1234]
+    LD DE [1234]
+    LD SP [1234]
+    LD IX [1234]
+    LD IY [1234]
+    LD [1234] HL
+    LD [1234] BC
+    LD [1234] DE
+    LD [1234] SP
+    LD [1234] IX
+    LD [1234] IY
+    LD SP IX
+    LD SP IY
+    LD [IX 5] 1234
+    LD [IY 5] 1234
+    LD IX 5
+    LD IY 5
+    LD HL [5]
+    LD BC [5]
+    LD DE [5]
+    LD SP [5]
+    LD IX [5]
+    LD IY [5]
+    LD [5] HL
+    LD [5] BC
+    LD [5] DE
+    LD [5] SP
+    LD [5] IX
+    LD [5] IY
+    PUSH IX
+    PUSH IY
+    POP IX
+    POP IY
+    EX AF AF-
+    EX [SP] IX
+    EX [SP] IY
+    EXX
+    LDI
+    LDIR
+    LDD
+    LDDR
+    CPI
+    CPIR
+    CPD
+    CPDR
+    ADD A [IX 5]
+    ADD A [IY 5]
+    ADD IX BC
+    ADD IX DE
+    ADD IX IX
+    ADD IX SP
+    ADD IY BC
+    ADD IY DE
+    ADD IY IY
+    ADD IY SP
+    ADC A [IX 5]
+    ADC A [IY 5]
+    ADC HL BC
+    ADC HL DE
+    ADC HL HL
+    ADC HL SP
+    SUB [IX 5]
+    SUB [IY 5]
+    SBC A [IX 5]
+    SBC A [IY 5]
+    SBC HL BC
+    SBC HL DE
+    SBC HL HL
+    SBC HL SP
+    AND [IX 5]
+    AND [IY 5]
+    OR [IX 5]
+    OR [IY 5]
+    XOR [IX 5]
+    XOR [IY 5]
+    CP [IX 5]
+    CP [IY 5]
+    INC [IX 5]
+    INC [IY 5]
+    INC IX
+    INC IY
+    DEC [IX 5]
+    DEC [IY 5]
+    DEC IX
+    DEC IY
+    RLC A
+    RLC B
+    RLC C
+    RLC D
+    RLC E
+    RLC H
+    RLC L
+    RLC [HL]
+    RLC [IX 5]
+    RLC [IY 5]
+    RL A
+    RL B
+    RL C
+    RL D
+    RL E
+    RL H
+    RL L
+    RL [HL]
+    RL [IX 5]
+    RL [IY 5]
+    RRC A
+    RRC B
+    RRC C
+    RRC D
+    RRC E
+    RRC H
+    RRC L
+    RRC [HL]
+    RRC [IX 5]
+    RRC [IY 5]
+    RR A
+    RR B
+    RR C
+    RR D
+    RR E
+    RR H
+    RR L
+    RR [HL]
+    RR [IX 5]
+    RR [IY 5]
+    SLA A
+    SLA B
+    SLA C
+    SLA D
+    SLA E
+    SLA H
+    SLA L
+    SLA [HL]
+    SLA [IX 5]
+    SLA [IY 5]
+    SRA A
+    SRA B
+    SRA C
+    SRA D
+    SRA E
+    SRA H
+    SRA L
+    SRA [HL]
+    SRA [IX 5]
+    SRA [IY 5]
+    SRL A
+    SRL B
+    SRL C
+    SRL D
+    SRL E
+    SRL H
+    SRL L
+    SRL [HL]
+    SRL [IX 5]
+    SRL [IY 5]
+    RLD
+    RRD
+    BIT 5 A
+    BIT 5 B
+    BIT 5 C
+    BIT 5 D
+    BIT 5 E
+    BIT 5 H
+    BIT 5 L
+    BIT 5 [HL]
+    BIT 5 [IX 5]
+    BIT 5 [IY 5]
+    BIT 1234 A
+    BIT 1234 B
+    BIT 1234 C
+    BIT 1234 D
+    BIT 1234 E
+    BIT 1234 H
+    BIT 1234 L
+    BIT 1234 [HL]
+    BIT 1234 [IX 5]
+    BIT 1234 [IY 5]
+    SET 5 A
+    SET 5 B
+    SET 5 C
+    SET 5 D
+    SET 5 E
+    SET 5 H
+    SET 5 L
+    SET 5 [HL]
+    SET 5 [IX 5]
+    SET 5 [IY 5]
+    SET 1234 A
+    SET 1234 B
+    SET 1234 C
+    SET 1234 D
+    SET 1234 E
+    SET 1234 H
+    SET 1234 L
+    SET 1234 [HL]
+    SET 1234 [IX 5]
+    SET 1234 [IY 5]
+    RES 5 A
+    RES 5 B
+    RES 5 C
+    RES 5 D
+    RES 5 E
+    RES 5 H
+    RES 5 L
+    RES 5 [HL]
+    RES 5 [IX 5]
+    RES 5 [IY 5]
+    RES 1234 A
+    RES 1234 B
+    RES 1234 C
+    RES 1234 D
+    RES 1234 E
+    RES 1234 H
+    RES 1234 L
+    RES 1234 [HL]
+    RES 1234 [IX 5]
+    RES 1234 [IY 5]
+    JP [IX 5]
+    JP [IY 5]
+    JR 1234
+    JR C? 1234
+    JR NC? 1234
+    JR Z? 1234
+    JR NZ? 1234
+    JR 5
+    JR C? 5
+    JR NC? 5
+    JR Z? 5
+    JR NZ? 5
+    DJNZ 1234
+    DJNZ 5
+    RETI
+    RETN
+    IN A [C]
+    IN B [C]
+    IN C [C]
+    IN D [C]
+    IN E [C]
+    IN H [C]
+    IN L [C]
+    INI
+    INIR
+    IND
+    INDR
+    OUT [C] A
+    OUT [C] B
+    OUT [C] C
+    OUT [C] D
+    OUT [C] E
+    OUT [C] H
+    OUT [C] L
+    OUTI
+    OTIR
+    OUTD
+    OTDR
+    NEG
+    IM 5
+    IM 1234

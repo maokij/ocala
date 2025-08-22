@@ -1,6 +1,6 @@
     .org 512
-    TXA 
-    TYA 
+    TXA
+    TYA
     LDA #5
     LDA 5
     LDA 5, X
@@ -10,22 +10,22 @@
     LDA 1234, Y
     LDA (5, X)
     LDA (5), Y
-    TAX 
-    TSX 
+    TAX
+    TSX
     LDX #5
     LDX 5
     LDX 5, Y
     LDX 1234
     LDX 1234, Y
-    TAY 
+    TAY
     LDY #5
     LDY 5
     LDY 5, X
     LDY 1234
     LDY 1234, X
-    TXS 
-    TAX 
-    TAY 
+    TXS
+    TAX
+    TAY
     STA 5
     STA 5, X
     STA 5, Y
@@ -34,57 +34,57 @@
     STA 1234, Y
     STA (5, X)
     STA (5), Y
-    TXA 
-    TXS 
+    TXA
+    TXS
     STX 5
     STX 5, Y
     STX 1234
-    TYA 
+    TYA
     STY 5
     STY 5, X
     STY 1234
-    TSX 
-    PHA 
-    PHP 
-    PLA 
-    PLP 
-    CLC 
+    TSX
+    PHA
+    PHP
+    PLA
+    PLP
+    CLC
     ADC #1
-    INX 
-    INY 
+    INX
+    INY
     INC 5
     INC 5, X
     INC 1234
     INC 1234, X
-    SEC 
+    SEC
     SBC #1
-    DEX 
-    DEY 
+    DEX
+    DEY
     DEC 5
     DEC 5, X
     DEC 1234
     DEC 1234, X
     EOR #255
     EOR #255
-    CLC 
+    CLC
     ADC #1
-    CLC 
+    CLC
     ADC #5
-    CLC 
+    CLC
     ADC 5
-    CLC 
+    CLC
     ADC 5, X
-    CLC 
+    CLC
     ADC 5, Y
-    CLC 
+    CLC
     ADC 1234
-    CLC 
+    CLC
     ADC 1234, X
-    CLC 
+    CLC
     ADC 1234, Y
-    CLC 
+    CLC
     ADC (5, X)
-    CLC 
+    CLC
     ADC (5), Y
     ADC #5
     ADC 5
@@ -95,23 +95,23 @@
     ADC 1234, Y
     ADC (5, X)
     ADC (5), Y
-    SEC 
+    SEC
     SBC #5
-    SEC 
+    SEC
     SBC 5
-    SEC 
+    SEC
     SBC 5, X
-    SEC 
+    SEC
     SBC 5, Y
-    SEC 
+    SEC
     SBC 1234
-    SEC 
+    SEC
     SBC 1234, X
-    SEC 
+    SEC
     SBC 1234, Y
-    SEC 
+    SEC
     SBC (5, X)
-    SEC 
+    SEC
     SBC (5), Y
     SBC #5
     SBC 5

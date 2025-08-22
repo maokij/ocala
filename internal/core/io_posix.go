@@ -165,7 +165,7 @@ func sCompileFile(cc *Compiler, env *Env, e *Vec) Value {
 	blob := cc.sLoadFile(env, &Vec{etag, path}).(*Blob)
 	g := CopyPtr(cc.g)
 	g.IsSub = true
-	g.SetCompiler(g.Archs[cc.Arch]())
+	g.SetCompiler(NewCompiler(cc.FullArchName()))
 	data := g.GenerateBin(g.Compile(blob.path, blob.data))
 	return &Blob{data: data, path: blob.path, origPath: blob.origPath, compiled: true}
 }

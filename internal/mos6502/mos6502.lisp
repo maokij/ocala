@@ -142,7 +142,7 @@
   (example #.jump (*) "" "")
 
   (opcode  #.call (a)   (NN)    [0x20 (=l a) (=h a)])
-  (opcode  #.call (a b) (NN CC) [(=U b)])
+  (opcode  #.call (a b) (NN CC) [(=U)])
   (example #.call (*) "" "")
 
   ;;

@@ -38,7 +38,6 @@ type Generator struct {
 	InReader  io.Reader
 	OutWriter io.Writer
 	ErrWriter io.Writer
-	Archs     map[string]func() *Compiler
 	IncPaths  []string
 	Defs      []string
 	ListText  *[]byte
@@ -140,11 +139,11 @@ func (g *Generator) SetCompilerFromSource(text []byte) {
 		g.ErrorWith("the first statement must be an `arch` directive unless the `-t` option is specified")
 	}
 
-	builder, ok := g.Archs[arch]
-	if !ok {
+	cc := NewCompiler(arch)
+	if cc == nil {
 		g.ErrorWith("unknown arch: %s", arch)
 	}
-	g.SetCompiler(builder())
+	g.SetCompiler(cc)
 }
 
 func (g *Generator) findArchDirective(text []byte) string {

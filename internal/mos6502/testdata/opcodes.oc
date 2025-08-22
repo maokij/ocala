@@ -42,47 +42,47 @@ L6:
     STY [5 X]
     STY [1234]
 L7:
-    TAX 
+    TAX
 L8:
-    TAY 
+    TAY
 L9:
-    TSX 
+    TSX
 L10:
-    TXA 
+    TXA
 L11:
-    TXS 
+    TXS
 L12:
-    TYA 
+    TYA
 L13:
-    PHA 
+    PHA
 L14:
-    PHP 
+    PHP
 L15:
-    PLP 
+    PLP
 L16:
-    PLA 
+    PLA
 L17:
-    CLC 
+    CLC
 L18:
-    CLI 
+    CLI
 L19:
-    CLD 
+    CLD
 L20:
-    CLV 
+    CLV
 L21:
-    SEC 
+    SEC
 L22:
-    SEI 
+    SEI
 L23:
-    SED 
+    SED
 L24:
-    BRK 
+    BRK
 L25:
-    NOP 
+    NOP
 L26:
-    RTS 
+    RTS
 L27:
-    RTI 
+    RTI
 L28:
     JMP [1234]
     JMP [[1234]]
@@ -209,18 +209,18 @@ L49:
     INC [1234]
     INC [1234 X]
 L50:
-    INX 
+    INX
 L51:
-    INY 
+    INY
 L52:
     DEC [5]
     DEC [5 X]
     DEC [1234]
     DEC [1234 X]
 L53:
-    DEX 
+    DEX
 L54:
-    DEY 
+    DEY
 L55:
     ASL A
     ASL [5]

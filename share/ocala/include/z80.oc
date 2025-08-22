@@ -54,8 +54,17 @@ macro while(cond) {
     $(_BEG) -jump-if %=cond
 }
 
-macro while/B-() {
-    DJNZ _BEG
+macro while/B-*() {
+    B --
+    $(_BEG) -jump-if NZ?
+}
+
+if (__ARCH__ == "z80+compat8080") ={
+    alias while/B- while/B-*
+} else ={
+    macro while/B-() {
+        DJNZ _BEG
+    }
 }
 
 macro while/A-() {

@@ -1,0 +1,297 @@
+    arch z80 +compat8080
+    flat!
+    A <- A
+    A <- B
+    A <- C
+    A <- D
+    A <- E
+    A <- H
+    A <- L
+    A <- [HL]
+    A <- [BC]
+    A <- [DE]
+    A <- 5
+    A <- [5]
+    A <- [1234]
+    B <- A
+    B <- B
+    B <- C
+    B <- D
+    B <- E
+    B <- H
+    B <- L
+    B <- [HL]
+    B <- 5
+    C <- A
+    C <- B
+    C <- C
+    C <- D
+    C <- E
+    C <- H
+    C <- L
+    C <- [HL]
+    C <- 5
+    D <- A
+    D <- B
+    D <- C
+    D <- D
+    D <- E
+    D <- H
+    D <- L
+    D <- [HL]
+    D <- 5
+    E <- A
+    E <- B
+    E <- C
+    E <- D
+    E <- E
+    E <- H
+    E <- L
+    E <- [HL]
+    E <- 5
+    H <- A
+    H <- B
+    H <- C
+    H <- D
+    H <- E
+    H <- H
+    H <- L
+    H <- [HL]
+    H <- 5
+    L <- A
+    L <- B
+    L <- C
+    L <- D
+    L <- E
+    L <- H
+    L <- L
+    L <- [HL]
+    L <- 5
+    BC <- 5
+    BC <- 1234
+    DE <- 5
+    DE <- 1234
+    HL <- 5
+    HL <- 1234
+    SP <- HL
+    SP <- 5
+    SP <- 1234
+    A -> A
+    A -> B
+    A -> C
+    A -> D
+    A -> E
+    A -> H
+    A -> L
+    A -> [HL]
+    A -> [BC]
+    A -> [DE]
+    A -> [5]
+    A -> [1234]
+    B -> A
+    B -> B
+    B -> C
+    B -> D
+    B -> E
+    B -> H
+    B -> L
+    B -> [HL]
+    C -> A
+    C -> B
+    C -> C
+    C -> D
+    C -> E
+    C -> H
+    C -> L
+    C -> [HL]
+    D -> A
+    D -> B
+    D -> C
+    D -> D
+    D -> E
+    D -> H
+    D -> L
+    D -> [HL]
+    E -> A
+    E -> B
+    E -> C
+    E -> D
+    E -> E
+    E -> H
+    E -> L
+    E -> [HL]
+    H -> A
+    H -> B
+    H -> C
+    H -> D
+    H -> E
+    H -> H
+    H -> L
+    H -> [HL]
+    L -> A
+    L -> B
+    L -> C
+    L -> D
+    L -> E
+    L -> H
+    L -> L
+    L -> [HL]
+    HL -> SP
+    $(1234) -> HL
+    $(1234) -> BC
+    $(1234) -> DE
+    $(1234) -> SP
+    $(5) -> A
+    $(5) -> B
+    $(5) -> C
+    $(5) -> D
+    $(5) -> E
+    $(5) -> H
+    $(5) -> L
+    $(5) -> HL
+    $(5) -> [HL]
+    $(5) -> BC
+    $(5) -> DE
+    $(5) -> SP
+    DE <-> HL
+    HL <-> DE
+    HL <-> [SP]
+    [SP] <-> HL
+    HL -push
+    BC -push
+    DE -push
+    AF -push
+    HL -pop
+    BC -pop
+    DE -pop
+    AF -pop
+    A ++
+    B ++
+    C ++
+    D ++
+    E ++
+    H ++
+    L ++
+    HL ++
+    [HL] ++
+    BC ++
+    DE ++
+    SP ++
+    A --
+    B --
+    C --
+    D --
+    E --
+    H --
+    L --
+    HL --
+    [HL] --
+    BC --
+    DE --
+    SP --
+    A -not
+    A + A
+    A + B
+    A + C
+    A + D
+    A + E
+    A + H
+    A + L
+    A + [HL]
+    A + 5
+    HL + HL
+    HL + BC
+    HL + DE
+    HL + SP
+    A +$ A
+    A +$ B
+    A +$ C
+    A +$ D
+    A +$ E
+    A +$ H
+    A +$ L
+    A +$ [HL]
+    A +$ 5
+    A - A
+    A - B
+    A - C
+    A - D
+    A - E
+    A - H
+    A - L
+    A - [HL]
+    A - 5
+    A -$ A
+    A -$ B
+    A -$ C
+    A -$ D
+    A -$ E
+    A -$ H
+    A -$ L
+    A -$ [HL]
+    A -$ 5
+    A -? A
+    A -? B
+    A -? C
+    A -? D
+    A -? E
+    A -? H
+    A -? L
+    A -? [HL]
+    A -? 5
+    A & A
+    A & B
+    A & C
+    A & D
+    A & E
+    A & H
+    A & L
+    A & [HL]
+    A & 5
+    A | A
+    A | B
+    A | C
+    A | D
+    A | E
+    A | H
+    A | L
+    A | [HL]
+    A | 5
+    A ^ A
+    A ^ B
+    A ^ C
+    A ^ D
+    A ^ E
+    A ^ H
+    A ^ L
+    A ^ [HL]
+    A ^ 5
+    A -zero?
+    B -zero?
+    C -zero?
+    D -zero?
+    E -zero?
+    H -zero?
+    L -zero?
+    [HL] -zero?
+    LBI:
+    $(LBI) -jump-if NZ?
+    $(LBI) -jump-if Z?
+    $(LBI) -jump-if NC?
+    $(LBI) -jump-if C?
+    $(LBI) -jump-if PO?
+    $(LBI) -jump-if PE?
+    $(LBI) -jump-if M?
+    $(LBI) -jump-if P?
+    LBU:
+    $(LBU) -jump-unless NZ?
+    $(LBU) -jump-unless Z?
+    $(LBU) -jump-unless NC?
+    $(LBU) -jump-unless C?
+    $(LBU) -jump-unless PO?
+    $(LBU) -jump-unless PE?
+    $(LBU) -jump-unless M?
+    $(LBU) -jump-unless P?
+    proc f(!){ RET }
+    f(!)
+    NC?.f(!)

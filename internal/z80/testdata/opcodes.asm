@@ -172,23 +172,23 @@ L4:
     EX (SP), IX
     EX (SP), IY
 L5:
-    EXX 
+    EXX
 L6:
-    LDI 
+    LDI
 L7:
-    LDIR 
+    LDIR
 L8:
-    LDD 
+    LDD
 L9:
-    LDDR 
+    LDDR
 L10:
-    CPI 
+    CPI
 L11:
-    CPIR 
+    CPIR
 L12:
-    CPD 
+    CPD
 L13:
-    CPDR 
+    CPDR
 L14:
     ADD A, A
     ADD A, B
@@ -340,13 +340,13 @@ L23:
     DEC IX
     DEC IY
 L24:
-    RLCA 
+    RLCA
 L25:
-    RLA 
+    RLA
 L26:
-    RRCA 
+    RRCA
 L27:
-    RRA 
+    RRA
 L28:
     RLC A
     RLC B
@@ -425,9 +425,9 @@ L34:
     SRL (IX+5)
     SRL (IY+5)
 L35:
-    RLD 
+    RLD
 L36:
-    RRD 
+    RRD
 L37:
     BIT 0+ 5, A
     BIT 0+ 5, B
@@ -529,7 +529,7 @@ L43:
     CALL P, 0+ 5
     CALL M, 0+ 5
 L44:
-    RET 
+    RET
     RET NZ
     RET Z
     RET NC
@@ -539,9 +539,9 @@ L44:
     RET P
     RET M
 L45:
-    RETI 
+    RETI
 L46:
-    RETN 
+    RETN
 L47:
     RST 16
 L48:
@@ -556,13 +556,13 @@ L50:
     IN H, (C)
     IN L, (C)
 L51:
-    INI 
+    INI
 L52:
-    INIR 
+    INIR
 L53:
-    IND 
+    IND
 L54:
-    INDR 
+    INDR
 L55:
     OUT (5), A
     OUT (C), A
@@ -573,30 +573,30 @@ L55:
     OUT (C), H
     OUT (C), L
 L56:
-    OUTI 
+    OUTI
 L57:
-    OTIR 
+    OTIR
 L58:
-    OUTD 
+    OUTD
 L59:
-    OTDR 
+    OTDR
 L60:
-    DAA 
+    DAA
 L61:
-    CPL 
+    CPL
 L62:
-    NEG 
+    NEG
 L63:
-    CCF 
+    CCF
 L64:
-    SCF 
+    SCF
 L65:
-    NOP 
+    NOP
 L66:
-    HALT 
+    HALT
 L67:
-    DI 
+    DI
 L68:
-    EI 
+    EI
 L69:
     IM 1

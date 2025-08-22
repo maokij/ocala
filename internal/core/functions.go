@@ -48,17 +48,18 @@ func (cc *Compiler) sArch(env *Env, e *Vec) Value {
 	arch := CheckConst(e.At(1), IdentifierT, "arch name", etag, cc)
 
 	CheckToplevelEnv(env, etag, cc)
-	if cc.Arch != arch.String() {
-		cc.ErrorAt(arch, etag).With("current target arch is %s", cc.Arch)
-	}
+	if cc.Arch == arch.String() {
+		if n == 2 {
+			return NIL // ok
+		}
 
-	if n == 3 {
 		variant := CheckConst(e.At(2), IdentifierT, "variant name", etag, cc)
-		if cc.Variant != variant.String() {
-			cc.ErrorAt(variant, etag).With("current target variant is %s", cc.Variant)
+		if cc.Variant == variant.String() {
+			return NIL // ok
 		}
 	}
 
+	cc.ErrorAt(arch, etag).With("the current target arch is %s", cc.FullArchName())
 	return NIL
 }
 
@@ -914,7 +915,7 @@ func (cc *Compiler) sWith(env *Env, e *Vec) Value {
 			body = m2[KwAny]
 		}
 		if body == nil {
-			if u == nil {
+			if u == NoOperand {
 				cc.ErrorAt(u, op).With("[BUG] %s require second operand", op)
 			} else {
 				cc.ErrorAt(u, op).With("cannot use %s as second operand for '%s'", u.Kind, op)

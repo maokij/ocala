@@ -5,8 +5,8 @@ package main
 import (
 	"bytes"
 	"ocala/internal/core"
-	"ocala/internal/mos6502"
-	"ocala/internal/z80"
+	_ "ocala/internal/mos6502"
+	_ "ocala/internal/z80"
 	"syscall/js"
 )
 
@@ -32,11 +32,7 @@ func main() {
 		ErrWriter: &bytes.Buffer{},
 		GenList:   true,
 		OutPath:   "-",
-		Archs: map[string]func() *core.Compiler{
-			"z80":     z80.BuildCompiler,
-			"mos6502": mos6502.BuildCompiler,
-		},
-		ListText: &[]byte{},
+		ListText:  &[]byte{},
 	}
 
 	func(src []byte) {

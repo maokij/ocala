@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"io"
 	"ocala/internal/core"
-	"ocala/internal/mos6502"
-	"ocala/internal/z80"
+	_ "ocala/internal/mos6502"
+	_ "ocala/internal/z80"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -18,13 +18,6 @@ var appRoot = ""
 var errNoInputFile = fmt.Errorf("input file required(-h for help)")
 var errInvalidTarget = fmt.Errorf("invalid target arch(-h for help)")
 var errInvalidInstallation = fmt.Errorf("invalid installation")
-
-var Archs = map[string]func() *core.Compiler{
-	"z80":              z80.BuildCompiler,
-	"z80+undocumented": z80.BuildCompilerUndocumented,
-	"6502":             mos6502.BuildCompiler,
-	"mos6502":          mos6502.BuildCompiler,
-}
 
 type CLI struct {
 	inReader   io.Reader
@@ -105,13 +98,13 @@ func (*CLI) ParseCommandLineOptions(g *core.Generator, args []string) (string, e
 	}
 
 	if arch != "" {
-		builder, ok := Archs[arch]
-		if !ok {
+		cc := core.NewCompiler(arch)
+		if cc == nil {
 			err := errInvalidTarget
 			fmt.Fprintln(g.ErrWriter, err.Error())
 			return "", err
 		}
-		g.SetCompiler(builder())
+		g.SetCompiler(cc)
 	}
 
 	if g.ListPath != "" {
@@ -143,7 +136,6 @@ func (cli *CLI) Run(args []string) int {
 		OutWriter: cli.outWriter,
 		ErrWriter: cli.errWriter,
 		DebugMode: os.Getenv("OCALADEBUG") == "1",
-		Archs:     Archs,
 		ListText:  &[]byte{},
 	}
 	if appRoot == "" {

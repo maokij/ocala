@@ -1,6 +1,6 @@
 # Ocala
 
-Ocala is an assembler for Z80/6502.
+Ocala is an assembler for Z80 / 6502.
 
 ## Features
 
@@ -46,6 +46,8 @@ Hello world for MSX:
 Output assembly list:
 
 ```
+                                              __ARCH__ = "z80"
+
        - 4000                                 .org 16384
   000000 4000[8] 41 42 10 40 00 00 00 00      .byte 65, 66, 16, 64, 0, 0, 0, 0
   000008 4008[8] 00 00 00 00 00 00 00 00      .byte 0, 0, 0, 0, 0, 0, 0, 0
@@ -73,19 +75,20 @@ Output assembly list:
 
 ### Using precompiled binaries
 
-Download the archive of latest version from the release page.
+Download the archive of latest version from
+the [releases](https://github.com/maokij/ocala/releases) page.
 Then extract all files from the archive.
 
 To verify your installation, try below.
 
 ```
-$ ocala/bin/ocala -h
+$ ./ocala/bin/ocala -h
 ```
 
 And make a symbolic link to the binary file if necessary.
 
 ```
-$ ln -nfs "$(realpath ocala/bin/ocala)" ~/.local/bin/ocala
+$ ln -nfs "$(realpath ./ocala/bin/ocala)" ~/.local/bin/ocala
 ```
 
 ### Building from source
@@ -101,10 +104,13 @@ $ make install prefix=$HOME/.local
 ```
 Usage: ocala [options] file
 Options:
+  -D value
+        Define the symbol
   -I value
         Add the directory to the include path
   -L string
         Specify the list file name
+  -V    Display the version information
   -l    Generate a list file
   -o string
         Specify the output file name

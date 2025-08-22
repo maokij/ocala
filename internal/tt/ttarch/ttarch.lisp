@@ -38,7 +38,7 @@
   (example #.jump (*) "" "")
 
   (opcode  #.call (a)   (NN)    [0x03 (=l a) (=h a)])
-  (opcode  #.call (a b) (NN CO) [(=U b)])
+  (opcode  #.call (a b) (NN CO) [(=U)])
   (example #.call (*) "" "")
 
   (opcode  LD (a b)
@@ -118,7 +118,7 @@
   (operator -byte (a) (NN) [(#.BYTE (= a))])
   (operator -rep (a b) (NN NN) [(#.REP (= b) `[(#.BYTE (= a))])]))
 
-(arch (+ext ttarch)
+(arch (ttarch +ext)
   (opcode  EXT (a b) (A N) [0x70 (=l b)])
   (operator <- (a b) (A NN) [(EXT A (= b))])
   (operator -jump (a b) (A NN) [(EXT A (= b))])

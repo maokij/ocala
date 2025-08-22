@@ -7979,3 +7979,1633 @@ var ctxOpMapUndocumented = CtxOpMap{
 		},
 	},
 }
+
+var instMapCompat8080 = InstPat{
+	kwLD: InstPat{
+		kwRegA: InstPat{
+			kwMemIX: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+			kwMemIY: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+			kwRegI: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+			kwRegR: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+		},
+		kwRegB: InstPat{
+			kwMemIX: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+			kwMemIY: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+		},
+		kwRegC: InstPat{
+			kwMemIX: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+			kwMemIY: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+		},
+		kwRegD: InstPat{
+			kwMemIX: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+			kwMemIY: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+		},
+		kwRegE: InstPat{
+			kwMemIX: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+			kwMemIY: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+		},
+		kwRegH: InstPat{
+			kwMemIX: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+			kwMemIY: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+		},
+		kwRegL: InstPat{
+			kwMemIX: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+			kwMemIY: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+		},
+		kwMemIX: InstPat{
+			kwRegA: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+			kwRegB: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+			kwRegC: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+			kwRegD: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+			kwRegE: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+			kwRegH: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+			kwRegL: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+			kwImmN: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+			kwImmNN: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+		},
+		kwMemIY: InstPat{
+			kwRegA: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+			kwRegB: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+			kwRegC: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+			kwRegD: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+			kwRegE: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+			kwRegH: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+			kwRegL: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+			kwImmN: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+			kwImmNN: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+		},
+		kwRegI: InstPat{
+			kwRegA: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+		},
+		kwRegR: InstPat{
+			kwRegA: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+		},
+		kwRegIX: InstPat{
+			kwImmNN: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+			kwMemNN: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+			kwImmN: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+			kwMemN: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+		},
+		kwRegIY: InstPat{
+			kwImmNN: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+			kwMemNN: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+			kwImmN: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+			kwMemN: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+		},
+		kwRegBC: InstPat{
+			kwMemNN: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+			kwMemN: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+		},
+		kwRegDE: InstPat{
+			kwMemNN: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+			kwMemN: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+		},
+		kwRegHL: InstPat{
+			kwMemNN: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+			kwMemN: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+		},
+		kwRegSP: InstPat{
+			kwMemNN: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+			kwRegIX: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+			kwRegIY: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+			kwMemN: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+		},
+		kwMemNN: InstPat{
+			kwRegBC: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+			kwRegDE: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+			kwRegHL: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+			kwRegSP: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+			kwRegIX: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+			kwRegIY: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+		},
+		kwMemN: InstPat{
+			kwRegBC: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+			kwRegDE: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+			kwRegHL: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+			kwRegSP: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+			kwRegIX: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+			kwRegIY: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+		},
+	},
+	kwPUSH: InstPat{
+		kwRegIX: InstPat{
+			nil: InstDat{
+				{Kind: BcUnsupported, A0: 0x00},
+			},
+		},
+		kwRegIY: InstPat{
+			nil: InstDat{
+				{Kind: BcUnsupported, A0: 0x00},
+			},
+		},
+	},
+	kwPOP: InstPat{
+		kwRegIX: InstPat{
+			nil: InstDat{
+				{Kind: BcUnsupported, A0: 0x00},
+			},
+		},
+		kwRegIY: InstPat{
+			nil: InstDat{
+				{Kind: BcUnsupported, A0: 0x00},
+			},
+		},
+	},
+	kwEX: InstPat{
+		kwRegAF: InstPat{
+			kwAltAF: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+		},
+		kwMemSP: InstPat{
+			kwRegIX: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+			kwRegIY: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+		},
+	},
+	kwEXX: InstPat{
+		nil: InstDat{
+			{Kind: BcUnsupported, A0: 0x00},
+		},
+	},
+	kwLDI: InstPat{
+		nil: InstDat{
+			{Kind: BcUnsupported, A0: 0x00},
+		},
+	},
+	kwLDIR: InstPat{
+		nil: InstDat{
+			{Kind: BcUnsupported, A0: 0x00},
+		},
+	},
+	kwLDD: InstPat{
+		nil: InstDat{
+			{Kind: BcUnsupported, A0: 0x00},
+		},
+	},
+	kwLDDR: InstPat{
+		nil: InstDat{
+			{Kind: BcUnsupported, A0: 0x00},
+		},
+	},
+	kwCPI: InstPat{
+		nil: InstDat{
+			{Kind: BcUnsupported, A0: 0x00},
+		},
+	},
+	kwCPIR: InstPat{
+		nil: InstDat{
+			{Kind: BcUnsupported, A0: 0x00},
+		},
+	},
+	kwCPD: InstPat{
+		nil: InstDat{
+			{Kind: BcUnsupported, A0: 0x00},
+		},
+	},
+	kwCPDR: InstPat{
+		nil: InstDat{
+			{Kind: BcUnsupported, A0: 0x00},
+		},
+	},
+	kwADD: InstPat{
+		kwRegA: InstPat{
+			kwMemIX: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+			kwMemIY: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+		},
+		kwRegIX: InstPat{
+			kwRegBC: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+			kwRegDE: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+			kwRegIX: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+			kwRegSP: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+		},
+		kwRegIY: InstPat{
+			kwRegBC: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+			kwRegDE: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+			kwRegIY: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+			kwRegSP: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+		},
+	},
+	kwADC: InstPat{
+		kwRegA: InstPat{
+			kwMemIX: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+			kwMemIY: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+		},
+		kwRegHL: InstPat{
+			kwRegBC: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+			kwRegDE: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+			kwRegHL: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+			kwRegSP: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+		},
+	},
+	kwSUB: InstPat{
+		kwMemIX: InstPat{
+			nil: InstDat{
+				{Kind: BcUnsupported, A0: 0x00},
+			},
+		},
+		kwMemIY: InstPat{
+			nil: InstDat{
+				{Kind: BcUnsupported, A0: 0x00},
+			},
+		},
+	},
+	kwSBC: InstPat{
+		kwRegA: InstPat{
+			kwMemIX: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+			kwMemIY: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+		},
+		kwRegHL: InstPat{
+			kwRegBC: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+			kwRegDE: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+			kwRegHL: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+			kwRegSP: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+		},
+	},
+	kwAND: InstPat{
+		kwMemIX: InstPat{
+			nil: InstDat{
+				{Kind: BcUnsupported, A0: 0x00},
+			},
+		},
+		kwMemIY: InstPat{
+			nil: InstDat{
+				{Kind: BcUnsupported, A0: 0x00},
+			},
+		},
+	},
+	kwOR: InstPat{
+		kwMemIX: InstPat{
+			nil: InstDat{
+				{Kind: BcUnsupported, A0: 0x00},
+			},
+		},
+		kwMemIY: InstPat{
+			nil: InstDat{
+				{Kind: BcUnsupported, A0: 0x00},
+			},
+		},
+	},
+	kwXOR: InstPat{
+		kwMemIX: InstPat{
+			nil: InstDat{
+				{Kind: BcUnsupported, A0: 0x00},
+			},
+		},
+		kwMemIY: InstPat{
+			nil: InstDat{
+				{Kind: BcUnsupported, A0: 0x00},
+			},
+		},
+	},
+	kwCP: InstPat{
+		kwMemIX: InstPat{
+			nil: InstDat{
+				{Kind: BcUnsupported, A0: 0x00},
+			},
+		},
+		kwMemIY: InstPat{
+			nil: InstDat{
+				{Kind: BcUnsupported, A0: 0x00},
+			},
+		},
+	},
+	kwINC: InstPat{
+		kwMemIX: InstPat{
+			nil: InstDat{
+				{Kind: BcUnsupported, A0: 0x00},
+			},
+		},
+		kwMemIY: InstPat{
+			nil: InstDat{
+				{Kind: BcUnsupported, A0: 0x00},
+			},
+		},
+		kwRegIX: InstPat{
+			nil: InstDat{
+				{Kind: BcUnsupported, A0: 0x00},
+			},
+		},
+		kwRegIY: InstPat{
+			nil: InstDat{
+				{Kind: BcUnsupported, A0: 0x00},
+			},
+		},
+	},
+	kwDEC: InstPat{
+		kwMemIX: InstPat{
+			nil: InstDat{
+				{Kind: BcUnsupported, A0: 0x00},
+			},
+		},
+		kwMemIY: InstPat{
+			nil: InstDat{
+				{Kind: BcUnsupported, A0: 0x00},
+			},
+		},
+		kwRegIX: InstPat{
+			nil: InstDat{
+				{Kind: BcUnsupported, A0: 0x00},
+			},
+		},
+		kwRegIY: InstPat{
+			nil: InstDat{
+				{Kind: BcUnsupported, A0: 0x00},
+			},
+		},
+	},
+	kwRLC: InstPat{
+		kwRegA: InstPat{
+			nil: InstDat{
+				{Kind: BcUnsupported, A0: 0x00},
+			},
+		},
+		kwRegB: InstPat{
+			nil: InstDat{
+				{Kind: BcUnsupported, A0: 0x00},
+			},
+		},
+		kwRegC: InstPat{
+			nil: InstDat{
+				{Kind: BcUnsupported, A0: 0x00},
+			},
+		},
+		kwRegD: InstPat{
+			nil: InstDat{
+				{Kind: BcUnsupported, A0: 0x00},
+			},
+		},
+		kwRegE: InstPat{
+			nil: InstDat{
+				{Kind: BcUnsupported, A0: 0x00},
+			},
+		},
+		kwRegH: InstPat{
+			nil: InstDat{
+				{Kind: BcUnsupported, A0: 0x00},
+			},
+		},
+		kwRegL: InstPat{
+			nil: InstDat{
+				{Kind: BcUnsupported, A0: 0x00},
+			},
+		},
+		kwMemHL: InstPat{
+			nil: InstDat{
+				{Kind: BcUnsupported, A0: 0x00},
+			},
+		},
+		kwMemIX: InstPat{
+			nil: InstDat{
+				{Kind: BcUnsupported, A0: 0x00},
+			},
+		},
+		kwMemIY: InstPat{
+			nil: InstDat{
+				{Kind: BcUnsupported, A0: 0x00},
+			},
+		},
+	},
+	kwRL: InstPat{
+		kwRegA: InstPat{
+			nil: InstDat{
+				{Kind: BcUnsupported, A0: 0x00},
+			},
+		},
+		kwRegB: InstPat{
+			nil: InstDat{
+				{Kind: BcUnsupported, A0: 0x00},
+			},
+		},
+		kwRegC: InstPat{
+			nil: InstDat{
+				{Kind: BcUnsupported, A0: 0x00},
+			},
+		},
+		kwRegD: InstPat{
+			nil: InstDat{
+				{Kind: BcUnsupported, A0: 0x00},
+			},
+		},
+		kwRegE: InstPat{
+			nil: InstDat{
+				{Kind: BcUnsupported, A0: 0x00},
+			},
+		},
+		kwRegH: InstPat{
+			nil: InstDat{
+				{Kind: BcUnsupported, A0: 0x00},
+			},
+		},
+		kwRegL: InstPat{
+			nil: InstDat{
+				{Kind: BcUnsupported, A0: 0x00},
+			},
+		},
+		kwMemHL: InstPat{
+			nil: InstDat{
+				{Kind: BcUnsupported, A0: 0x00},
+			},
+		},
+		kwMemIX: InstPat{
+			nil: InstDat{
+				{Kind: BcUnsupported, A0: 0x00},
+			},
+		},
+		kwMemIY: InstPat{
+			nil: InstDat{
+				{Kind: BcUnsupported, A0: 0x00},
+			},
+		},
+	},
+	kwRRC: InstPat{
+		kwRegA: InstPat{
+			nil: InstDat{
+				{Kind: BcUnsupported, A0: 0x00},
+			},
+		},
+		kwRegB: InstPat{
+			nil: InstDat{
+				{Kind: BcUnsupported, A0: 0x00},
+			},
+		},
+		kwRegC: InstPat{
+			nil: InstDat{
+				{Kind: BcUnsupported, A0: 0x00},
+			},
+		},
+		kwRegD: InstPat{
+			nil: InstDat{
+				{Kind: BcUnsupported, A0: 0x00},
+			},
+		},
+		kwRegE: InstPat{
+			nil: InstDat{
+				{Kind: BcUnsupported, A0: 0x00},
+			},
+		},
+		kwRegH: InstPat{
+			nil: InstDat{
+				{Kind: BcUnsupported, A0: 0x00},
+			},
+		},
+		kwRegL: InstPat{
+			nil: InstDat{
+				{Kind: BcUnsupported, A0: 0x00},
+			},
+		},
+		kwMemHL: InstPat{
+			nil: InstDat{
+				{Kind: BcUnsupported, A0: 0x00},
+			},
+		},
+		kwMemIX: InstPat{
+			nil: InstDat{
+				{Kind: BcUnsupported, A0: 0x00},
+			},
+		},
+		kwMemIY: InstPat{
+			nil: InstDat{
+				{Kind: BcUnsupported, A0: 0x00},
+			},
+		},
+	},
+	kwRR: InstPat{
+		kwRegA: InstPat{
+			nil: InstDat{
+				{Kind: BcUnsupported, A0: 0x00},
+			},
+		},
+		kwRegB: InstPat{
+			nil: InstDat{
+				{Kind: BcUnsupported, A0: 0x00},
+			},
+		},
+		kwRegC: InstPat{
+			nil: InstDat{
+				{Kind: BcUnsupported, A0: 0x00},
+			},
+		},
+		kwRegD: InstPat{
+			nil: InstDat{
+				{Kind: BcUnsupported, A0: 0x00},
+			},
+		},
+		kwRegE: InstPat{
+			nil: InstDat{
+				{Kind: BcUnsupported, A0: 0x00},
+			},
+		},
+		kwRegH: InstPat{
+			nil: InstDat{
+				{Kind: BcUnsupported, A0: 0x00},
+			},
+		},
+		kwRegL: InstPat{
+			nil: InstDat{
+				{Kind: BcUnsupported, A0: 0x00},
+			},
+		},
+		kwMemHL: InstPat{
+			nil: InstDat{
+				{Kind: BcUnsupported, A0: 0x00},
+			},
+		},
+		kwMemIX: InstPat{
+			nil: InstDat{
+				{Kind: BcUnsupported, A0: 0x00},
+			},
+		},
+		kwMemIY: InstPat{
+			nil: InstDat{
+				{Kind: BcUnsupported, A0: 0x00},
+			},
+		},
+	},
+	kwSLA: InstPat{
+		kwRegA: InstPat{
+			nil: InstDat{
+				{Kind: BcUnsupported, A0: 0x00},
+			},
+		},
+		kwRegB: InstPat{
+			nil: InstDat{
+				{Kind: BcUnsupported, A0: 0x00},
+			},
+		},
+		kwRegC: InstPat{
+			nil: InstDat{
+				{Kind: BcUnsupported, A0: 0x00},
+			},
+		},
+		kwRegD: InstPat{
+			nil: InstDat{
+				{Kind: BcUnsupported, A0: 0x00},
+			},
+		},
+		kwRegE: InstPat{
+			nil: InstDat{
+				{Kind: BcUnsupported, A0: 0x00},
+			},
+		},
+		kwRegH: InstPat{
+			nil: InstDat{
+				{Kind: BcUnsupported, A0: 0x00},
+			},
+		},
+		kwRegL: InstPat{
+			nil: InstDat{
+				{Kind: BcUnsupported, A0: 0x00},
+			},
+		},
+		kwMemHL: InstPat{
+			nil: InstDat{
+				{Kind: BcUnsupported, A0: 0x00},
+			},
+		},
+		kwMemIX: InstPat{
+			nil: InstDat{
+				{Kind: BcUnsupported, A0: 0x00},
+			},
+		},
+		kwMemIY: InstPat{
+			nil: InstDat{
+				{Kind: BcUnsupported, A0: 0x00},
+			},
+		},
+	},
+	kwSRA: InstPat{
+		kwRegA: InstPat{
+			nil: InstDat{
+				{Kind: BcUnsupported, A0: 0x00},
+			},
+		},
+		kwRegB: InstPat{
+			nil: InstDat{
+				{Kind: BcUnsupported, A0: 0x00},
+			},
+		},
+		kwRegC: InstPat{
+			nil: InstDat{
+				{Kind: BcUnsupported, A0: 0x00},
+			},
+		},
+		kwRegD: InstPat{
+			nil: InstDat{
+				{Kind: BcUnsupported, A0: 0x00},
+			},
+		},
+		kwRegE: InstPat{
+			nil: InstDat{
+				{Kind: BcUnsupported, A0: 0x00},
+			},
+		},
+		kwRegH: InstPat{
+			nil: InstDat{
+				{Kind: BcUnsupported, A0: 0x00},
+			},
+		},
+		kwRegL: InstPat{
+			nil: InstDat{
+				{Kind: BcUnsupported, A0: 0x00},
+			},
+		},
+		kwMemHL: InstPat{
+			nil: InstDat{
+				{Kind: BcUnsupported, A0: 0x00},
+			},
+		},
+		kwMemIX: InstPat{
+			nil: InstDat{
+				{Kind: BcUnsupported, A0: 0x00},
+			},
+		},
+		kwMemIY: InstPat{
+			nil: InstDat{
+				{Kind: BcUnsupported, A0: 0x00},
+			},
+		},
+	},
+	kwSRL: InstPat{
+		kwRegA: InstPat{
+			nil: InstDat{
+				{Kind: BcUnsupported, A0: 0x00},
+			},
+		},
+		kwRegB: InstPat{
+			nil: InstDat{
+				{Kind: BcUnsupported, A0: 0x00},
+			},
+		},
+		kwRegC: InstPat{
+			nil: InstDat{
+				{Kind: BcUnsupported, A0: 0x00},
+			},
+		},
+		kwRegD: InstPat{
+			nil: InstDat{
+				{Kind: BcUnsupported, A0: 0x00},
+			},
+		},
+		kwRegE: InstPat{
+			nil: InstDat{
+				{Kind: BcUnsupported, A0: 0x00},
+			},
+		},
+		kwRegH: InstPat{
+			nil: InstDat{
+				{Kind: BcUnsupported, A0: 0x00},
+			},
+		},
+		kwRegL: InstPat{
+			nil: InstDat{
+				{Kind: BcUnsupported, A0: 0x00},
+			},
+		},
+		kwMemHL: InstPat{
+			nil: InstDat{
+				{Kind: BcUnsupported, A0: 0x00},
+			},
+		},
+		kwMemIX: InstPat{
+			nil: InstDat{
+				{Kind: BcUnsupported, A0: 0x00},
+			},
+		},
+		kwMemIY: InstPat{
+			nil: InstDat{
+				{Kind: BcUnsupported, A0: 0x00},
+			},
+		},
+	},
+	kwRLD: InstPat{
+		nil: InstDat{
+			{Kind: BcUnsupported, A0: 0x00},
+		},
+	},
+	kwRRD: InstPat{
+		nil: InstDat{
+			{Kind: BcUnsupported, A0: 0x00},
+		},
+	},
+	kwBIT: InstPat{
+		kwImmN: InstPat{
+			kwRegA: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+			kwRegB: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+			kwRegC: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+			kwRegD: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+			kwRegE: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+			kwRegH: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+			kwRegL: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+			kwMemHL: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+			kwMemIX: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+			kwMemIY: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+		},
+		kwImmNN: InstPat{
+			kwRegA: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+			kwRegB: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+			kwRegC: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+			kwRegD: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+			kwRegE: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+			kwRegH: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+			kwRegL: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+			kwMemHL: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+			kwMemIX: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+			kwMemIY: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+		},
+	},
+	kwSET: InstPat{
+		kwImmN: InstPat{
+			kwRegA: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+			kwRegB: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+			kwRegC: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+			kwRegD: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+			kwRegE: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+			kwRegH: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+			kwRegL: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+			kwMemHL: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+			kwMemIX: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+			kwMemIY: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+		},
+		kwImmNN: InstPat{
+			kwRegA: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+			kwRegB: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+			kwRegC: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+			kwRegD: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+			kwRegE: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+			kwRegH: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+			kwRegL: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+			kwMemHL: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+			kwMemIX: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+			kwMemIY: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+		},
+	},
+	kwRES: InstPat{
+		kwImmN: InstPat{
+			kwRegA: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+			kwRegB: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+			kwRegC: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+			kwRegD: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+			kwRegE: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+			kwRegH: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+			kwRegL: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+			kwMemHL: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+			kwMemIX: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+			kwMemIY: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+		},
+		kwImmNN: InstPat{
+			kwRegA: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+			kwRegB: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+			kwRegC: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+			kwRegD: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+			kwRegE: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+			kwRegH: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+			kwRegL: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+			kwMemHL: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+			kwMemIX: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+			kwMemIY: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+		},
+	},
+	kwJP: InstPat{
+		kwMemIX: InstPat{
+			nil: InstDat{
+				{Kind: BcUnsupported, A0: 0x00},
+			},
+		},
+		kwMemIY: InstPat{
+			nil: InstDat{
+				{Kind: BcUnsupported, A0: 0x00},
+			},
+		},
+	},
+	kwJR: InstPat{
+		kwImmNN: InstPat{
+			nil: InstDat{
+				{Kind: BcUnsupported, A0: 0x00},
+			},
+		},
+		kwCondC: InstPat{
+			kwImmNN: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+			kwImmN: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+		},
+		kwCondNC: InstPat{
+			kwImmNN: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+			kwImmN: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+		},
+		kwCondZ: InstPat{
+			kwImmNN: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+			kwImmN: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+		},
+		kwCondNZ: InstPat{
+			kwImmNN: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+			kwImmN: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+		},
+		kwImmN: InstPat{
+			nil: InstDat{
+				{Kind: BcUnsupported, A0: 0x00},
+			},
+		},
+	},
+	kwDJNZ: InstPat{
+		kwImmNN: InstPat{
+			nil: InstDat{
+				{Kind: BcUnsupported, A0: 0x00},
+			},
+		},
+		kwImmN: InstPat{
+			nil: InstDat{
+				{Kind: BcUnsupported, A0: 0x00},
+			},
+		},
+	},
+	kwRETI: InstPat{
+		nil: InstDat{
+			{Kind: BcUnsupported, A0: 0x00},
+		},
+	},
+	kwRETN: InstPat{
+		nil: InstDat{
+			{Kind: BcUnsupported, A0: 0x00},
+		},
+	},
+	kwIN: InstPat{
+		kwRegA: InstPat{
+			kwMemC: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+		},
+		kwRegB: InstPat{
+			kwMemC: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+		},
+		kwRegC: InstPat{
+			kwMemC: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+		},
+		kwRegD: InstPat{
+			kwMemC: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+		},
+		kwRegE: InstPat{
+			kwMemC: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+		},
+		kwRegH: InstPat{
+			kwMemC: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+		},
+		kwRegL: InstPat{
+			kwMemC: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+		},
+	},
+	kwINI: InstPat{
+		nil: InstDat{
+			{Kind: BcUnsupported, A0: 0x00},
+		},
+	},
+	kwINIR: InstPat{
+		nil: InstDat{
+			{Kind: BcUnsupported, A0: 0x00},
+		},
+	},
+	kwIND: InstPat{
+		nil: InstDat{
+			{Kind: BcUnsupported, A0: 0x00},
+		},
+	},
+	kwINDR: InstPat{
+		nil: InstDat{
+			{Kind: BcUnsupported, A0: 0x00},
+		},
+	},
+	kwOUT: InstPat{
+		kwMemC: InstPat{
+			kwRegA: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+			kwRegB: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+			kwRegC: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+			kwRegD: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+			kwRegE: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+			kwRegH: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+			kwRegL: InstPat{
+				nil: InstDat{
+					{Kind: BcUnsupported, A0: 0x00},
+				},
+			},
+		},
+	},
+	kwOUTI: InstPat{
+		nil: InstDat{
+			{Kind: BcUnsupported, A0: 0x00},
+		},
+	},
+	kwOTIR: InstPat{
+		nil: InstDat{
+			{Kind: BcUnsupported, A0: 0x00},
+		},
+	},
+	kwOUTD: InstPat{
+		nil: InstDat{
+			{Kind: BcUnsupported, A0: 0x00},
+		},
+	},
+	kwOTDR: InstPat{
+		nil: InstDat{
+			{Kind: BcUnsupported, A0: 0x00},
+		},
+	},
+	kwNEG: InstPat{
+		nil: InstDat{
+			{Kind: BcUnsupported, A0: 0x00},
+		},
+	},
+	kwIM: InstPat{
+		kwImmN: InstPat{
+			nil: InstDat{
+				{Kind: BcUnsupported, A0: 0x00},
+			},
+		},
+		kwImmNN: InstPat{
+			nil: InstDat{
+				{Kind: BcUnsupported, A0: 0x00},
+			},
+		},
+	},
+}

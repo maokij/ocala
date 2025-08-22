@@ -328,7 +328,7 @@ func (g *Generator) resolveInsts(insts []*Inst, pass int) int {
 	return codeSize
 }
 
-func (g *Generator) expandBCode(c BCode, ab []*Operand, pc int) byte {
+func (g *Generator) expandBCode(inst *Inst, c BCode, ab []*Operand, pc int) byte {
 	switch c.Kind {
 	case BcByte:
 		return c.A0
@@ -376,8 +376,7 @@ func (g *Generator) expandBCode(c BCode, ab []*Operand, pc int) byte {
 		}
 		return items[(byte(v)-min)&mask]
 	case BcUnsupported:
-		e := ab[c.A0]
-		g.cc.ErrorAt(e).With("unsupported operand(#%d)", c.A0+1)
+		g.cc.ErrorAt(inst).With("unsupported instruction for %s", g.cc.FullArchName())
 	}
 	panic("[BUG] cannot happen")
 }
@@ -716,8 +715,8 @@ func (g *Generator) GenerateBin(insts []*Inst) []byte {
 			for _, i := range i.Args[1:] {
 				ab = append(ab, i.(*Operand))
 			}
-			for _, i := range g.findInstBody(i, asmPassCommit) {
-				seq = append(seq, g.expandBCode(i, ab, g.cc.Pc))
+			for _, bcode := range g.findInstBody(i, asmPassCommit) {
+				seq = append(seq, g.expandBCode(i, bcode, ab, g.cc.Pc))
 			}
 		case InstData:
 			p := len(seq)

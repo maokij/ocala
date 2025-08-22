@@ -4,6 +4,13 @@ import (
 	. "ocala/internal/core" //lint:ignore ST1001 core
 )
 
+func init() {
+	RegisterArchs(ArchMap{
+		"6502":    BuildCompiler,
+		"mos6502": BuildCompiler,
+	})
+}
+
 func BuildCompiler() *Compiler {
 	return &Compiler{
 		Arch:            "mos6502",

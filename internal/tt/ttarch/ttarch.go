@@ -4,33 +4,61 @@ import (
 	"bytes"
 	"maps"
 	. "ocala/internal/core" //lint:ignore ST1001 core
+	_ "ocala/internal/mos6502"
+	_ "ocala/internal/z80"
 	"os"
+	"regexp"
 	"slices"
+	"strings"
 )
 
-func BuildGenerator(cc *Compiler, src string) *Generator {
-	g := &Generator{
+func init() {
+	RegisterArchs(ArchMap{
+		"ttarch":     BuildCompiler,
+		"ttarch+ext": BuildCompilerExt,
+	})
+}
+
+func NewGenerator(src string) *Generator {
+	return &Generator{
 		InReader:  bytes.NewBuffer([]byte(src)),
 		OutWriter: &bytes.Buffer{},
 		ErrWriter: &bytes.Buffer{},
 		OutPath:   "-",
 		ListText:  &[]byte{},
-		Archs:     map[string]func() *Compiler{"ttarch": BuildCompiler},
 	}
-	if cc != nil {
-		g.SetCompiler(cc)
+}
+
+var reArch = regexp.MustCompile(`\A\s*arch +([^;\r\n]+)`)
+
+func BuildGenerator(base string, src string) *Generator {
+	m := reArch.FindStringSubmatch(src)
+
+	var cc *Compiler
+	if len(m) == 0 {
+		cc = NewCompiler(base)
+	} else {
+		a := strings.Split(m[1], " ")
+		if len(a) == 2 {
+			cc = NewCompiler(a[0] + a[1])
+		} else {
+			cc = NewCompiler(m[1])
+		}
 	}
+
+	g := NewGenerator(src)
+	g.SetCompiler(cc)
 	return g
 }
 
-func Compile(cc *Compiler, src string) ([]byte, string) {
-	g := BuildGenerator(cc, src)
+func Compile(base string, src string) ([]byte, string) {
+	g := BuildGenerator(base, src)
 	binary, _, mes := DoCompile(g, "-")
 	return binary, mes
 }
 
-func GenList(cc *Compiler, src string) (string, string) {
-	g := BuildGenerator(cc, src)
+func GenList(base string, src string) (string, string) {
+	g := BuildGenerator(base, src)
 	g.GenList = true
 	_, list, mes := DoCompile(g, "-")
 	return string(list), mes
@@ -44,7 +72,7 @@ func DoCompile(g *Generator, path string) ([]byte, []byte, string) {
 	return binary, *g.ListText, g.ErrorMessage()
 }
 
-func CompileTestFile(cc *Compiler, path string) ([]byte, []byte, string) {
+func CompileTestFile(base string, path string) ([]byte, []byte, string) {
 	s, err := os.ReadFile(path + ".oc")
 	if err != nil {
 		return []byte{}, []byte{1}, err.Error()
@@ -55,7 +83,7 @@ func CompileTestFile(cc *Compiler, path string) ([]byte, []byte, string) {
 		return []byte{}, []byte{1}, err.Error()
 	}
 
-	a, mes := Compile(cc, string(s))
+	a, mes := Compile(base, string(s))
 	return a, b, mes
 }
 
@@ -85,8 +113,6 @@ func BuildCompilerExt() *Compiler {
 	cc.Variant = "+ext"
 
 	cc.AsmOperands = maps.Clone(cc.AsmOperands)
-	maps.Copy(cc.AsmOperands, asmOperandsExt)
-
 	cc.TokenWords = slices.Clone(cc.TokenWords)
 	cc.TokenWords[0] = append(cc.TokenWords[0], tokenWordsExt[0]...)
 	cc.TokenWords[1] = append(cc.TokenWords[1], tokenWordsExt[1]...)

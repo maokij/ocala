@@ -817,42 +817,42 @@ var instMap = InstPat{
 			},
 			kwCondNE: InstPat{
 				nil: InstDat{
-					{Kind: BcUnsupported, A0: 0x01},
+					{Kind: BcUnsupported, A0: 0x00},
 				},
 			},
 			kwCondEQ: InstPat{
 				nil: InstDat{
-					{Kind: BcUnsupported, A0: 0x01},
+					{Kind: BcUnsupported, A0: 0x00},
 				},
 			},
 			kwCondCC: InstPat{
 				nil: InstDat{
-					{Kind: BcUnsupported, A0: 0x01},
+					{Kind: BcUnsupported, A0: 0x00},
 				},
 			},
 			kwCondCS: InstPat{
 				nil: InstDat{
-					{Kind: BcUnsupported, A0: 0x01},
+					{Kind: BcUnsupported, A0: 0x00},
 				},
 			},
 			kwCondVC: InstPat{
 				nil: InstDat{
-					{Kind: BcUnsupported, A0: 0x01},
+					{Kind: BcUnsupported, A0: 0x00},
 				},
 			},
 			kwCondVS: InstPat{
 				nil: InstDat{
-					{Kind: BcUnsupported, A0: 0x01},
+					{Kind: BcUnsupported, A0: 0x00},
 				},
 			},
 			kwCondPL: InstPat{
 				nil: InstDat{
-					{Kind: BcUnsupported, A0: 0x01},
+					{Kind: BcUnsupported, A0: 0x00},
 				},
 			},
 			kwCondMI: InstPat{
 				nil: InstDat{
-					{Kind: BcUnsupported, A0: 0x01},
+					{Kind: BcUnsupported, A0: 0x00},
 				},
 			},
 		},
@@ -864,42 +864,42 @@ var instMap = InstPat{
 			},
 			kwCondNE: InstPat{
 				nil: InstDat{
-					{Kind: BcUnsupported, A0: 0x01},
+					{Kind: BcUnsupported, A0: 0x00},
 				},
 			},
 			kwCondEQ: InstPat{
 				nil: InstDat{
-					{Kind: BcUnsupported, A0: 0x01},
+					{Kind: BcUnsupported, A0: 0x00},
 				},
 			},
 			kwCondCC: InstPat{
 				nil: InstDat{
-					{Kind: BcUnsupported, A0: 0x01},
+					{Kind: BcUnsupported, A0: 0x00},
 				},
 			},
 			kwCondCS: InstPat{
 				nil: InstDat{
-					{Kind: BcUnsupported, A0: 0x01},
+					{Kind: BcUnsupported, A0: 0x00},
 				},
 			},
 			kwCondVC: InstPat{
 				nil: InstDat{
-					{Kind: BcUnsupported, A0: 0x01},
+					{Kind: BcUnsupported, A0: 0x00},
 				},
 			},
 			kwCondVS: InstPat{
 				nil: InstDat{
-					{Kind: BcUnsupported, A0: 0x01},
+					{Kind: BcUnsupported, A0: 0x00},
 				},
 			},
 			kwCondPL: InstPat{
 				nil: InstDat{
-					{Kind: BcUnsupported, A0: 0x01},
+					{Kind: BcUnsupported, A0: 0x00},
 				},
 			},
 			kwCondMI: InstPat{
 				nil: InstDat{
-					{Kind: BcUnsupported, A0: 0x01},
+					{Kind: BcUnsupported, A0: 0x00},
 				},
 			},
 		},

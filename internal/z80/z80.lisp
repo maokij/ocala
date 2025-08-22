@@ -496,7 +496,7 @@
     "f(!)" "CALL f"
     "NC?.f(!)" "CALL NC, f"))
 
-(arch (+undocumented z80)
+(arch (z80 +undocumented)
   (operand IXH RegIXH "IXH" "IXH")
   (operand IXL RegIXL "IXL" "IXL")
   (operand IYH RegIYH "IYH" "IYH")
@@ -902,3 +902,218 @@
 
   (example -in  (F C) "F -in C" "DB 0xED, 0x70")
   (example -out (N C) "$(0) -out C" "DB 0xED, 0x71"))
+
+(arch (z80 +compat8080)
+  (example "$prologue" (*) "arch z80 +compat8080; flat!" "")
+
+  (opcode  LD (a b)
+    (R8 IX$) [(=U)]
+    (R8 IY$) [(=U)]
+    (IX$ R8) [(=U)]
+    (IY$ R8) [(=U)]
+    (IX$ N)  [(=U)]
+    (IY$ N)  [(=U)]
+    (A I)    [(=U)]
+    (A R)    [(=U)]
+    (I A)    [(=U)]
+    (R A)    [(=U)]
+    (IX NN)  [(=U)]
+    (IY NN)  [(=U)]
+    (DD NN$) [(=U)]
+    (IX NN$) [(=U)]
+    (IY NN$) [(=U)]
+    (NN$ DD) [(=U)]
+    (NN$ IX) [(=U)]
+    (NN$ IY) [(=U)]
+    (SP IX)  [(=U)]
+    (SP IY)  [(=U)])
+
+  (opcode  PUSH (a)
+    (IX) [(=U)]
+    (IY) [(=U)])
+
+  (opcode  POP (a)
+    (IX) [(=U)]
+    (IY) [(=U)])
+
+  (opcode  EX (a b)
+    (AF  AF-) [(=U)]
+    (SP$ IX)  [(=U)]
+    (SP$ IY)  [(=U)])
+  (opcode  EXX  () () [(=U)])
+
+  (opcode  LDI  () () [(=U)])
+  (opcode  LDIR () () [(=U)])
+  (opcode  LDD  () () [(=U)])
+  (opcode  LDDR () () [(=U)])
+
+  (opcode  CPI  () () [(=U)])
+  (opcode  CPIR () () [(=U)])
+  (opcode  CPD  () () [(=U)])
+  (opcode  CPDR () () [(=U)])
+
+  (opcode  ADD (a b)
+    (A IX$) [(=U)]
+    (A IY$) [(=U)]
+    (IX PP) [(=U)]
+    (IY RR) [(=U)])
+
+  (opcode  ADC (a b)
+    (A IX$) [(=U)]
+    (A IY$) [(=U)]
+    (HL DD) [(=U)])
+
+  (opcode  SUB (a)
+    (IX$) [(=U)]
+    (IY$) [(=U)])
+
+  (opcode  SBC (a b)
+    (A IX$) [(=U)]
+    (A IY$) [(=U)]
+    (HL DD) [(=U)])
+
+  (opcode  AND (a)
+    (IX$) [(=U)]
+    (IY$) [(=U)])
+
+  (opcode  OR (a)
+    (IX$) [(=U)]
+    (IY$) [(=U)])
+
+  (opcode  XOR (a)
+    (IX$) [(=U)]
+    (IY$) [(=U)])
+
+  (opcode  CP (a)
+    (IX$) [(=U)]
+    (IY$) [(=U)])
+
+  (opcode  INC (a)
+    (IX$) [(=U)]
+    (IY$) [(=U)]
+    (IX)  [(=U)]
+    (IY)  [(=U)])
+
+  (opcode  DEC (a)
+    (IX$) [(=U)]
+    (IY$) [(=U)]
+    (IX)  [(=U)]
+    (IY)  [(=U)])
+
+  (opcode  RLC (a)
+    (R8)  [(=U)]
+    (HL$) [(=U)]
+    (IX$) [(=U)]
+    (IY$) [(=U)])
+
+  (opcode  RL (a)
+    (R8)  [(=U)]
+    (HL$) [(=U)]
+    (IX$) [(=U)]
+    (IY$) [(=U)])
+
+  (opcode  RRC (a)
+    (R8)  [(=U)]
+    (HL$) [(=U)]
+    (IX$) [(=U)]
+    (IY$) [(=U)])
+
+  (opcode  RR (a)
+    (R8)  [(=U)]
+    (HL$) [(=U)]
+    (IX$) [(=U)]
+    (IY$) [(=U)])
+
+  (opcode  SLA (a)
+    (R8)  [(=U)]
+    (HL$) [(=U)]
+    (IX$) [(=U)]
+    (IY$) [(=U)])
+
+  (opcode  SRA (a)
+    (R8)  [(=U)]
+    (HL$) [(=U)]
+    (IX$) [(=U)]
+    (IY$) [(=U)])
+
+  (opcode  SRL (a)
+    (R8)  [(=U)]
+    (HL$) [(=U)]
+    (IX$) [(=U)]
+    (IY$) [(=U)])
+
+  (opcode  RLD  () () [(=U)])
+  (opcode  RRD  () () [(=U)])
+
+  (opcode  BIT (a b)
+    (N R8)  [(=U)]
+    (N HL$) [(=U)]
+    (N IX$) [(=U)]
+    (N IY$) [(=U)])
+
+  (opcode  SET (a b)
+    (N R8)  [(=U)]
+    (N HL$) [(=U)]
+    (N IX$) [(=U)]
+    (N IY$) [(=U)])
+
+  (opcode  RES (a b)
+    (N R8)  [(=U)]
+    (N HL$) [(=U)]
+    (N IX$) [(=U)]
+    (N IY$) [(=U)])
+
+  (opcode  JP (a)
+    (IX$) [(=U)]
+    (IY$) [(=U)])
+
+  (opcode  JR (a) (NN) [(=U)])
+  (opcode  JR (a b)
+    (C?  NN) [(=U)]
+    (NC? NN) [(=U)]
+    (Z?  NN) [(=U)]
+    (NZ? NN) [(=U)])
+
+  (opcode  DJNZ (a) (NN) [(=U)])
+
+  (opcode  RETI ()  ()   [(=U)])
+  (opcode  RETN ()  ()   [(=U)])
+
+  (opcode  IN (a b) (R8 C$)  [(=U)])
+  (opcode  INI  () () [(=U)])
+  (opcode  INIR () () [(=U)])
+  (opcode  IND  () () [(=U)])
+  (opcode  INDR () () [(=U)])
+
+  (opcode  OUT (a b) (C$ R8)  [(=U)])
+  (opcode  OUTI () () [(=U)])
+  (opcode  OTIR () () [(=U)])
+  (opcode  OUTD () () [(=U)])
+  (opcode  OTDR () () [(=U)])
+
+  (opcode  NEG  () () [(=U)])
+
+  (opcode  IM (a) (N) [(=U)])
+
+  (example $operators (*)
+    "LBI:; $(LBI) -jump-if NZ?" "LBI:; JP NZ, LBI"
+    "$(LBI) -jump-if Z?"  "JP Z, LBI"
+    "$(LBI) -jump-if NC?" "JP NC, LBI"
+    "$(LBI) -jump-if C?"  "JP C, LBI"
+    "$(LBI) -jump-if PO?" "JP PO, LBI"
+    "$(LBI) -jump-if PE?" "JP PE, LBI"
+    "$(LBI) -jump-if M?"  "JP M, LBI"
+    "$(LBI) -jump-if P?"  "JP P, LBI"
+
+    "LBU:; $(LBU) -jump-unless NZ?" "LBU:; JP Z, LBU"
+    "$(LBU) -jump-unless Z?"  "JP NZ, LBU"
+    "$(LBU) -jump-unless NC?" "JP C, LBU"
+    "$(LBU) -jump-unless C?"  "JP NC, LBU"
+    "$(LBU) -jump-unless PO?" "JP PE, LBU"
+    "$(LBU) -jump-unless PE?" "JP PO, LBU"
+    "$(LBU) -jump-unless M?"  "JP P, LBU"
+    "$(LBU) -jump-unless P?"  "JP M, LBU"
+
+    "proc f(!){ RET }" "f: RET"
+    "f(!)" "CALL f"
+    "NC?.f(!)" "CALL NC, f"))

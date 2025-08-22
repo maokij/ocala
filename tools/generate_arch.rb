@@ -29,13 +29,17 @@ class GenerateArch
   Arg = Struct.new(:v, :x)
   BMap = Struct.new(:x, :name, :mask, :min, :max, :map) # rubocop:disable Lint/StructNewOverride
 
-  BCode = Struct.new(:t, :v) do # byte(n) low(x) high(x) imp(b x) temp
+  BCode = Struct.new(:t, :v) do # byte(n) low(x) high(x) imp(b x) temp unsupported
     def inspect
       "#{t.upcase}(#{v.map { |i| format('%02x', i) }.join(' ')})"
     end
 
     def pretty_print(pp)
       pp.text(inspect)
+    end
+
+    def invalid?
+      %i[temp unsupported].include?(t)
     end
   end
 
@@ -110,14 +114,14 @@ class GenerateArch
       @operands[:_] = Operand.new(:_, "KwAny") unless base
     end
 
-    def deep_merge(*rest)
-      merge = lambda do |a, b|
-        return b unless b.is_a?(Hash)
-        return b unless a.is_a?(Hash)
-
-        b.each { |k, v| a[k] = merge.call(a[k], v) }.then { a }
+    def deep_merge(a, b)
+      if !b.is_a?(Hash)
+        b
+      elsif !a.is_a?(Hash)
+        deep_merge({}, b)
+      else # a.is_a?(Hash) && b.is_a?(Hash)
+        b.each { |k, v| a[k] = deep_merge(a[k], v) }.then { a }
       end
-      rest.reduce({}) { |r, i| merge.call(r, i) }
     end
 
     def all(attr, acc = [])
@@ -127,7 +131,7 @@ class GenerateArch
     end
 
     def merged(attr)
-      deep_merge(*all(attr))
+      all(attr).reduce({}) { |r, i| deep_merge(r, i) }
     end
 
     def fetch(attr, *ks)
@@ -185,8 +189,8 @@ class GenerateArch
       "=i": lambda { |env, name, base, mask, shift|
         BCode.new(:imp, [evaluate(env, name).x, evaluate(env, base), mask, shift])
       },
-      "=U": lambda { |env, name|
-        BCode.new(:unsupported, [evaluate(env, name).x])
+      "=U": lambda { |_env|
+        BCode.new(:unsupported, [0])
       },
       "+": lambda { |env, *args|
         args.reduce(0) { |r, i| r | evaluate(env, i) }
@@ -198,7 +202,7 @@ class GenerateArch
         rest.each { |i| evaluate(env, i) }
       },
       arch: lambda { |env, name, *rest|
-        name, base = Array(name)
+        base, name = name if name.is_a?(Array)
         base = env[base] or raise "unknown base" if base
 
         env[name] = @arch = Arch.new(name, base)
@@ -268,7 +272,7 @@ class GenerateArch
             tenv = env.enter
             args.each_with_index { |i, x| tenv[i] = Arg.new(operands[x], x) }
 
-            found = arch.fetch(:opcodes, name, operands)
+            found = arch.opcodes[name][operands]
             bcodes = body.map do |i|
               i = evaluate(tenv, i)
               if i.is_a?(Integer)
@@ -371,9 +375,16 @@ class GenerateArch
             i
           end
         end
-        if apat != pat && !pats[apat]
-          as[apat] = temp ? [BCode.new(:temp, [0])] * body.size : body
-        end
+        next unless apat != pat && !pats[apat]
+
+        as[apat] =
+          if body[0].t == :unsupported
+            [BCode.new(:unsupported, [0])]
+          elsif temp
+            [BCode.new(:temp, [0])] * body.size
+          else
+            body
+          end
       end
       pats.merge!(as)
     end
@@ -466,30 +477,35 @@ class GenerateArch
     end
     code << ""
 
-    code << "var asmOperands#{suffix} = map[*Keyword]AsmOperand{"
-    arch.operands.each_value do |v|
-      next unless v.asm
+    unless arch.operands.empty?
+      code << "var asmOperands#{suffix} = map[*Keyword]AsmOperand{"
+      arch.operands.each_value do |v|
+        next unless v.asm
 
-      s = v.asm.gsub(/%[BW]/, "%")
-      t = s == v.asm ? "false" : "true"
-      code << %(  #{v.go}: { "#{s}", #{t} },)
+        s = v.asm.gsub(/%[BW]/, "%")
+        t = s == v.asm ? "false" : "true"
+        code << %(  #{v.go}: { "#{s}", #{t} },)
+      end
+      code << "}" << ""
     end
-    code << "}" << ""
 
-    code << "var tokenWords#{suffix} = [][]string{"
-    [arch.registers, arch.conditions].each do |v|
-      s = v.map do |i|
+    words = [arch.registers, arch.conditions].map do |v|
+      v.map do |i|
         a = arch.fetch(:operands, i)&.oc or raise "invalid operand #{i}"
         %("#{a}")
       end
-      code << "    { #{s.join(', ')} },"
     end
-    uops = arch.uops.keys.map { %("#{_1}") }
+    words << arch.uops.keys.map { %("#{_1}") } # uops
     base_bops = (arch.base&.merged(:bops) || {}).keys | BOPS
-    bops = (arch.bops.keys - base_bops).map { %("#{_1}") }
-    code << "    { #{uops.join(', ')} },"
-    code << "    { #{bops.join(', ')} },"
-    code << "}" << ""
+    words << (arch.bops.keys - base_bops).map { %("#{_1}") } # bops
+
+    unless words.all?(&:empty?)
+      code << "var tokenWords#{suffix} = [][]string{"
+      words.each do |i|
+        code << "    { #{i.join(', ')} },"
+      end
+      code << "}" << ""
+    end
 
     unless arch.token_aliases.empty?
       code << "var tokenAliases#{suffix} = map[string]string{"
@@ -519,21 +535,23 @@ class GenerateArch
       code << "}" << ""
     end
 
-    return if arch.operators.empty?
-
-    code << "var ctxOpMap#{suffix} = CtxOpMap{"
-    arch.operators.each do |name, pats|
-      code << %!        Intern("#{name}"): {!
-      nest_map2(pats).each do |a, bs|
-        code << %(            #{operand_code.call(a)}: {)
-        bs.map do |b, template|
-          code << %(                #{operand_code.call(b)}: #{scodes_code.call(template)},)
+    unless arch.operators.empty?
+      code << "var ctxOpMap#{suffix} = CtxOpMap{"
+      arch.operators.each do |name, pats|
+        code << %!        Intern("#{name}"): {!
+        nest_map2(pats).each do |a, bs|
+          code << %(            #{operand_code.call(a)}: {)
+          bs.map do |b, template|
+            code << %(                #{operand_code.call(b)}: #{scodes_code.call(template)},)
+          end
+          code << %(            },)
         end
-        code << %(            },)
+        code << %(        },)
       end
-      code << %(        },)
+      code << "}" << ""
     end
-    code << "}" << ""
+
+    code
   end
 
   def generate_arch(path)
@@ -597,14 +615,17 @@ class GenerateArch
       end
     end
 
+    opcodes = arch.merged(:opcodes)
     suffix = arch.base ? arch.name.to_s.gsub(/\A\W/, "_") : ""
     use_example(:$prologue, [:*], cocl, casm)
-    arch.merged(:opcodes).each do |name, pats|
+    opcodes.each do |name, pats|
+      next if pats.values.all? { |i| i[0].invalid? }
+
       n = add_label.call
       next if use_example(name, [:*], cocl, casm)
 
       pats.each do |operands, body|
-        next if body[0].t == :temp
+        next if body[0].invalid?
         next if use_example(name, operands, cocl, casm)
 
         alt = find_asm_example(name, operands)
@@ -632,15 +653,37 @@ class GenerateArch
     end
     use_example(:$epilogue, [:*], cocl, casm)
 
-    File.write(testdata_path(path, "opcodes#{suffix}.oc"), cocl.join("\n") << "\n")
-    File.write(testdata_path(path, "opcodes#{suffix}.asm"), casm.join("\n") << "\n")
+    File.write(testdata_path(path, "opcodes#{suffix}.oc"),
+               cocl.map(&:rstrip).join("\n") << "\n")
+    File.write(testdata_path(path, "opcodes#{suffix}.asm"),
+               casm.map(&:rstrip).join("\n") << "\n")
+
+    # invalid opcodes
+    cocl = []
+    opcodes.each do |name, pats|
+      next unless pats.values.any? { |i| i[0].invalid? }
+      next if name.start_with?("#")
+
+      pats.each do |operands, body|
+        next unless body[0].t == :unsupported
+
+        operands = operands.map { |i| arch.fetch(:operands, i) or raise "unknown operand #{i.inspect}" }
+        ocs = operands.map { |i| pfill(i.oc) }
+        cocl << "    #{name} #{ocs.join(' ')}"
+      end
+    end
+    return if cocl.empty?
+
+    File.write(testdata_path(path, "opcodes#{suffix}.unsupported"),
+               cocl.map(&:rstrip).join("\n") << "\n")
   end
 
   def generate_operators_oc(path, arch)
     suffix = arch.base ? arch.name.to_s.gsub(/\A\W/, "_") : ""
 
     alts = arch.merged(:operands).filter { |_, v| v.alt }
-    arch.merged(:operators).each_value do |pats|
+    operators = arch.merged(:operators)
+    operators.each_value do |pats|
       as = pats.filter_map do |pat, body|
         apat = pat.map { |i| alts[i]&.alt || i }
         apat != pat && !pats[apat] && [apat, body]
@@ -656,7 +699,7 @@ class GenerateArch
       op = template[0].v[0]
       next if op.start_with?("#")
 
-      inst = arch.fetch(:opcodes, op) or raise "unknown opcode #{template}"
+      arch.fetch(:opcodes, op) or raise "unknown opcode #{template}"
       oprs = []
       asms = []
       template[1..].map do |i|
@@ -674,8 +717,8 @@ class GenerateArch
           asms << pfill(arch.fetch(:operands, oprs.last).asm)
         end
       end
-      m = inst[oprs]
-      m and m[0].t != :temp and [op.to_s, *asms]
+      m = arch.fetch(:opcodes, op, oprs)
+      m and !m[0].invalid? and [op.to_s, *asms]
     end
 
     find_all = lambda do |pat, body|
@@ -689,7 +732,7 @@ class GenerateArch
     end
 
     use_example(:$prologue, [:*], cocl, casm)
-    arch.merged(:operators).each do |name, pats|
+    operators.each do |name, pats|
       next if use_example(name, [:*], cocl, casm)
 
       m = {}
@@ -724,8 +767,10 @@ class GenerateArch
     use_example(:$operators, [:*], cocl, casm)
     use_example(:$epilogue, [:*], cocl, casm)
 
-    File.write(testdata_path(path, "operators#{suffix}.oc"), cocl.join("\n") << "\n")
-    File.write(testdata_path(path, "operators#{suffix}.asm"), casm.join("\n") << "\n")
+    File.write(testdata_path(path, "operators#{suffix}.oc"),
+               cocl.map(&:rstrip).join("\n") << "\n")
+    File.write(testdata_path(path, "operators#{suffix}.asm"),
+               casm.map(&:rstrip).join("\n") << "\n")
   end
 
   def generate_testdata(path)

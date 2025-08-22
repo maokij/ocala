@@ -6,6 +6,14 @@ import (
 	"slices"
 )
 
+func init() {
+	RegisterArchs(ArchMap{
+		"z80":              BuildCompiler,
+		"z80+undocumented": BuildCompilerUndocumented,
+		"z80+compat8080":   BuildCompilerCompat8080,
+	})
+}
+
 func BuildCompiler() *Compiler {
 	return &Compiler{
 		Arch:            "z80",
@@ -41,6 +49,14 @@ func BuildCompilerUndocumented() *Compiler {
 
 	cc.InstMap = MergeInstMap(cc.InstMap, instMapUndocumented)
 	cc.CtxOpMap = MergeCtxOpMap(cc.CtxOpMap, ctxOpMapUndocumented)
+	return cc
+}
+
+func BuildCompilerCompat8080() *Compiler {
+	cc := BuildCompiler()
+	cc.Variant = "+compat8080"
+	cc.OptimizeBCode = noOptimizeBCode
+	cc.InstMap = MergeInstMap(cc.InstMap, instMapCompat8080)
 	return cc
 }
 
@@ -280,6 +296,9 @@ func sOptimize(cc *Compiler, env *Env, e *Vec) Value {
 		v := Int(1)
 		if n == 3 {
 			v = CheckAndEvalConstAs(e.At(2), env, IntT, "option", etag, cc)
+		}
+		if cc.Variant == "+compat8080" && v != Int(0) {
+			cc.ErrorAt(etag).With("the optimizer does not support %s", cc.Variant)
 		}
 
 		cc.OptimizeBCode = noOptimizeBCode
