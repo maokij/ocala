@@ -290,12 +290,11 @@
     (N IX$) [0xDD 0xCB (=l b) (=i a 0b1000_0110 0x07 3)]
     (N IY$) [0xFD 0xCB (=l b) (=i a 0b1000_0110 0x07 3)])
 
-  (bytemap JP 0xFF 0 0 0xE9)
   (opcode  JP (a)
     (NN)  [0xC3 (=l a) (=h a)]
     (HL$) [0xE9]
-    (IX$) [0xDD (=m a JP)]
-    (IY$) [0xFD (=m a JP)])
+    (IX$) [0xDD (=i a 0xE9 0 0)]
+    (IY$) [0xFD (=i a 0xE9 0 0)])
   (opcode  JP (a b) (CC NN) [(+ 0b1100_0010 (CC a 3)) (=l b) (=h b)])
   (example JP
     (IX$) "JP [IX]" "JP (IX)"
@@ -878,10 +877,10 @@
     (N IY$ H) _ "DB 0xFD, 0xCB, 0x05, 0xAC"
     (N IY$ L) _ "DB 0xFD, 0xCB, 0x05, 0xAD")
 
-  (opcode  IN  (a)   (C$)    [0xED 0x70])
+  (opcode  IN (a)   (C$)    [0xED 0x70])
   (example IN (C$) _ "DB 0xED, 0x70")
 
-  (opcode  IN  (a b) (F  C$) [0xED 0x70])
+  (opcode  IN (a b) (F  C$) [0xED 0x70])
   (example IN (F C$) _ "DB 0xED, 0x70")
 
   (opcode  OUT (a b) (C$ N)  [0xED (=i b 0x71 0 0)])
@@ -1117,3 +1116,136 @@
     "proc f(!){ RET }" "f: RET"
     "f(!)" "CALL f"
     "NC?.f(!)" "CALL NC, f"))
+
+(arch (z80 +r800)
+  (operand IXH RegIXH "IXH" "IXH")
+  (operand IXL RegIXL "IXL" "IXL")
+  (operand IYH RegIYH "IYH" "IYH")
+  (operand IYL RegIYL "IYL" "IYL")
+
+  (registers IXH IXL IYH IYL)
+
+  (map X8 A 7 B 0 C 1 D 2 E 3 IXH 4 IXL 5)
+  (map Y8 A 7 B 0 C 1 D 2 E 3 IYH 4 IYL 5)
+  (map A-E A 7 B 0 C 1 D 2 E 3)
+
+  (example "$prologue" (*) "arch z80 +r800; flat!; optimize near-jump 0" "")
+
+  (opcode  LD (a b)
+    (X8  IXH) [0xDD (+ 0b0100_0000 (X8 a 3) (X8 b))]
+    (IXH A-E) [0xDD (+ 0b0100_0000 (X8 a 3) (X8 b))]
+    (X8  IXL) [0xDD (+ 0b0100_0000 (X8 a 3) (X8 b))]
+    (IXL A-E) [0xDD (+ 0b0100_0000 (X8 a 3) (X8 b))]
+    (Y8  IYH) [0xFD (+ 0b0100_0000 (Y8 a 3) (Y8 b))]
+    (IYH A-E) [0xFD (+ 0b0100_0000 (Y8 a 3) (Y8 b))]
+    (Y8  IYL) [0xFD (+ 0b0100_0000 (Y8 a 3) (Y8 b))]
+    (IYL A-E) [0xFD (+ 0b0100_0000 (Y8 a 3) (Y8 b))]
+
+    (IXH N)   [0xDD (+ 0b0000_0110 (X8 a 3)) (=l b)]
+    (IXL N)   [0xDD (+ 0b0000_0110 (X8 a 3)) (=l b)]
+    (IYH N)   [0xFD (+ 0b0000_0110 (Y8 a 3)) (=l b)]
+    (IYL N)   [0xFD (+ 0b0000_0110 (Y8 a 3)) (=l b)])
+
+  (opcode  ADD (a b)
+    (A IXH)  [0xDD (+ 0b1000_0000 (X8 b))]
+    (A IXL)  [0xDD (+ 0b1000_0000 (X8 b))]
+    (A IYH)  [0xFD (+ 0b1000_0000 (Y8 b))]
+    (A IYL)  [0xFD (+ 0b1000_0000 (Y8 b))])
+
+  (opcode  ADC (a b)
+    (A IXH)  [0xDD (+ 0b1000_1000 (X8 b))]
+    (A IXL)  [0xDD (+ 0b1000_1000 (X8 b))]
+    (A IYH)  [0xFD (+ 0b1000_1000 (Y8 b))]
+    (A IYL)  [0xFD (+ 0b1000_1000 (Y8 b))])
+
+  (opcode  SUB (a)
+    (IXH)  [0xDD (+ 0b1001_0000 (X8 a))]
+    (IXL)  [0xDD (+ 0b1001_0000 (X8 a))]
+    (IYH)  [0xFD (+ 0b1001_0000 (Y8 a))]
+    (IYL)  [0xFD (+ 0b1001_0000 (Y8 a))])
+
+  (opcode  SBC (a b)
+    (A IXH)  [0xDD (+ 0b1001_1000 (X8 b))]
+    (A IXL)  [0xDD (+ 0b1001_1000 (X8 b))]
+    (A IYH)  [0xFD (+ 0b1001_1000 (Y8 b))]
+    (A IYL)  [0xFD (+ 0b1001_1000 (Y8 b))])
+
+  (opcode  AND (a)
+    (IXH)  [0xDD (+ 0b1010_0000 (X8 a))]
+    (IXL)  [0xDD (+ 0b1010_0000 (X8 a))]
+    (IYH)  [0xFD (+ 0b1010_0000 (Y8 a))]
+    (IYL)  [0xFD (+ 0b1010_0000 (Y8 a))])
+
+  (opcode  OR (a)
+    (IXH)  [0xDD (+ 0b1011_0000 (X8 a))]
+    (IXL)  [0xDD (+ 0b1011_0000 (X8 a))]
+    (IYH)  [0xFD (+ 0b1011_0000 (Y8 a))]
+    (IYL)  [0xFD (+ 0b1011_0000 (Y8 a))])
+
+  (opcode  XOR (a)
+    (IXH)  [0xDD (+ 0b1010_1000 (X8 a))]
+    (IXL)  [0xDD (+ 0b1010_1000 (X8 a))]
+    (IYH)  [0xFD (+ 0b1010_1000 (Y8 a))]
+    (IYL)  [0xFD (+ 0b1010_1000 (Y8 a))])
+
+  (opcode  CP (a)
+    (IXH)  [0xDD (+ 0b1011_1000 (X8 a))]
+    (IXL)  [0xDD (+ 0b1011_1000 (X8 a))]
+    (IYH)  [0xFD (+ 0b1011_1000 (Y8 a))]
+    (IYL)  [0xFD (+ 0b1011_1000 (Y8 a))])
+
+  (opcode  INC (a)
+    (IXH)  [0xDD (+ 0b0000_0100 (X8 a 3))]
+    (IXL)  [0xDD (+ 0b0000_0100 (X8 a 3))]
+    (IYH)  [0xFD (+ 0b0000_0100 (Y8 a 3))]
+    (IYL)  [0xFD (+ 0b0000_0100 (Y8 a 3))])
+  (example INC
+    (IXH) _ "DB 0xDD, 0x24"
+    (IXL) _ "DB 0xDD, 0x2C"
+    (IYH) _ "DB 0xFD, 0x24"
+    (IYL) _ "DB 0xFD, 0x2C")
+
+  (opcode  DEC (a)
+    (IXH)  [0xDD (+ 0b0000_0101 (X8 a 3))]
+    (IXL)  [0xDD (+ 0b0000_0101 (X8 a 3))]
+    (IYH)  [0xFD (+ 0b0000_0101 (Y8 a 3))]
+    (IYL)  [0xFD (+ 0b0000_0101 (Y8 a 3))])
+  (example DEC
+    (IXH) _ "DB 0xDD, 0x25"
+    (IXL) _ "DB 0xDD, 0x2D"
+    (IYH) _ "DB 0xFD, 0x25"
+    (IYL) _ "DB 0xFD, 0x2D")
+
+  (opcode  IN (a b) (F  C$) [0xED 0x70])
+  (example IN (F C$) _ "DB 0xED, 0x70")
+
+  (opcode  MULUB (a b)
+    (A B) [0xED 0xC1]
+    (A C) [0xED 0xC9]
+    (A D) [0xED 0xD1]
+    (A E) [0xED 0xD9])
+  (example MULUB
+    (A B) _ "DB 0xED, 0xC1"
+    (A C) _ "DB 0xED, 0xC9"
+    (A D) _ "DB 0xED, 0xD1"
+    (A E) _ "DB 0xED, 0xD9")
+
+  (opcode  MULUW (a b)
+    (HL BC) [0xED 0xC3]
+    (HL SP) [0xED 0xF3])
+  (example MULUW
+    (HL BC) _ "DB 0xED, 0xC3"
+    (HL SP) _ "DB 0xED, 0xF3")
+
+  (operator <- (a b)
+    (IXH _)  [(LD (= a) (= b))]
+    (IXL _)  [(LD (= a) (= b))]
+    (IYH _)  [(LD (= a) (= b))]
+    (IYL _)  [(LD (= a) (= b))])
+  (operator -> (a b)
+    (IXH _)  [(LD (= b) (= a))]
+    (IXL _)  [(LD (= b) (= a))]
+    (IYH _)  [(LD (= b) (= a))]
+    (IYL _)  [(LD (= b) (= a))])
+
+  (example -in  (F C) "F -in C" "DB 0xED, 0x70"))

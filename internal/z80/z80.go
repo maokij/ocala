@@ -3,7 +3,6 @@ package z80
 import (
 	"maps"
 	. "ocala/internal/core" //lint:ignore ST1001 core
-	"slices"
 )
 
 func init() {
@@ -11,6 +10,7 @@ func init() {
 		"z80":              BuildCompiler,
 		"z80+undocumented": BuildCompilerUndocumented,
 		"z80+compat8080":   BuildCompilerCompat8080,
+		"z80+r800":         BuildCompilerR800,
 	})
 }
 
@@ -40,13 +40,7 @@ func BuildCompilerUndocumented() *Compiler {
 	cc.Variant = "+undocumented"
 	cc.AsmOperands = maps.Clone(cc.AsmOperands)
 	maps.Copy(cc.AsmOperands, asmOperandsUndocumented)
-
-	cc.TokenWords = slices.Clone(cc.TokenWords)
-	cc.TokenWords[0] = append(cc.TokenWords[0], tokenWordsUndocumented[0]...)
-	cc.TokenWords[1] = append(cc.TokenWords[1], tokenWordsUndocumented[1]...)
-	cc.TokenWords[2] = append(cc.TokenWords[2], tokenWordsUndocumented[2]...)
-	cc.TokenWords[3] = append(cc.TokenWords[3], tokenWordsUndocumented[3]...)
-
+	cc.TokenWords = MergeTokenWords(cc.TokenWords, tokenWordsUndocumented)
 	cc.InstMap = MergeInstMap(cc.InstMap, instMapUndocumented)
 	cc.CtxOpMap = MergeCtxOpMap(cc.CtxOpMap, ctxOpMapUndocumented)
 	return cc
@@ -57,6 +51,17 @@ func BuildCompilerCompat8080() *Compiler {
 	cc.Variant = "+compat8080"
 	cc.OptimizeBCode = noOptimizeBCode
 	cc.InstMap = MergeInstMap(cc.InstMap, instMapCompat8080)
+	return cc
+}
+
+func BuildCompilerR800() *Compiler {
+	cc := BuildCompiler()
+	cc.Variant = "+r800"
+	cc.AsmOperands = maps.Clone(cc.AsmOperands)
+	maps.Copy(cc.AsmOperands, asmOperandsR800)
+	cc.TokenWords = MergeTokenWords(cc.TokenWords, tokenWordsR800)
+	cc.InstMap = MergeInstMap(cc.InstMap, instMapR800)
+	cc.CtxOpMap = MergeCtxOpMap(cc.CtxOpMap, ctxOpMapR800)
 	return cc
 }
 

@@ -76,9 +76,11 @@ testdata:
 	pasmo internal/z80/testdata/opcodes.asm internal/z80/testdata/opcodes.dat
 	pasmo internal/z80/testdata/opcodes_undocumented.asm internal/z80/testdata/opcodes_undocumented.dat
 	pasmo -8 internal/z80/testdata/opcodes_compat8080.asm internal/z80/testdata/opcodes_compat8080.dat
+	pasmo internal/z80/testdata/opcodes_r800.asm internal/z80/testdata/opcodes_r800.dat
 	pasmo internal/z80/testdata/operators.asm internal/z80/testdata/operators.dat
 	pasmo internal/z80/testdata/operators_undocumented.asm internal/z80/testdata/operators_undocumented.dat
 	pasmo -8 internal/z80/testdata/operators_compat8080.asm internal/z80/testdata/operators_compat8080.dat
+	pasmo internal/z80/testdata/operators_r800.asm internal/z80/testdata/operators_r800.dat
 	./tools/generate_arch.rb testdata internal/mos6502/mos6502.lisp
 	ca65 -o internal/mos6502/testdata/opcodes.o internal/mos6502/testdata/opcodes.asm
 	ld65 -t none -o internal/mos6502/testdata/opcodes.dat internal/mos6502/testdata/opcodes.o

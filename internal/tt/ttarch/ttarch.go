@@ -8,7 +8,6 @@ import (
 	_ "ocala/internal/z80"
 	"os"
 	"regexp"
-	"slices"
 	"strings"
 )
 
@@ -111,14 +110,8 @@ func BuildCompiler() *Compiler {
 func BuildCompilerExt() *Compiler {
 	cc := BuildCompiler()
 	cc.Variant = "+ext"
-
 	cc.AsmOperands = maps.Clone(cc.AsmOperands)
-	cc.TokenWords = slices.Clone(cc.TokenWords)
-	cc.TokenWords[0] = append(cc.TokenWords[0], tokenWordsExt[0]...)
-	cc.TokenWords[1] = append(cc.TokenWords[1], tokenWordsExt[1]...)
-	cc.TokenWords[2] = append(cc.TokenWords[2], tokenWordsExt[2]...)
-	cc.TokenWords[3] = append(cc.TokenWords[3], tokenWordsExt[3]...)
-
+	cc.TokenWords = MergeTokenWords(cc.TokenWords, tokenWordsExt)
 	cc.InstMap = MergeInstMap(cc.InstMap, instMapExt)
 	cc.CtxOpMap = MergeCtxOpMap(cc.CtxOpMap, ctxOpMapExt)
 	return cc

@@ -187,6 +187,14 @@ module msx {
     const WRRES  = 0x017D
 
     // System variables
+    // from: cbios-0.29a/src/main.asm
+    const CGTABL = 0x0004
+    const VDP_DR = 0x0006
+    const VDP_DW = 0x0007
+    const IDBYT1 = 0x002B
+    const IDBYT2 = 0x002C
+    const ROMID  = 0x002D
+
     // from: cbios-0.29a/src/systemvars.asm
     const USRTAB = 0xF39A
     const LINL40 = 0xF3AE

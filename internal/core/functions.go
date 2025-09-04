@@ -534,7 +534,7 @@ func (cc *Compiler) sProc(env *Env, e *Vec) Value {
 	cc.EnterCodeBlock()
 
 	nm := cc.InstallNamed(env, name, NmLabel, &Label{Sig: sig})
-	cc.EmitCode(NewInst(e, InstLabel, nm, NIL))
+	cc.EmitCode(NewInst(e, InstLabel, nm, NIL)) // #1(NIL): last inst link
 
 	env = env.Enter()
 	procNm := cc.InstallNamed(env, etag.Expand(KwPROCNAME), NmConst, name.ToConstexpr(env))

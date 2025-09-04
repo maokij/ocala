@@ -412,7 +412,7 @@ class GenerateArch
     @interns[name] ||= "kw#{name.gsub(/\W/, '')}"
   end
 
-  def generate_table_code(_package, arch)
+  def generate_table_code(arch)
     operand_code = lambda do |a|
       arch.fetch(:operands, a)&.go || "nil"
     end
@@ -473,7 +473,13 @@ class GenerateArch
     suffix = arch.base ? arch.name.to_s.gsub(/\W/, "").capitalize : ""
 
     arch.operands.each_value do |v|
-      code << %!var #{v.go} = Intern("#{v.oc}")! unless v.go.start_with?("Kw")
+      next if v.go.start_with?("Kw")
+
+      if (i = @interns[v.oc])
+        raise unless i == v.go
+      else
+        @interns[v.oc] = v.go
+      end
     end
     code << ""
 
@@ -558,7 +564,7 @@ class GenerateArch
     package = File.basename(File.dirname(path))
     @interns = {}
     s = @archs.map do |arch|
-      generate_table_code(package, arch).join("\n")
+      generate_table_code(arch).join("\n")
     end
 
     code = ["package #{package}", ""]

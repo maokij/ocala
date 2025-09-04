@@ -3,6 +3,7 @@ package core
 import (
 	"fmt"
 	"maps"
+	"slices"
 	"sort"
 	"strconv"
 )
@@ -1164,4 +1165,13 @@ func MergeCtxOpMap(a, b CtxOpMap) CtxOpMap {
 		}
 	}
 	return a
+}
+
+func MergeTokenWords(a, b [][]string) [][]string {
+	return [][]string{
+		slices.Concat(a[0], b[0]),
+		slices.Concat(a[1], b[1]),
+		slices.Concat(a[2], b[2]),
+		slices.Concat(a[3], b[3]),
+	}
 }

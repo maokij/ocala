@@ -26,6 +26,8 @@ func TestCompileTestFiles(t *testing.T) {
 		"z80+undocumented", "./testdata/operators_undocumented",
 		"z80+compat8080", "./testdata/opcodes_compat8080",
 		"z80+compat8080", "./testdata/operators_compat8080",
+		"z80+r800", "./testdata/opcodes_r800",
+		"z80+r800", "./testdata/operators_r800",
 	}
 	for i := range slices.Chunk(tab, 2) {
 		a, b, mes := ttarch.CompileTestFile("z80", i[1])
