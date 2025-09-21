@@ -18,12 +18,15 @@
   (operand AF- AltAF  "AF-"  "AF'")
   (operand SP  RegSP  "SP"   "SP")
   (operand SP$ MemSP  "[SP]" "(SP)")
+  (operand PC  RegPC  "PC"   "PC")
   (operand PQ  RegPQ  "PQ"   "PQ")
 
   (operand IX  RegIX  "IX"      "IX")
-  (operand IX$ MemIX  "[IX %B]" "(IX+%B)")
+  (operand IX$ MemIX  "[IX %B]" "(IX+%B)" WX$ temp)
+  (operand WX$ MemWX  "[IX %W]" "(IX+%W)")
   (operand IY  RegIY  "IY"      "IY")
-  (operand IY$ MemIY  "[IY %B]" "(IY+%B)")
+  (operand IY$ MemIY  "[IY %B]" "(IY+%B)" WY$ temp)
+  (operand WY$ MemWY  "[IY %W]" "(IY+%W)")
 
   (operand N   ImmN   "%B"   "0+ %B" NN temp)
   (operand N$  MemN   "[%B]" "(%B)"  NN$ temp)
@@ -43,7 +46,7 @@
   (operand P?  CondP  "P?"   "P")
   (operand M?  CondM  "M?"   "M")
 
-  (registers A B C D E H L I R F AF AF- BC DE HL IX IY SP)
+  (registers A B C D E H L I R F AF AF- BC DE HL IX IY SP PC)
   (conditions
     (NZ? !=? not-zero?)
     (Z?  ==? zero?)
@@ -328,6 +331,10 @@
   (opcode  #.call (a b) (NN CC) [(+ 0b1100_0100 (CC b 3)) (=l a) (=h a)])
   (example #.call (*) "" "")
 
+  (opcode  #.return ()  ()   [0xC9])
+  (opcode  #.return (a) (CC) [(+ 0b1100_0000 (CC a 3))])
+  (example #.return (*) "" "")
+
   (opcode  IN (a b)
     (A N$)   [0xDB (=l b)]
     (R8 C$)  [0xED (+ 0b0100_0000 (R8 a 3))])
@@ -365,6 +372,15 @@
     (DD _)  [(LD (= a) (= b))]
     (IX _)  [(LD (= a) (= b))]
     (IY _)  [(LD (= a) (= b))]
+    (BC BC) [(LD B B) (LD C C)]
+    (BC DE) [(LD B D) (LD C E)]
+    (BC HL) [(LD B H) (LD C L)]
+    (DE BC) [(LD D B) (LD E C)]
+    (DE DE) [(LD D D) (LD E E)]
+    (DE HL) [(LD D H) (LD E L)]
+    (HL BC) [(LD H B) (LD L C)]
+    (HL DE) [(LD H D) (LD L E)]
+    (HL HL) [(LD H H) (LD L L)]
     (DD PQ) [(#.LDP (= a) (= b))])
   (operator -> (a b)
     (R8 _)  [(LD (= b) (= a))]
@@ -374,6 +390,15 @@
     (IX _)  [(LD (= b) (= a))]
     (IY _)  [(LD (= b) (= a))]
     (NN _)  [(LD (= b) (= a))]
+    (BC BC) [(LD B B) (LD C C)]
+    (BC DE) [(LD D B) (LD E C)]
+    (BC HL) [(LD H B) (LD L C)]
+    (DE BC) [(LD B D) (LD C E)]
+    (DE DE) [(LD D D) (LD E E)]
+    (DE HL) [(LD H D) (LD L E)]
+    (HL BC) [(LD B H) (LD C L)]
+    (HL DE) [(LD D H) (LD E L)]
+    (HL HL) [(LD H H) (LD L L)]
     (DD PQ) [(#.LDP (= b) (= a))])
   (operator <-> (a b)
     (AF AF-) [(EX AF AF-)]
@@ -441,7 +466,7 @@
     (_)  [(INC (= a)) (DEC (= a))])
 
   (operator -jump (a) (NN) [(#.jump (= a))])
-  (example -jump-if (*) "" "")
+  (example -jump (*) "" "")
 
   (operator -jump-if (a b) (NN CC) [(#.jump (= a) (= b))])
   (example -jump-if (*) "" "")
@@ -457,7 +482,48 @@
     (NN P?)  [(#.jump (= a) M? )])
   (example -jump-unless (*) "" "")
 
-  (example $operators (*)
+  (operator -return (a) (PC) [(#.return)])
+  (example -return (*) "" "")
+
+  (operator -return-if (a b) (PC CC) [(#.return (= b))])
+  (example -return-if (*) "" "")
+
+  (operator -return-unless (a b)
+    (PC NZ?) [(#.return Z? )]
+    (PC Z?)  [(#.return NZ?)]
+    (PC NC?) [(#.return C? )]
+    (PC C?)  [(#.return NC?)]
+    (PC PO?) [(#.return PE?)]
+    (PC PE?) [(#.return PO?)]
+    (PC M?)  [(#.return P? )]
+    (PC P?)  [(#.return M? )])
+  (example -return-unless (*) "" "")
+
+  (example $operators.load/store (*)
+    "BC <- D : E" "LD B, D; LD C, E"
+    "BC -> D : E" "LD D, B; LD E, C"
+
+    "BC <- BC" "LD B, B; LD C, C"
+    "BC <- DE" "LD B, D; LD C, E"
+    "BC <- HL" "LD B, H; LD C, L"
+    "DE <- BC" "LD D, B; LD E, C"
+    "DE <- DE" "LD D, D; LD E, E"
+    "DE <- HL" "LD D, H; LD E, L"
+    "HL <- BC" "LD H, B; LD L, C"
+    "HL <- DE" "LD H, D; LD L, E"
+    "HL <- HL" "LD H, H; LD L, L"
+
+    "BC -> BC" "LD B, B; LD C, C"
+    "BC -> DE" "LD D, B; LD E, C"
+    "BC -> HL" "LD H, B; LD L, C"
+    "DE -> BC" "LD B, D; LD C, E"
+    "DE -> DE" "LD D, D; LD E, E"
+    "DE -> HL" "LD H, D; LD L, E"
+    "HL -> BC" "LD B, H; LD C, L"
+    "HL -> DE" "LD D, H; LD E, L"
+    "HL -> HL" "LD H, H; LD L, L")
+
+  (example $operators.rotate/shift (*)
     "A <* 2"  "RLCA; RLCA"
     "B <* 2"  "RLC B; RLC B"
     "A <*$ 2" "RLA; RLA"
@@ -471,8 +537,9 @@
     "A >> 2"  "SRA A; SRA A"
     "B >> 2"  "SRA B; SRA B"
     "A >>> 2" "SRL A; SRL A"
-    "B >>> 2" "SRL B; SRL B"
+    "B >>> 2" "SRL B; SRL B")
 
+  (example $operators.misc (*)
     "LBI:; $(LBI) -jump-if NZ?" "LBI:; JP NZ, LBI"
     "$(LBI) -jump-if Z?"  "JP Z, LBI"
     "$(LBI) -jump-if NC?" "JP NC, LBI"
@@ -490,6 +557,24 @@
     "$(LBU) -jump-unless PE?" "JP PO, LBU"
     "$(LBU) -jump-unless M?"  "JP P, LBU"
     "$(LBU) -jump-unless P?"  "JP M, LBU"
+
+    "PC -return" "RET"
+    "PC -return-if NZ?" "RET NZ"
+    "PC -return-if Z?"  "RET Z"
+    "PC -return-if NC?" "RET NC"
+    "PC -return-if C?"  "RET C"
+    "PC -return-if PO?" "RET PO"
+    "PC -return-if PE?" "RET PE"
+    "PC -return-if M?"  "RET M"
+    "PC -return-if P?"  "RET P"
+    "PC -return-unless NZ?" "RET Z"
+    "PC -return-unless Z?"  "RET NZ"
+    "PC -return-unless NC?" "RET C"
+    "PC -return-unless C?"  "RET NC"
+    "PC -return-unless PO?" "RET PE"
+    "PC -return-unless PE?" "RET PO"
+    "PC -return-unless M?"  "RET P"
+    "PC -return-unless P?"  "RET M"
 
     "proc f(!){ RET }" "f: RET"
     "f(!)" "CALL f"
@@ -1094,28 +1179,11 @@
 
   (opcode  IM (a) (N) [(=U)])
 
-  (example $operators (*)
-    "LBI:; $(LBI) -jump-if NZ?" "LBI:; JP NZ, LBI"
-    "$(LBI) -jump-if Z?"  "JP Z, LBI"
-    "$(LBI) -jump-if NC?" "JP NC, LBI"
-    "$(LBI) -jump-if C?"  "JP C, LBI"
-    "$(LBI) -jump-if PO?" "JP PO, LBI"
-    "$(LBI) -jump-if PE?" "JP PE, LBI"
-    "$(LBI) -jump-if M?"  "JP M, LBI"
-    "$(LBI) -jump-if P?"  "JP P, LBI"
-
-    "LBU:; $(LBU) -jump-unless NZ?" "LBU:; JP Z, LBU"
-    "$(LBU) -jump-unless Z?"  "JP NZ, LBU"
-    "$(LBU) -jump-unless NC?" "JP C, LBU"
-    "$(LBU) -jump-unless C?"  "JP NC, LBU"
-    "$(LBU) -jump-unless PO?" "JP PE, LBU"
-    "$(LBU) -jump-unless PE?" "JP PO, LBU"
-    "$(LBU) -jump-unless M?"  "JP P, LBU"
-    "$(LBU) -jump-unless P?"  "JP M, LBU"
-
-    "proc f(!){ RET }" "f: RET"
-    "f(!)" "CALL f"
-    "NC?.f(!)" "CALL NC, f"))
+  (example $operators.rotate/shift (*)
+    "A <* 2"  "RLCA; RLCA"
+    "A <*$ 2" "RLA; RLA"
+    "A >* 2"  "RRCA; RRCA"
+    "A >*$ 2" "RRA; RRA"))
 
 (arch (z80 +r800)
   (operand IXH RegIXH "IXH" "IXH")

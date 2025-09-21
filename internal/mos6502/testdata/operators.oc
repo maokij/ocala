@@ -176,3 +176,20 @@
     $(LBU) -jump-unless VS?
     $(LBU) -jump-unless PL?
     $(LBU) -jump-unless MI?
+    PC -return
+    PC -return-if NE?
+    PC -return-if EQ?
+    PC -return-if CC?
+    PC -return-if CS?
+    PC -return-if VC?
+    PC -return-if VS?
+    PC -return-if PL?
+    PC -return-if MI?
+    PC -return-unless NE?
+    PC -return-unless EQ?
+    PC -return-unless CC?
+    PC -return-unless CS?
+    PC -return-unless VC?
+    PC -return-unless VS?
+    PC -return-unless PL?
+    PC -return-unless MI?

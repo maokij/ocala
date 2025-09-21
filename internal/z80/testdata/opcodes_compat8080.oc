@@ -272,24 +272,22 @@ L21:
 L22:
     RST 16
 L23:
-L24:
-L25:
     IN A [5]
-L26:
+L24:
     OUT [5] A
-L27:
+L25:
     DAA
-L28:
+L26:
     CPL
-L29:
+L27:
     CCF
-L30:
+L28:
     SCF
-L31:
+L29:
     NOP
-L32:
+L30:
     HALT
-L33:
+L31:
     DI
-L34:
+L32:
     EI

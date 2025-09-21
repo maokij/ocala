@@ -5,6 +5,7 @@
   (operand Y   RegY  "Y"        "Y")
   (operand S   RegS  "S"        "S")
   (operand P   RegP  "P"        "P")
+  (operand PC  RegPC "PC"       "PC")
 
   (operand N   ImmN  "%B"       "#%B" NN temp)
   (operand NN  ImmNN "%W"       "#%W" N)
@@ -28,7 +29,7 @@
   (operand PL? CondPL "PL?" "PL")
   (operand MI? CondMI "MI?" "MI")
 
-  (registers A X Y S P)
+  (registers A X Y S P PC)
   (conditions
     (NE? !=? not-zero?)
     (EQ? ==? zero?)
@@ -144,6 +145,18 @@
   (opcode  #.call (a)   (NN)    [0x20 (=l a) (=h a)])
   (opcode  #.call (a b) (NN CC) [(=U)])
   (example #.call (*) "" "")
+
+  (opcode  #.return () () [0x60])
+  (opcode  #.return (a)
+    (PL?) [0x30 0x01 0x60]
+    (MI?) [0x10 0x01 0x60]
+    (VC?) [0x70 0x01 0x60]
+    (VS?) [0x50 0x01 0x60]
+    (CC?) [0xB0 0x01 0x60]
+    (CS?) [0x90 0x01 0x60]
+    (NE?) [0xF0 0x01 0x60]
+    (EQ?) [0xD0 0x01 0x60])
+  (example #.return (*) "" "")
 
   ;;
   (opcode  ORA (a)
@@ -348,7 +361,24 @@
     (NN MI?) [(#.jump (= a) PL?)])
   (example -jump-unless (*) "" "")
 
-  (example $operators (*)
+  (operator -return (a) (PC) [(#.return)])
+  (example -return (*) "" "")
+
+  (operator -return-if (a b) (PC CC) [(#.return (= b))])
+  (example -return-if (*) "" "")
+
+  (operator -return-unless (a b)
+    (PC NE?) [(#.return EQ?)]
+    (PC EQ?) [(#.return NE?)]
+    (PC CC?) [(#.return CS?)]
+    (PC CS?) [(#.return CC?)]
+    (PC VC?) [(#.return VS?)]
+    (PC VS?) [(#.return VC?)]
+    (PC PL?) [(#.return MI?)]
+    (PC MI?) [(#.return PL?)])
+  (example -return-unless (*) "" "")
+
+  (example $operators.misc (*)
     "A <* 2"    "CMP #128; ROL A; CMP #128; ROL A"
     "A <*$ 2"   "ROL A; ROL A"
     "[5] <*$ 2" "ROL 5; ROL 5"
@@ -377,4 +407,22 @@
     "$(LBU) -jump-unless VC?" "BVC :+; JMP LBU; :"
     "$(LBU) -jump-unless VS?" "BVS :+; JMP LBU; :"
     "$(LBU) -jump-unless PL?" "BPL :+; JMP LBU; :"
-    "$(LBU) -jump-unless MI?" "BMI :+; JMP LBU; :"))
+    "$(LBU) -jump-unless MI?" "BMI :+; JMP LBU; :"
+
+    "PC -return" "RTS"
+    "PC -return-if NE?" "BEQ :+; RTS; :"
+    "PC -return-if EQ?" "BNE :+; RTS; :"
+    "PC -return-if CC?" "BCS :+; RTS; :"
+    "PC -return-if CS?" "BCC :+; RTS; :"
+    "PC -return-if VC?" "BVS :+; RTS; :"
+    "PC -return-if VS?" "BVC :+; RTS; :"
+    "PC -return-if PL?" "BMI :+; RTS; :"
+    "PC -return-if MI?" "BPL :+; RTS; :"
+    "PC -return-unless NE?" "BNE :+; RTS; :"
+    "PC -return-unless EQ?" "BEQ :+; RTS; :"
+    "PC -return-unless CC?" "BCC :+; RTS; :"
+    "PC -return-unless CS?" "BCS :+; RTS; :"
+    "PC -return-unless VC?" "BVC :+; RTS; :"
+    "PC -return-unless VS?" "BVS :+; RTS; :"
+    "PC -return-unless PL?" "BPL :+; RTS; :"
+    "PC -return-unless MI?" "BMI :+; RTS; :"))

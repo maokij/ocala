@@ -23,6 +23,7 @@ func BuildCompiler() *Compiler {
 		KwRegA:          kwRegA,
 		TokenWords:      tokenWords,
 		AdjustOperand:   adjustOperand,
+		OperandToNamed:  operandToNamed,
 		BMaps:           bmaps,
 		TokenAliases:    tokenAliases,
 		IsValidProcTail: isValidProcTail,
@@ -123,32 +124,44 @@ func adjustOperand(cc *Compiler, e *Operand, n int, etag *Identifier) {
 	}
 }
 
-func isValidProcTail(cc *Compiler, inst *Inst) bool {
-	return inst.MatchCode(kwJMP, kwRTS, kwRTI, KwJump)
+func operandToNamed(cc *Compiler, v Value) *Named {
+	return OperandA0ToNamed(cc, v, kwImmNN)
 }
 
-func adjustInline(cc *Compiler, insts []*Inst) {
+func isValidProcTail(cc *Compiler, inst *Inst) bool {
+	switch inst.Args[0] {
+	case kwJMP, KwJump:
+		return len(inst.Args) == 2
+	case kwRTS, kwRTI, KwReturn:
+		return len(inst.Args) == 1
+	}
+	return false
+}
+
+func adjustInline(cc *Compiler, env *Env, insts []*Inst) {
 	ci := insts[0]
 	for _, i := range insts {
 		switch i.Kind {
 		case InstLabel, InstCode:
 			ci = i
 			switch i.Args[0] {
-			case kwRTS:
-				a := i.ExprTag().Expand(KwEndInline).ToConstexpr(nil)
-				i.Args = []Value{kwJMP, &Operand{From: i.From, Kind: kwMemAN, A0: a}}
+			case kwRTS, KwReturn:
+				a := i.ExprTag().Expand(KwEndInline).ToConstexpr(env)
+				i.Args = append(
+					[]Value{KwJump, &Operand{From: i.From, Kind: kwImmNN, A0: a}},
+					i.Args[1:]...)
 			case kwRTI:
 				cc.ErrorAt(i).With("unsupported instruction in inline code")
 			}
 		}
 	}
 
-	if !ci.MatchCode(kwJMP) {
+	if !ci.MatchCode(kwJMP, KwJump) || len(ci.Args) != 2 {
 		cc.ErrorAt(ci).With("invalid inline proc tail")
 	}
-	if a := ci.Args[1].(*Operand); a.Kind == kwMemAN &&
+	if a := ci.Args[1].(*Operand); a.Kind == kwImmNN &&
 		KwEndInline.MatchId(GetConstBody(a.A0)) != nil {
-		*ci = *NewInst(ci.From, InstMisc, KwUNDER)
+		ci.CommentOut()
 	}
 }
 
@@ -206,6 +219,10 @@ func optimizeBCode(cc *Compiler, inst *Inst, bcodes []BCode, commit bool) []BCod
 		if commit {
 			updateInst(inst, kwJSR)
 		}
+	case KwReturn:
+		if commit && len(bcodes) == 1 {
+			inst.Args[0] = kwRTS
+		}
 	}
 	return bcodes
 }
@@ -219,6 +236,10 @@ func noOptimizeBCode(cc *Compiler, inst *Inst, bcodes []BCode, commit bool) []BC
 			}
 		case KwCall:
 			updateInst(inst, kwJSR)
+		case KwReturn:
+			if len(inst.Args) == 1 {
+				inst.Args[0] = kwRTS
+			}
 		}
 	}
 	return bcodes
@@ -246,7 +267,7 @@ func sOptimize(cc *Compiler, env *Env, e *Vec) Value {
 			cc.OptimizeBCode = optimizeBCode
 		}
 	default:
-		cc.ErrorAt(etag).With("unknown optimizer: %s", k)
+		cc.ProcessDefaultOptimizeOption(env, e, k, etag)
 	}
 	return NIL
 }

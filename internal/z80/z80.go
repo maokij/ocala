@@ -27,6 +27,7 @@ func BuildCompiler() *Compiler {
 		KwRegA:          kwRegA,
 		TokenWords:      tokenWords,
 		AdjustOperand:   adjustOperand,
+		OperandToNamed:  operandToNamed,
 		BMaps:           bmaps,
 		TokenAliases:    tokenAliases,
 		IsValidProcTail: isValidProcTail,
@@ -76,7 +77,7 @@ var syntaxMap = map[*Keyword]SyntaxFn{
 
 func isReg16(a *Keyword) bool {
 	switch a {
-	case kwRegAF, kwAltAF, kwRegBC, kwRegDE, kwRegHL, kwRegSP, kwRegIX, kwRegIY:
+	case kwRegAF, kwAltAF, kwRegBC, kwRegDE, kwRegHL, kwRegSP, kwRegPC, kwRegIX, kwRegIY:
 		return true
 	}
 	return false
@@ -160,42 +161,63 @@ func adjustOperand(cc *Compiler, e *Operand, n int, etag *Identifier) {
 		if n >= -128 && n <= 255 {
 			e.Kind = kwMemN
 		}
+	case kwMemIX:
+		if n < -128 || n > 255 {
+			e.Kind = kwMemWX
+		}
+	case kwMemWX:
+		if n >= -128 && n <= 255 {
+			e.Kind = kwMemIX
+		}
+	case kwMemIY:
+		if n < -128 || n > 255 {
+			e.Kind = kwMemWY
+		}
+	case kwMemWY:
+		if n >= -128 && n <= 255 {
+			e.Kind = kwMemIY
+		}
 	}
+}
+
+func operandToNamed(cc *Compiler, v Value) *Named {
+	return OperandA0ToNamed(cc, v, kwImmNN)
 }
 
 func isValidProcTail(cc *Compiler, inst *Inst) bool {
 	switch inst.Args[0] {
 	case kwJP, kwJR, KwJump:
 		return len(inst.Args) == 2
-	case kwRET, kwRETI, kwRETN:
+	case kwRET, kwRETI, kwRETN, KwReturn:
 		return len(inst.Args) == 1
 	}
 	return false
 }
 
-func adjustInline(cc *Compiler, insts []*Inst) {
+func adjustInline(cc *Compiler, env *Env, insts []*Inst) {
 	ci := insts[0]
 	for _, i := range insts {
 		switch i.Kind {
 		case InstLabel, InstCode:
 			ci = i
 			switch i.Args[0] {
-			case kwRET:
-				a := i.ExprTag().Expand(KwEndInline).ToConstexpr(nil)
-				i.Args = append(i.Args, &Operand{From: i.From, Kind: kwImmNN, A0: a})
-				i.Args[0] = kwJP
+			case kwRET, KwReturn:
+				a := i.ExprTag().Expand(KwEndInline).ToConstexpr(env)
+				i.Args = append(
+					[]Value{KwJump, &Operand{From: i.From, Kind: kwImmNN, A0: a}},
+					i.Args[1:]...)
 			case kwRETI, kwRETN:
 				cc.ErrorAt(i).With("unsupported instruction in inline code")
 			}
 		}
 	}
 
-	if !ci.MatchCode(kwJP, kwJR) {
+	if !ci.MatchCode(kwJP, kwJR, KwJump) || len(ci.Args) != 2 {
 		cc.ErrorAt(ci).With("invalid inline proc tail")
 	}
 	if a := ci.Args[1].(*Operand); a.Kind == kwImmNN &&
 		KwEndInline.MatchId(GetConstBody(a.A0)) != nil {
-		*ci = *NewInst(ci.From, InstMisc, KwUNDER)
+		ci.CommentOut()
 	}
 }
 
@@ -243,6 +265,10 @@ func optimizeBCode(cc *Compiler, inst *Inst, bcodes []BCode, commit bool, full b
 		if commit {
 			updateInst(inst, kwCALL)
 		}
+	case KwReturn:
+		if commit {
+			inst.Args[0] = kwRET
+		}
 	}
 	return bcodes
 }
@@ -254,6 +280,8 @@ func noOptimizeBCode(cc *Compiler, inst *Inst, bcodes []BCode, commit bool) []BC
 			updateInst(inst, kwJP)
 		case KwCall:
 			updateInst(inst, kwCALL)
+		case KwReturn:
+			inst.Args[0] = kwRET
 		}
 	}
 	return bcodes
@@ -313,7 +341,7 @@ func sOptimize(cc *Compiler, env *Env, e *Vec) Value {
 			cc.OptimizeBCode = optimizeBCodeFull
 		}
 	default:
-		cc.ErrorAt(etag).With("unknown optimizer: %s", k)
+		cc.ProcessDefaultOptimizeOption(env, e, k, etag)
 	}
 	return NIL
 }

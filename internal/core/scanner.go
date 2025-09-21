@@ -69,9 +69,9 @@ func _bstos(a []byte) string {
 
 func (s *Scanner) ErrorWith(message string, args ...any) {
 	err := &InternalError{
-		tag:       "scan error: ",
-		at:        []Value{s.NewToken(0, NIL, s.Pos)},
-		DebugMode: s.cc.g.DebugMode,
+		tag: "scan error: ",
+		at:  []Value{s.NewToken(0, NIL, s.Pos)},
+		g:   s.cc.g,
 	}
 	err.With(message, args...)
 }

@@ -124,7 +124,7 @@ package core
     ( regld             { v = _1.(*Vec) }!
     | mem               { v.Push(_1) }!
     | explicitval       { v.Push(_1) }!
-    | '@-' prim         { v.Push(p.cc.KwRegA.ToId(_1), &Vec{KwLeftArrow.ToId(_1), _2}) }!
+    | '@-' prim         { v.Push(p.cc.KwRegA.ToId(_1), &Vec{_atopid(_2, _1), _2}) }!
     ) ( UOP             { v.Push(&Vec{_1.Value, NIL}) }!
       | BOP oper        { v.Push(&Vec{_1.Value, _2}) }!
       | DOP dotarg      { v.Push(&Vec{_1.Value, _2}) }!
@@ -144,7 +144,7 @@ package core
   ;
   regld:
     REG               { v := &Vec{KwWith.ToId(_1), _1.Value} }!
-      ( '-@' prim     { v.Push(&Vec{KwLeftArrow.ToId(_1), _2}) }!
+      ( '-@' prim     { v.Push(&Vec{_atopid(_2, _1), _2}) }!
       )?              { RET v }!
   ;
   mem:
@@ -159,8 +159,8 @@ package core
   | block             { RET _1 }!
   ;
   explicitval:
-    '$-' constval     { RET _2 }!
-  | '$$-' constval    { RET &Vec{KwValueOf.ToId(_1), _2} }!
+    '$@' constval     { RET _2 }!
+  | '$$@' constval    { RET &Vec{KwValueOf.ToId(_1), _2} }!
   ;
   constexpr:         ^{ here := _marker(p) }!
     iexpr             { RET _constexpr(_1, here) }!
@@ -206,7 +206,7 @@ package core
   DATA:  data
   MODULE: module
   STRUCT: struct
-  RESERVED: _ _BEG _END _COND __PROC__
+  RESERVED: _ _BEG _END _COND
  **/ //:reservedWords:
 
 var NILTK = &Token{From: InternalParser, Value: NIL}
@@ -251,4 +251,11 @@ func _idfrom(e Value) *Identifier {
 		return e.Body.(*Identifier)
 	}
 	return e.(*Identifier)
+}
+
+func _atopid(e Value, token *Token) *Identifier {
+	if v := AsBlockForm(e); v != nil {
+		return KwDot.ToId(token)
+	}
+	return KwLeftArrow.ToId(token)
 }

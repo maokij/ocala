@@ -23,9 +23,9 @@ const (
 func (p *Parser) ErrorUnexpected(token *Token, expected string) {
 	label := tokenLabels[token.Kind]
 	err := &InternalError{
-		tag:       "parse error: ",
-		at:        []Value{token},
-		DebugMode: p.cc.g.DebugMode,
+		tag: "parse error: ",
+		at:  []Value{token},
+		g:   p.cc.g,
 	}
 	err.With("unexpected %s, expected %s\n", label, expected)
 }
@@ -115,45 +115,53 @@ var wsChars = " \t\r\n"
 var headChars = " \t\r\n,;([{"
 var tailChars = " \t\r\n,;)]}"
 
+func (p *Parser) errorUnlessPlainId(id *Identifier) {
+	if id.Namespace != nil {
+		p.Pos--
+		p.ErrorWith("the name cannot belong to any namespace")
+	} else if id.PlaceHolder != "" {
+		p.Pos--
+		p.ErrorWith("the name cannot be use as placeholders")
+	}
+}
+
 func (p *Parser) newIdLikeToken(s, t string, ws, nl bool, context byte, pos int32, ph string) *Token {
 	if u, ok := p.cc.TokenAliases[t]; ok {
 		t = u
 	}
-	k := Intern(t)
-	v := &Identifier{Name: k, PlaceHolder: ph}
-	n := p.cc.Operators[t]
+	v := &Identifier{Name: Intern(t), PlaceHolder: ph}
 
-	ns := s != ""
-	if ns {
+	if s != "" {
 		if ph != "" {
 			p.ErrorWith("placeholders cannot contain namespaces")
 		}
 		v.Namespace = Intern(s[:len(s)-1])
 	}
 
-	if tk, ok := tokenKinds[t]; ok { // =
+	if tk, ok := tokenKinds[t]; ok {
+		p.errorUnlessPlainId(v)
 		return p.NewIdToken(tk, v, pos)
-	} else if n&1 != 0 && !ns && ws && p.MatchChar(tailChars) {
-		p.CancelLastTokenIf(nl)
-		return p.NewIdToken(tkUOP, v, pos)
-	} else if n&2 != 0 && !ns && ws && p.MatchChar(wsChars) {
-		p.CancelLastTokenIf(nl)
-		// p.state = pstNoNl
-		return p.NewIdToken(tkBOP, v, pos)
-	} else if tk, ok := p.cc.ReservedWords[t]; ok {
-		if ph != "" {
-			p.ErrorWith("reserved words cannot be use as placeholders")
+	} else if n := p.cc.Operators[t]; n != 0 {
+		p.errorUnlessPlainId(v)
+		if n&1 != 0 && ws && p.MatchChar(tailChars) {
+			p.CancelLastTokenIf(nl)
+			return p.NewIdToken(tkUOP, v, pos)
+		} else if n&2 != 0 && ws && p.MatchChar(wsChars) {
+			p.CancelLastTokenIf(nl)
+			return p.NewIdToken(tkBOP, v, pos)
 		}
-
-		token := p.NewIdToken(tk, v, pos)
+	} else if tk, ok := p.cc.ReservedWords[t]; ok {
+		p.errorUnlessPlainId(v)
 		if tk == tkCOND && p.ScanChar(".") {
-			token.Kind = tkCONDDOT
+			tk = tkCONDDOT
 			p.state = pstWs
 		}
-		return token
-	} else if p.MatchChar("(") {
+		return p.NewIdToken(tk, v, pos)
+	}
+
+	if p.MatchChar("(") {
 		return p.NewIdToken(tkIDENTIFIERP, v, pos)
-	} else if p.MatchChar(":") && !ns {
+	} else if p.MatchChar(":") && s == "" {
 		return p.NewIdToken(tkLABEL, v, pos)
 	}
 	return p.NewIdToken(tkIDENTIFIER, v, pos)
@@ -271,7 +279,7 @@ func (p *Parser) scanToken() {
 	case p.ScanSeq("$"):
 		p.ScanSeq("$")
 		if p.MatchChar("(") {
-			s := p.SubStringFrom(pos) + "-"
+			s := p.SubStringFrom(pos) + "@"
 			tk := p.findTokenKind(s)
 			token = p.NewToken(tk, NIL, pos)
 			break
@@ -283,7 +291,7 @@ func (p *Parser) scanToken() {
 		here := p.Pos
 		if p.ScanChar("=") {
 			p.ScanChar("?")
-			if !p.MatchChar(nameChars) {
+			if !p.MatchChar(nameChars) { // `!=` `!=?`
 				s := p.SubStringFrom(pos)
 				token = p.newIdLikeToken("", s, ws, nl, context, pos, "")
 				break
@@ -294,7 +302,7 @@ func (p *Parser) scanToken() {
 			token = p.NewToken(tkEX, NIL, pos)
 			break
 		}
-		token = p.NewIdToken(tkAOP, &Identifier{Name: KwLogicalNotOp}, pos)
+		token = p.NewIdToken(tkAOP, &Identifier{Name: KwLogicalNotOp}, pos) // `!`...
 	case p.ScanChar("~"):
 		if p.MatchChar(wsChars) {
 			p.ErrorWith("no whitespace is allowed after the prefix operator")

@@ -22,6 +22,14 @@ func TestAdjustOperand(t *testing.T) {
 			{256, kwMemN, kwMemNN},
 			{255, kwMemNN, kwMemN},
 			{256, kwMemNN, kwMemNN},
+			{255, kwMemIX, kwMemIX},
+			{256, kwMemIX, kwMemWX},
+			{255, kwMemWX, kwMemIX},
+			{256, kwMemWX, kwMemWX},
+			{255, kwMemIY, kwMemIY},
+			{256, kwMemIY, kwMemWY},
+			{255, kwMemWY, kwMemIY},
+			{256, kwMemWY, kwMemWY},
 		}
 		for x, i := range data {
 			a := &core.Operand{Kind: i.from}

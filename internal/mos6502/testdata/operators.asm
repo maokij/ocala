@@ -248,3 +248,52 @@
     BMI :+
     JMP LBU
     :
+    RTS
+    BEQ :+
+    RTS
+    :
+    BNE :+
+    RTS
+    :
+    BCS :+
+    RTS
+    :
+    BCC :+
+    RTS
+    :
+    BVS :+
+    RTS
+    :
+    BVC :+
+    RTS
+    :
+    BMI :+
+    RTS
+    :
+    BPL :+
+    RTS
+    :
+    BNE :+
+    RTS
+    :
+    BEQ :+
+    RTS
+    :
+    BCC :+
+    RTS
+    :
+    BCS :+
+    RTS
+    :
+    BVC :+
+    RTS
+    :
+    BVS :+
+    RTS
+    :
+    BPL :+
+    RTS
+    :
+    BMI :+
+    RTS
+    :

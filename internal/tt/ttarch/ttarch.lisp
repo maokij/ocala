@@ -5,6 +5,7 @@
   (operand P   RegP   "P"    "P")
   (operand AB  RegAB  "AB"   "AB")
   (operand SP  RegSP  "SP"   "SP")
+  (operand PC  RegPC  "PC"   "PC")
   (operand PQ  RegPQ  "PQ"   "PQ")
   (operand X   RegX   "X"    "X")
   (operand X$  MemX   "[X]"  "(X)")
@@ -18,7 +19,7 @@
   (operand CC? CondCC "CC?"  "CC")
   (operand CS? CondCS "CS?"  "CS")
 
-  (registers A B P X Y AB SP)
+  (registers A B P X Y AB SP PC)
   (conditions (NE? !=?) (EQ? ==?) (CC? >=?) (CS? <?))
   (map R8 A 0 B 1)
   (map RR AB 0 X 1 Y 2 SP 3)
@@ -27,19 +28,24 @@
   (opcode  NOP ()    ()       [0x00])
   (aliases NOP NOOP)
   (opcode  JMP (a)   (NN)     [0x01 (=l a) (=h a)])
-  (opcode  JPR (a)   (NN)     [0x02 (=rl a -3 2) (=rh a -3 2)])
-  (opcode  JSR (a)   (NN)     [0x03 (=l a) (=h a)])
+  (opcode  JMP (a b) (NN CO)  [(+ 0x10 (CO b)) (=l a) (=h a)])
+  (opcode  BRL (a)   (NN)     [0x02 (=rl a -3 2) (=rh a -3 2)])
+  (opcode  BRA (a)   (NN)     [0x03 (=rl a -2)])
   (opcode  RET ()    ()       [0x04])
-  (opcode  JR  (a)   (NN)     [0x05 (=rl a -2)])
-  (opcode  BCO (a b) (NN CO)  [(+ 0x10 (CO b)) (=l a) (=h a)])
+  (opcode  RET (a)   (CO)     [(+ 0x20 (CO a))])
+  (opcode  JSR (a)   (NN)     [0x05 (=l a) (=h a)])
 
   (opcode  #.jump (a)   (NN)    [0x01 (=l a) (=h a)])
   (opcode  #.jump (a b) (NN CO) [(+ 0x10 (CO b)) (=l a) (=h a)])
   (example #.jump (*) "" "")
 
-  (opcode  #.call (a)   (NN)    [0x03 (=l a) (=h a)])
+  (opcode  #.call (a)   (NN)    [0x05 (=l a) (=h a)])
   (opcode  #.call (a b) (NN CO) [(=U)])
   (example #.call (*) "" "")
+
+  (opcode  #.return ()  ()   [0x04])
+  (opcode  #.return (a) (CO) [(+ 0x20 (CO a))])
+  (example #.return (*) "" "")
 
   (opcode  LD (a b)
     (A B)   [0x20]
@@ -97,6 +103,8 @@
     (N)  [0x64 (=l a)]
     (NN) [0x65 (=l a) (=h a)])
 
+  (opcode  RRA () () [0x63])
+
   (operator <- (a b)
     (A  _)  [(LD (= a) (= b))]
     (B  _)  [(LD (= a) (= b))]
@@ -107,12 +115,19 @@
 
   (operator -jump    (a)   (NN)    [(#.jump (= a))])
   (operator -jump-if (a b) (NN CO) [(#.jump (= a) (= b))])
-
   (operator -jump-unless (a b)
-    (NN NE?) [(#.jump(= a) EQ?)]
+    (NN NE?) [(#.jump (= a) EQ?)]
     (NN EQ?) [(#.jump (= a) NE?)]
     (NN CC?) [(#.jump (= a) CS?)]
     (NN CS?) [(#.jump (= a) CC?)])
+
+  (operator -return    (a)   (PC)    [(#.return)])
+  (operator -return-if (a b) (PC CO) [(#.return (= b))])
+  (operator -return-unless (a b)
+    (PC NE?) [(#.return EQ?)]
+    (PC EQ?) [(#.return NE?)]
+    (PC CC?) [(#.return CS?)]
+    (PC CS?) [(#.return CC?)])
 
   (operator -dnnm (a) (NN$) [(DNN (= a NN))])
   (operator -byte (a) (NN) [(#.BYTE (= a))])

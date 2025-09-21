@@ -16,7 +16,7 @@ const (
 
 func (g *Generator) validateProcTail(inst *Inst) {
 	if (inst.Kind == InstCode && g.cc.IsValidProcTail(g.cc, inst)) ||
-		(inst.Kind == InstMisc && inst.Args[0] == KwFallthrough) {
+		inst.IsMisc(KwFallthrough) {
 		return
 	}
 	g.cc.ErrorAt(inst).
@@ -25,9 +25,9 @@ func (g *Generator) validateProcTail(inst *Inst) {
 
 func (g *Generator) validateFallthrough(insts []*Inst) {
 	for _, i := range insts {
-		if i.Kind == InstMisc && i.Args[0] == KwEndProc {
+		if i.IsMisc(KwEndProc) {
 			continue
-		} else if i.Kind == InstLabel && GetNamedValue(i.Args[0], LabelT).LinkedToProc() {
+		} else if i.IsMisc(KwBeginProc) {
 			break // OK
 		}
 		g.cc.ErrorAt(i).With("the fallthrough must be followed by a proc")
@@ -78,21 +78,18 @@ func (g *Generator) validateInsts(insts []*Inst) {
 		case InstLabel:
 			label := GetNamedValue(i.Args[0], LabelT)
 			label.Addr = 0
-			switch {
-			case label.LinkedToProc():
-				if s.inner == 0 {
-					s.inner = x
-				}
-				states, s = append(states, s), &state{from: x, to: x}
-			case label.LinkedToData():
-				// SKIP
-			default:
+			if !label.LinkedToData() {
 				s.to = x
 			}
 		case InstMisc:
 			switch i.Args[0] {
 			case KwCallproc:
 				g.validateCallproc(i)
+			case KwBeginProc:
+				if s.inner == 0 {
+					s.inner = x
+				}
+				states, s = append(states, s), &state{from: x, to: x}
 			case KwEndProc:
 				tail := insts[s.to]
 				if s.inner > 0 && s.to > s.inner {
@@ -101,7 +98,7 @@ func (g *Generator) validateInsts(insts []*Inst) {
 				}
 
 				g.validateProcTail(tail)
-				insts[s.from].Args[1] = tail
+				insts[s.from].Args[1] = tail // update begin-proc
 				s, states = states[len(states)-1], states[:len(states)-1]
 			case KwFallthrough:
 				g.validateFallthrough(insts[x+1:])
@@ -155,7 +152,7 @@ func (g *Generator) findInstBody(inst *Inst, pass int) []BCode {
 }
 
 // Resolve and flatten nested data using the datatype.
-// The flattened data contains the followind elements:
+// The flattened data contains the following elements:
 //
 //	*Datatype  change single value size(".byte" or ".word")
 //	Int        padding byte size
@@ -165,7 +162,7 @@ func (g *Generator) findInstBody(inst *Inst, pass int) []BCode {
 //
 //	byte [0 1 2] ==> {ByteType (0) (1) (2)}
 //	[4]byte [0 1 2] ==> {ByteType (0) (1) (2) 1}
-//	[2]struct{ a byte b word } [[0 1] [2]] ==> {ByteType (0) WordType (1) ByteType (2) 2 6}
+//	[4]struct{ a byte; b word } [{0 1} {2}] ==> {ByteType (0) WordType (1) ByteType (2) 8}
 func (g *Generator) resolveInstData(inst *Inst) {
 	acc := []Value{NIL}
 	s := &Datatype{}
@@ -522,7 +519,7 @@ func (g *Generator) generateList(insts []*Inst, code []byte) {
 					s += " " + g.ValueToAsm(nil, i)
 				}
 				writes("    ; %s%s", i.Args[1].(*Str), s)
-			case KwEndProc:
+			case KwBeginProc, KwEndProc:
 				writes("")
 			}
 		case InstAssert: // NOP
@@ -541,10 +538,9 @@ func (g *Generator) generateList(insts []*Inst, code []byte) {
 		case InstLabel:
 			nm := i.Args[0].(*Named)
 			s := g.ValueToAsm(nil, nm.AsmName)
-			if nm.Value.(*Label).LinkedToProc() {
-				writes("")
+			if !strings.HasPrefix(s, ".__") {
+				writeh(0, 0, "%s:", s)
 			}
-			writeh(0, 0, "%s:", s)
 		case InstConst:
 			nm := i.Args[0].(*Named)
 			a := g.ValueToAsm(nil, nm.AsmName)
@@ -559,14 +555,18 @@ func (g *Generator) generateList(insts []*Inst, code []byte) {
 			writes("    %s = %s", a, b)
 		case InstCode:
 			kw := i.Args[0]
+			comment := ""
+			if i.Comment != "" {
+				comment = " ; " + i.Comment
+			}
 			if len(i.Args) == 1 {
-				writeh(i.Size, i.Size, "    %s", kw)
+				writeh(i.Size, i.Size, "    %s%s", kw, comment)
 			} else {
 				s := []string{}
 				for _, a := range i.Args[1:] {
 					s = append(s, g.ValueToAsm(nil, a))
 				}
-				writeh(i.Size, i.Size, "    %-6s %s", kw, strings.Join(s, ", "))
+				writeh(i.Size, i.Size, "    %-6s %s%s", kw, strings.Join(s, ", "), comment)
 			}
 		case InstData:
 			p := pc
@@ -625,6 +625,7 @@ func (g *Generator) generateList(insts []*Inst, code []byte) {
 
 func (g *Generator) prepareToGenerateBin(insts []*Inst) {
 	g.validateInsts(insts)
+	g.cc.optimizeFlow(insts)
 
 	oldCodeSize := g.resolveInsts(insts, asmPassEstimate)
 	codeSizes := []int{oldCodeSize}

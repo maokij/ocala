@@ -48,8 +48,40 @@
     LD [1234] IY
     LD SP IX
     LD SP IY
+    LD A [IX 1234]
+    LD B [IX 1234]
+    LD C [IX 1234]
+    LD D [IX 1234]
+    LD E [IX 1234]
+    LD H [IX 1234]
+    LD L [IX 1234]
+    LD A [IY 1234]
+    LD B [IY 1234]
+    LD C [IY 1234]
+    LD D [IY 1234]
+    LD E [IY 1234]
+    LD H [IY 1234]
+    LD L [IY 1234]
+    LD [IX 1234] A
+    LD [IX 1234] B
+    LD [IX 1234] C
+    LD [IX 1234] D
+    LD [IX 1234] E
+    LD [IX 1234] H
+    LD [IX 1234] L
+    LD [IY 1234] A
+    LD [IY 1234] B
+    LD [IY 1234] C
+    LD [IY 1234] D
+    LD [IY 1234] E
+    LD [IY 1234] H
+    LD [IY 1234] L
     LD [IX 5] 1234
+    LD [IX 1234] 5
+    LD [IX 1234] 1234
     LD [IY 5] 1234
+    LD [IY 1234] 5
+    LD [IY 1234] 1234
     LD IX 5
     LD IY 5
     LD HL [5]
@@ -90,36 +122,56 @@
     ADD IY DE
     ADD IY IY
     ADD IY SP
+    ADD A [IX 1234]
+    ADD A [IY 1234]
     ADC A [IX 5]
     ADC A [IY 5]
     ADC HL BC
     ADC HL DE
     ADC HL HL
     ADC HL SP
+    ADC A [IX 1234]
+    ADC A [IY 1234]
     SUB [IX 5]
     SUB [IY 5]
+    SUB [IX 1234]
+    SUB [IY 1234]
     SBC A [IX 5]
     SBC A [IY 5]
     SBC HL BC
     SBC HL DE
     SBC HL HL
     SBC HL SP
+    SBC A [IX 1234]
+    SBC A [IY 1234]
     AND [IX 5]
     AND [IY 5]
+    AND [IX 1234]
+    AND [IY 1234]
     OR [IX 5]
     OR [IY 5]
+    OR [IX 1234]
+    OR [IY 1234]
     XOR [IX 5]
     XOR [IY 5]
+    XOR [IX 1234]
+    XOR [IY 1234]
     CP [IX 5]
     CP [IY 5]
+    CP [IX 1234]
+    CP [IY 1234]
     INC [IX 5]
     INC [IY 5]
     INC IX
     INC IY
+    INC [IX 1234]
+    INC [IY 1234]
     DEC [IX 5]
     DEC [IY 5]
     DEC IX
     DEC IY
+    DEC [IX 1234]
+    DEC [IY 1234]
     RLC A
     RLC B
     RLC C
@@ -130,6 +182,8 @@
     RLC [HL]
     RLC [IX 5]
     RLC [IY 5]
+    RLC [IX 1234]
+    RLC [IY 1234]
     RL A
     RL B
     RL C
@@ -140,6 +194,8 @@
     RL [HL]
     RL [IX 5]
     RL [IY 5]
+    RL [IX 1234]
+    RL [IY 1234]
     RRC A
     RRC B
     RRC C
@@ -150,6 +206,8 @@
     RRC [HL]
     RRC [IX 5]
     RRC [IY 5]
+    RRC [IX 1234]
+    RRC [IY 1234]
     RR A
     RR B
     RR C
@@ -160,6 +218,8 @@
     RR [HL]
     RR [IX 5]
     RR [IY 5]
+    RR [IX 1234]
+    RR [IY 1234]
     SLA A
     SLA B
     SLA C
@@ -170,6 +230,8 @@
     SLA [HL]
     SLA [IX 5]
     SLA [IY 5]
+    SLA [IX 1234]
+    SLA [IY 1234]
     SRA A
     SRA B
     SRA C
@@ -180,6 +242,8 @@
     SRA [HL]
     SRA [IX 5]
     SRA [IY 5]
+    SRA [IX 1234]
+    SRA [IY 1234]
     SRL A
     SRL B
     SRL C
@@ -190,6 +254,8 @@
     SRL [HL]
     SRL [IX 5]
     SRL [IY 5]
+    SRL [IX 1234]
+    SRL [IY 1234]
     RLD
     RRD
     BIT 5 A
@@ -210,8 +276,12 @@
     BIT 1234 H
     BIT 1234 L
     BIT 1234 [HL]
+    BIT 5 [IX 1234]
     BIT 1234 [IX 5]
+    BIT 1234 [IX 1234]
+    BIT 5 [IY 1234]
     BIT 1234 [IY 5]
+    BIT 1234 [IY 1234]
     SET 5 A
     SET 5 B
     SET 5 C
@@ -230,8 +300,12 @@
     SET 1234 H
     SET 1234 L
     SET 1234 [HL]
+    SET 5 [IX 1234]
     SET 1234 [IX 5]
+    SET 1234 [IX 1234]
+    SET 5 [IY 1234]
     SET 1234 [IY 5]
+    SET 1234 [IY 1234]
     RES 5 A
     RES 5 B
     RES 5 C
@@ -250,10 +324,16 @@
     RES 1234 H
     RES 1234 L
     RES 1234 [HL]
+    RES 5 [IX 1234]
     RES 1234 [IX 5]
+    RES 1234 [IX 1234]
+    RES 5 [IY 1234]
     RES 1234 [IY 5]
+    RES 1234 [IY 1234]
     JP [IX 5]
     JP [IY 5]
+    JP [IX 1234]
+    JP [IY 1234]
     JR 1234
     JR C? 1234
     JR NC? 1234

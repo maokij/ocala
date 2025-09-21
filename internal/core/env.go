@@ -148,7 +148,7 @@ func (v *Keyword) ToId(token *Token) *Identifier {
 }
 
 func (v *Keyword) MatchId(a Value) *Identifier {
-	if a, ok := a.(*Identifier); ok && a.Namespace == nil && v == a.Name {
+	if a, ok := a.(*Identifier); ok && a.IsPlain() && v == a.Name {
 		return a
 	}
 	return nil
@@ -303,7 +303,7 @@ func (v *Vec) ExprTag() *Identifier {
 }
 
 func (v *Vec) ExprTagName() *Keyword {
-	if etag := v.ExprTag(); etag != nil && etag.Namespace == nil {
+	if etag := v.ExprTag(); etag != nil && etag.IsPlain() {
 		return etag.Name
 	}
 	return nil
@@ -362,6 +362,10 @@ func (v *Identifier) Expand(kw *Keyword) *Identifier {
 
 func (v *Identifier) ToConstexpr(env *Env) *Constexpr {
 	return &Constexpr{Token: v.Token, Body: v, Env: env}
+}
+
+func (v *Identifier) IsPlain() bool {
+	return v.Namespace == nil && v.PlaceHolder == ""
 }
 
 func InternalId(kw *Keyword) *Identifier {
@@ -436,7 +440,7 @@ func (v *Constexpr) Dup() Value {
 }
 
 func InternalConstexpr(v Value) *Constexpr {
-	return &Constexpr{Token: &Token{From: InternalParser}, Body: v}
+	return &Constexpr{Token: &Token{From: InternalParser, Value: NIL}, Body: v}
 }
 
 // //////////////////////////////////////////////////////////
@@ -528,10 +532,11 @@ func (v *Operand) Dup() Value {
 
 // //////////////////////////////////////////////////////////
 type Inst struct {
-	Kind int
-	From *Vec
-	Args []Value
-	Size int
+	Kind    int
+	From    *Vec
+	Args    []Value
+	Size    int
+	Comment string
 }
 
 const (
@@ -548,8 +553,22 @@ const (
 	InstAssert
 )
 
+var InstKindLabels = []string{
+	"label",
+	"code",
+	"data",
+	"ds",
+	"blob",
+	"org",
+	"align",
+	"const",
+	"bind",
+	"misc",
+	"assert",
+}
+
 func (v *Inst) Inspect() string {
-	return fmt.Sprintf("%d %s", byte(v.Kind), (*Vec)(&v.Args).Inspect())
+	return fmt.Sprintf("%s %s", InstKindLabels[v.Kind], (*Vec)(&v.Args).Inspect())
 }
 
 func (v *Inst) Dup() Value {
@@ -566,6 +585,19 @@ func (v *Inst) ExprTag() *Identifier {
 
 func (v *Inst) MatchCode(a ...*Keyword) bool {
 	return v.Kind == InstCode && slices.Contains(a, v.Args[0].(*Keyword))
+}
+
+func (v *Inst) IsMisc(kw *Keyword) bool {
+	return v.Kind == InstMisc && v.Args[0] == kw
+}
+
+func (v *Inst) CommentOut() {
+	if v.Kind == InstCode {
+		v.Args = append([]Value{KwComment, NewStr("//")}, v.Args...)
+	} else {
+		v.Args = []Value{KwComment, NewStr("// " + InstKindLabels[v.Kind])}
+	}
+	v.Kind = InstMisc
 }
 
 func NewInst(from *Vec, kind int, args ...Value) *Inst {
@@ -854,10 +886,6 @@ func (env *Env) Install(nm *Named) *Named {
 	return nm
 }
 
-func (env *Env) LookupById(id *Identifier) *Named {
-	return env.Lookup(id.Name)
-}
-
 func (env *Env) Lookup(k *Keyword) *Named {
 	nm := env.Find(k)
 	if nm != nil {
@@ -867,10 +895,6 @@ func (env *Env) Lookup(k *Keyword) *Named {
 		return env.outer.Lookup(k)
 	}
 	return nil
-}
-
-func (env *Env) FindById(id *Identifier) *Named {
-	return env.Find(id.Name)
 }
 
 func (env *Env) Find(k *Keyword) *Named {

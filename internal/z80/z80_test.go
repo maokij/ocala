@@ -10,12 +10,19 @@ import (
 	"testing"
 )
 
-func compile(src string) ([]byte, string) {
-	return ttarch.Compile("z80", src)
+func expectCompileOk(t *testing.T, src string) []byte {
+	t.Helper()
+	return ttarch.ExpectCompileOk(t, "z80", src)
 }
 
-func genlist(src string) (string, string) {
-	return ttarch.GenList("z80", src)
+func expectCompileError(t *testing.T, src string) string {
+	t.Helper()
+	return ttarch.ExpectCompileError(t, "z80", src)
+}
+
+func expectGenListOk(t *testing.T, src string) string {
+	t.Helper()
+	return ttarch.ExpectGenListOk(t, "z80", src)
 }
 
 func TestCompileTestFiles(t *testing.T) {
@@ -58,7 +65,7 @@ func TestCompileUnsupportedFiles(t *testing.T) {
 
 func TestGenerateList(t *testing.T) {
 	t.Run("ok", func(t *testing.T) {
-		list, mes := genlist(`
+		list := expectGenListOk(t, `
 			section text
 			proc f001(!) {
 				A <- 1
@@ -67,7 +74,7 @@ func TestGenerateList(t *testing.T) {
 				A <- (3 + 2 - 1 + lobyte(1))
 				A <- B
 				A <- hibyte(f001)
-				RET
+				PC -return
 			}
 		`)
 		tt.EqText(t, tt.Unindent(`
@@ -84,16 +91,16 @@ func TestGenerateList(t *testing.T) {
 			000008 0008[1] 78                           LD     A, B
 			000009 0009[2] 3e 00                        LD     A, hibyte(f001)
 			00000b 000b[1] c9                           RET
-		`)[1:]+"\n\n", list, mes)
+		`)[1:], list)
 	})
 
 	t.Run("ok: optimize 0", func(t *testing.T) {
-		list, mes := genlist(`flat!
+		list := expectGenListOk(t, `flat!
 			optimize near-jump 0
 			L0: $(L0) -jump; $(L1) -jump
 			L1: $(L0) -jump-if Z?
 			fn()
-			proc fn() { RET }
+			proc fn() { PC -return }
 			C?.fn()
 		`)
 		tt.EqText(t, tt.Unindent(`
@@ -112,16 +119,16 @@ func TestGenerateList(t *testing.T) {
 			00000c 000c[1] c9                           RET
 
 			00000d 000d[3] dc 0c 00                     CALL   C, fn
-		`)[1:]+"\n", list, mes)
+		`)[1:], list)
 	})
 
 	t.Run("ok: optimize 1", func(t *testing.T) {
-		list, mes := genlist(`flat!
+		list := expectGenListOk(t, `flat!
 			optimize near-jump 1
 			L0: $(L0) -jump; $(L1) -jump
 			L1: $(L0) -jump-if Z?
 			fn()
-			proc fn() { RET }
+			proc fn() { PC -return }
 			C?.fn()
 		`)
 		tt.EqText(t, tt.Unindent(`
@@ -140,16 +147,16 @@ func TestGenerateList(t *testing.T) {
 			00000b 000b[1] c9                           RET
 
 			00000c 000c[3] dc 0b 00                     CALL   C, fn
-		`)[1:]+"\n", list, mes)
+		`)[1:], list)
 	})
 
 	t.Run("ok: optimize 2", func(t *testing.T) {
-		list, mes := genlist(`flat!
+		list := expectGenListOk(t, `flat!
 			optimize near-jump 2
 			L0: $(L0) -jump; $(L1) -jump
 			L1: $(L0) -jump-if Z?
 			fn()
-			proc fn() { RET }
+			proc fn() { PC -return }
 			C?.fn()
 		`)
 		tt.EqText(t, tt.Unindent(`
@@ -168,13 +175,20 @@ func TestGenerateList(t *testing.T) {
 			000009 0009[1] c9                           RET
 
 			00000a 000a[3] dc 09 00                     CALL   C, fn
-		`)[1:]+"\n", list, mes)
+		`)[1:], list)
 	})
 }
 
 func TestCompileCall(t *testing.T) {
 	t.Run("ok", func(t *testing.T) {
-		dat, mes := compile(`flat!
+		expected := expectCompileOk(t, `flat!
+			f001: RET
+			f002: JP f001
+			CALL f001
+			CALL f002
+			OR A
+		`)
+		dat := expectCompileOk(t, `flat!
 			proc f001(!) { RET }
 			proc f002(!) { JP f001 }
 			proc f003(-* !) { A | A; RET }
@@ -182,11 +196,19 @@ func TestCompileCall(t *testing.T) {
 			f002(!)
 			f003(-* !)
 		`)
-		tt.True(t, len(dat) > 0, mes)
+		tt.EqSlice(t, expected, dat)
 	})
 
 	t.Run("ok: sig", func(t *testing.T) {
-		dat, mes := compile(`flat!
+		expected := expectCompileOk(t, `flat!
+			f001: RET
+			f002: RET
+			f003: RET
+			CALL f001
+			CALL f002
+			CALL f003
+		`)
+		dat := expectCompileOk(t, `flat!
 			proc f001(BC => DE) { RET }
 			proc f002(B C => H L) { RET }
 			proc f003(HL => DE !) { RET }
@@ -194,23 +216,30 @@ func TestCompileCall(t *testing.T) {
 			f002(B C => H L)
 			f003(HL => DE !)
 		`)
-		tt.True(t, len(dat) > 0, mes)
+		tt.EqSlice(t, expected, dat)
 	})
 
 	t.Run("ok: conditional call", func(t *testing.T) {
-		dat, mes := compile(`flat!
+		expected := expectCompileOk(t, `flat!
+			f001: RET
+			CALL NC? f001
+		`)
+		dat := expectCompileOk(t, `flat!
 			proc f001(!) { RET }
 			NC?.f001(!)
 		`)
-		tt.True(t, len(dat) > 0, mes)
+		tt.EqSlice(t, expected, dat)
 	})
 
 	t.Run("ok: fallthrough", func(t *testing.T) {
-		dat, mes := compile(`flat!
+		expected := expectCompileOk(t, `flat!
+			f001: f002: RET
+		`)
+		dat := expectCompileOk(t, `flat!
 			proc f001(!) { fallthrough }
 			proc f002(!) { RET }
 		`)
-		tt.True(t, len(dat) > 0, mes)
+		tt.EqSlice(t, expected, dat)
 	})
 
 	t.Run("error", func(t *testing.T) {
@@ -243,7 +272,7 @@ func TestCompileCall(t *testing.T) {
 			`,
 		}
 		for x := 0; x < len(es); x += 2 {
-			_, mes := compile(es[x+1])
+			mes := expectCompileError(t, es[x+1])
 			tt.Eq(t, "compile error: "+es[x], mes, es[x+1])
 		}
 	})
@@ -251,15 +280,21 @@ func TestCompileCall(t *testing.T) {
 
 func TestCompileLDP(t *testing.T) {
 	t.Run("ok", func(t *testing.T) {
-		dat, mes := compile(`flat!
+		expected := expectCompileOk(t, `flat!
+			LD H A
+			LD L B
+			LD A H
+			LD B L
+		`)
+		dat := expectCompileOk(t, `flat!
 			HL <- A : B
 			HL -> A : B
 		`)
-		tt.True(t, len(dat) > 0, mes)
+		tt.EqSlice(t, expected, dat)
 	})
 
 	t.Run("error: invalid", func(t *testing.T) {
-		_, mes := compile(`flat!
+		mes := expectCompileError(t, `flat!
 			SP <- A : B
 		`)
 		tt.Eq(t, "compile error: invalid operands for LDP(#1 = SP, #2 = PQ)", mes)
@@ -267,15 +302,20 @@ func TestCompileLDP(t *testing.T) {
 }
 
 func TestCompileJump(t *testing.T) {
-	dat, mes := compile(`flat!
-		loop { NOP }
-	`)
-	tt.True(t, len(dat) > 0, mes)
+	t.Run("ok", func(t *testing.T) {
+		expected := expectCompileOk(t, `flat!
+			L1: NOP; JP L1
+		`)
+		dat := expectCompileOk(t, `flat!
+			loop { NOP }
+		`)
+		tt.EqSlice(t, expected, dat)
+	})
 }
 
 func TestCompileOptimize(t *testing.T) {
 	t.Run("ok", func(t *testing.T) {
-		dat, mes := compile(`flat!
+		dat := expectCompileOk(t, `flat!
 			optimize near-jump 2
 			L0: expand-loop 65 { $(L0) -jump }
 			expand-loop 65 { $(L1) -jump-if C? }; L1:
@@ -309,37 +349,37 @@ func TestCompileOptimize(t *testing.T) {
 			0x18, 0xae, 0x18, 0xac, 0x18, 0xaa, 0x18, 0xa8, 0x18, 0xa6, 0x18, 0xa4, 0x18, 0xa2, 0x18, 0xa0,
 			0x18, 0x9e, 0x18, 0x9c, 0x18, 0x9a, 0x18, 0x98, 0x18, 0x96, 0x18, 0x94, 0x18, 0x92, 0x18, 0x90,
 			0x18, 0x8e, 0x18, 0x8c, 0x18, 0x8a, 0x18, 0x88, 0x18, 0x86, 0x18, 0x84, 0x18, 0x82, 0x18, 0x80,
-		}, dat, mes)
+		}, dat)
 	})
 
 	t.Run("ok: JP", func(t *testing.T) {
-		dat, mes := compile(`flat!
+		dat := expectCompileOk(t, `flat!
 			optimize near-jump 2
 			L0: JP L0; NOP
 		`)
-		tt.EqSlice(t, []byte{0xc3, 0x00, 0x00, 0x00}, dat, mes)
+		tt.EqSlice(t, []byte{0xc3, 0x00, 0x00, 0x00}, dat)
 	})
 
 	t.Run("ok: optimize 0", func(t *testing.T) {
-		s, _ := compile(`flat!
+		expected := expectCompileOk(t, `flat!
 			L0: JP L0; NOP
 		`)
-		dat, mes := compile(`flat!
+		dat := expectCompileOk(t, `flat!
 			optimize near-jump 0
 			L0: $(L0) -jump; NOP
 		`)
-		tt.EqSlice(t, s, dat, mes, s, dat)
+		tt.EqSlice(t, expected, dat)
 	})
 
 	t.Run("ok: optimize 1", func(t *testing.T) {
-		s, _ := compile(`flat!
+		expected := expectCompileOk(t, `flat!
 			L0: JP L0; JR L1; L1:
 		`)
-		dat, mes := compile(`flat!
+		dat := expectCompileOk(t, `flat!
 			optimize near-jump 1
 			L0: $(L0) -jump; $(L1) -jump; L1:
 		`)
-		tt.EqSlice(t, s, dat, mes, s, dat)
+		tt.EqSlice(t, expected, dat)
 	})
 
 	t.Run("error", func(t *testing.T) {
@@ -353,9 +393,307 @@ func TestCompileOptimize(t *testing.T) {
 			`,
 		}
 		for x := 0; x < len(es); x += 2 {
-			_, mes := compile(es[x+1])
+			mes := expectCompileError(t, es[x+1])
 			tt.Eq(t, "compile error: "+es[x], mes, es[x+1])
 		}
+	})
+}
+
+func TestCompileOptimizeFlow(t *testing.T) {
+	t.Run("ok", func(t *testing.T) {
+		es := []string{
+			`flat!; do {
+			  L0: JR L4
+			  N1: NOP
+			  L1: JR L4
+			  N2: NOP
+			  L2: JR L4
+			  N3: NOP
+			  L3: JR L4
+			  N4: NOP
+			  L4: NOP ; RET
+			}`, `optimize flow; proc f001() {
+			  L0: $(L1) -jump
+			  N1: NOP
+			  L1: $(L2) -jump
+			  N2: NOP
+			  L2: $(L3) -jump
+			  N3: NOP
+			  L3: $(L4) -jump
+			  N4: NOP
+			  L4: NOP ; PC -return
+			}`,
+
+			`flat!; do {
+			  L0: JR L2
+			  N1: NOP
+			  L1: JR L2
+			  N2: NOP
+			  L2: JR Z? L4
+			  N3: NOP
+			  L3: JR L4
+			  N4: NOP
+			  L4: NOP ; RET
+			}`, `optimize flow; proc f001() {
+			  L0: $(L1) -jump
+			  N1: NOP
+			  L1: $(L2) -jump
+			  N2: NOP
+			  L2: $(L3) -jump-if Z?
+			  N3: NOP
+			  L3: $(L4) -jump
+			  N4: NOP
+			  L4: NOP ; PC -return
+			}`,
+
+			`flat!; do {
+			  L0: RET
+			  N1: NOP
+			  L1: RET
+			  N2: NOP
+			  L2: RET
+			  N3: NOP
+			  L3: RET
+			  N4: NOP
+			  L4: RET
+			}`, `optimize flow; proc f001() {
+			  L0: $(L1) -jump
+			  N1: NOP
+			  L1: $(L2) -jump
+			  N2: NOP
+			  L2: $(L3) -jump
+			  N3: NOP
+			  L3: $(L4) -jump
+			  N4: NOP
+			  L4: PC -return
+			}`,
+
+			`flat!; do {
+			  L0: JR L2
+			  N1: NOP
+			  L1: JR L2
+			  N2: NOP
+			  L2: RET Z?
+			  N3: NOP
+			  L3: RET
+			  N4: NOP
+			  L4: RET
+			}`, `optimize flow; proc f001() {
+			  L0: $(L1) -jump
+			  N1: NOP
+			  L1: $(L2) -jump
+			  N2: NOP
+			  L2: $(L3) -jump-if Z?
+			  N3: NOP
+			  L3: $(L4) -jump
+			  N4: NOP
+			  L4: PC -return
+			}`,
+
+			//
+			`flat!; do {
+			    RET
+			    L9: JP 0
+			}`, `optimize flow; proc f001() {
+			    L0: PC -return ; RRA
+			    L9: $(0x00) -jump
+			}`,
+
+			`flat!; do {
+			    RET Z? ; RRA
+			    L9: JP 0
+			}`, `optimize flow; proc f001() {
+			    L0: PC -return-if Z? ; RRA
+			    L9: $(0x00) -jump
+			}`,
+
+			`flat!; do {
+			    RET
+			    L9: JP 0
+			}`, `optimize flow; proc f001() {
+			    L0: PC -return
+			    L1: PC -return
+			    L9: $(0x00) -jump
+			}`,
+
+			`flat!; do {
+			    RET Z?
+			    L9: JP 0
+			}`, `optimize flow; proc f001() {
+			    L0: PC -return-if Z?
+			    L1: PC -return-if Z?
+			    L9: $(0x00) -jump
+			}`,
+
+			`flat!; do {
+			    RET
+			    RET Z?
+			    L9: JP 0
+			}`, `optimize flow; proc f001() {
+			    L0: PC -return
+			    L1: PC -return-if Z?
+			    L9: $(0x00) -jump
+			}`,
+
+			`flat!; do {
+			    RET
+			    L9: JP 0
+			}`, `optimize flow; proc f001() {
+			    L0: PC -return-if Z?
+			    L1: PC -return
+			    L9: $(0x00) -jump
+			}`,
+
+			//
+			`flat!; do {
+			    L0: JR L9
+			    N9: NOP
+			    L9: JP 0
+			}`, `optimize flow; proc f001() {
+			    L0: $(L9) -jump ; RRA
+			    N9: NOP
+			    L9: $(0x00) -jump
+			}`,
+
+			`flat!; do {
+			    L0: JR Z? L9 ; RRA
+			    N9: NOP
+			    L9: JP 0
+			}`, `optimize flow; proc f001() {
+			    L0: $(L9) -jump-if Z? ; RRA
+			    N9: NOP
+			    L9: $(0x00) -jump
+			}`,
+
+			`flat!; do {
+			    L0: JR L9
+			    N9: NOP
+			    L9: JP 0
+			}`, `optimize flow; proc f001() {
+			    L0: $(L9) -jump
+			    L1: $(L9) -jump
+			    N9: NOP
+			    L9: $(0x00) -jump
+			}`,
+
+			`flat!; do {
+			    L0: JR Z? L9
+			    N9: NOP
+			    L9: JP 0
+			}`, `optimize flow; proc f001() {
+			    L0: $(L9) -jump-if Z?
+			    L1: $(L9) -jump-if Z?
+			    N9: NOP
+			    L9: $(0x00) -jump
+			}`,
+
+			`flat!; do {
+			    L0: JR L9
+			    L1: JR Z? L9
+			    N9: NOP
+			    L9: JP 0
+			}`, `optimize flow; proc f001() {
+			    L0: $(L9) -jump
+			    L1: $(L9) -jump-if Z?
+			    N9: NOP
+			    L9: $(0x00) -jump
+			}`,
+
+			`flat!; do {
+			    L1: JR L9
+			    N9: NOP
+			    L9: JP 0
+			}`, `optimize flow; proc f001() {
+			    L0: $(L9) -jump-if Z?
+			    L1: $(L9) -jump
+			    N9: NOP
+			    L9: $(0x00) -jump
+			}`,
+
+			`flat!; do {
+			    N9: NOP
+			    L9: JP 0
+			}`, `optimize flow; proc f001() {
+			    L0: $(N9) -jump
+			    N9: NOP
+			    L9: $(0x00) -jump
+			}`,
+
+			`flat!; do {
+			    N9: NOP
+			    L9: JP 0
+			}`, `optimize flow; proc f001() {
+			    L0: $(N9) -jump-if Z?
+			    N9: NOP
+			    L9: $(0x00) -jump
+			}`,
+
+			//
+			`flat!; do {
+			  RET
+			  data byte [0 1 2 3]
+			  L1: RET
+			}`, `optimize flow; proc f001() {
+			  $(L1) -jump
+			  data byte [0 1 2 3]
+			  L1: PC -return
+			}`,
+
+			`flat!; do {
+			  L0: JR L2
+			  N1: NOP
+			  L1: JR L2
+			  N2: NOP
+			  L2: JR L3
+			  N3: NOP
+			  L3: NOP ; RET
+			}`, `optimize flow; proc f001() {
+			  L0: $(L1) -jump
+			  N1: NOP
+			  L1: $(L2) -jump
+			  N2: NOP
+			  L2: align 2; $(L3) -jump ;
+			  N3: NOP
+			  L3: NOP ; RET
+			}`,
+		}
+		for x := 0; x < len(es); x += 2 {
+			expected := expectCompileOk(t, es[x])
+			dat := expectCompileOk(t, es[x+1])
+			tt.EqSlice(t, expected, dat, x/2, es[x+1])
+		}
+	})
+
+	t.Run("ok: jump cycle", func(t *testing.T) {
+		expected := expectCompileOk(t, `flat!
+			NOP
+			L0: JR L1 ; N0: NOP
+			L1: JR L2 ; N1: NOP
+			L2: JR L3 ; N2: NOP
+			L3: JP L1 ; N3: NOP
+			L4: NOP; RET
+		`)
+		g := ttarch.BuildGenerator("z80", tt.Unindent(`flat!
+			optimize flow
+			proc f001() {
+			  NOP
+			  L0: $(L1) -jump ; NOP ; N0: NOP
+			  L1: $(L2) -jump ; NOP ; N1: NOP
+			  L2: $(L3) -jump ; NOP ; N2: NOP
+			  L3: $(L1) -jump ; NOP ; N3: NOP
+			  L4: NOP; RET
+			}
+		`))
+		dat, _, mes := ttarch.DoCompile(g, "-")
+		warns := slices.Sorted(slices.Values(ttarch.WarningMessages(g)))
+
+		tt.EqSlice(t, expected, dat, mes)
+		tt.EqSlice(t, []string{
+			"warning: jump cycle detected: L0 -> L1",
+			"warning: jump cycle detected: L1 -> L2",
+			"warning: jump cycle detected: L2 -> L3",
+			"warning: jump cycle detected: L3 -> L1",
+		}, warns)
 	})
 }
 
@@ -373,9 +711,12 @@ func TestCompileError(t *testing.T) {
 		"invalid operands for OUT. some operand values may be out of range", `flat!
 			OUT [1024] A
 		`,
+		"invalid operands for LD. some operand values may be out of range", `flat!
+			A <- [IX 256]
+		`,
 	}
 	for x := 0; x < len(es); x += 2 {
-		_, mes := compile(es[x+1])
+		mes := expectCompileError(t, es[x+1])
 		tt.Eq(t, "compile error: "+es[x], mes, es[x+1])
 	}
 }

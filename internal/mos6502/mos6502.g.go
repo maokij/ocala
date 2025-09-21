@@ -69,6 +69,7 @@ var kwRTI = Intern("RTI")
 var kwRTS = Intern("RTS")
 var kwRegA = Intern("A")
 var kwRegP = Intern("P")
+var kwRegPC = Intern("PC")
 var kwRegS = Intern("S")
 var kwRegX = Intern("X")
 var kwRegY = Intern("Y")
@@ -92,6 +93,7 @@ var asmOperands = map[*Keyword]AsmOperand{
 	kwRegY:   {"Y", false},
 	kwRegS:   {"S", false},
 	kwRegP:   {"P", false},
+	kwRegPC:  {"PC", false},
 	kwImmN:   {"#%", true},
 	kwImmNN:  {"#%", true},
 	kwMemZN:  {"%", true},
@@ -114,10 +116,10 @@ var asmOperands = map[*Keyword]AsmOperand{
 }
 
 var tokenWords = [][]string{
-	{"A", "X", "Y", "S", "P"},
+	{"A", "X", "Y", "S", "P", "PC"},
 	{"NE?", "EQ?", "CC?", "CS?", "VC?", "VS?", "PL?", "MI?"},
-	{"-push", "-pop", "++", "--", "-not", "-neg", "-jump"},
-	{"<-", "->", "+$", "-$", "-?", "-bit?", "<*", "<*$", ">*", ">*$", "-jump-if", "-jump-unless"},
+	{"-push", "-pop", "++", "--", "-not", "-neg", "-jump", "-return"},
+	{"<-", "->", "+$", "-$", "-?", "-bit?", "<*", "<*$", ">*", ">*$", "-jump-if", "-jump-unless", "-return-if", "-return-unless"},
 }
 
 var tokenAliases = map[string]string{
@@ -140,64 +142,64 @@ var tokenAliases = map[string]string{
 var instMap = InstPat{
 	kwLDA: InstPat{
 		kwImmN: InstPat{
-			nil: InstDat{
+			nil: InstDat{ // LDA N
 				{Kind: BcByte, A0: 0xa9},
 				{Kind: BcLow, A0: 0x00},
 			},
 		},
 		kwMemZN: InstPat{
-			nil: InstDat{
+			nil: InstDat{ // LDA ZN
 				{Kind: BcByte, A0: 0xa5},
 				{Kind: BcLow, A0: 0x00},
 			},
 		},
 		kwMemZX: InstPat{
-			nil: InstDat{
+			nil: InstDat{ // LDA ZX
 				{Kind: BcByte, A0: 0xb5},
 				{Kind: BcLow, A0: 0x00},
 			},
 		},
 		kwMemAN: InstPat{
-			nil: InstDat{
+			nil: InstDat{ // LDA AN
 				{Kind: BcByte, A0: 0xad},
 				{Kind: BcLow, A0: 0x00},
 				{Kind: BcHigh, A0: 0x00},
 			},
 		},
 		kwMemAX: InstPat{
-			nil: InstDat{
+			nil: InstDat{ // LDA AX
 				{Kind: BcByte, A0: 0xbd},
 				{Kind: BcLow, A0: 0x00},
 				{Kind: BcHigh, A0: 0x00},
 			},
 		},
 		kwMemAY: InstPat{
-			nil: InstDat{
+			nil: InstDat{ // LDA AY
 				{Kind: BcByte, A0: 0xb9},
 				{Kind: BcLow, A0: 0x00},
 				{Kind: BcHigh, A0: 0x00},
 			},
 		},
 		kwMemIX: InstPat{
-			nil: InstDat{
+			nil: InstDat{ // LDA IX
 				{Kind: BcByte, A0: 0xa1},
 				{Kind: BcLow, A0: 0x00},
 			},
 		},
 		kwMemIY: InstPat{
-			nil: InstDat{
+			nil: InstDat{ // LDA IY
 				{Kind: BcByte, A0: 0xb1},
 				{Kind: BcLow, A0: 0x00},
 			},
 		},
 		kwImmNN: InstPat{
-			nil: InstDat{
+			nil: InstDat{ // LDA NN
 				{Kind: BcTemp, A0: 0x00},
 				{Kind: BcTemp, A0: 0x00},
 			},
 		},
 		kwMemZY: InstPat{
-			nil: InstDat{
+			nil: InstDat{ // LDA ZY
 				{Kind: BcByte, A0: 0xb9},
 				{Kind: BcLow, A0: 0x00},
 				{Kind: BcHigh, A0: 0x00},
@@ -206,39 +208,39 @@ var instMap = InstPat{
 	},
 	kwLDX: InstPat{
 		kwImmN: InstPat{
-			nil: InstDat{
+			nil: InstDat{ // LDX N
 				{Kind: BcByte, A0: 0xa2},
 				{Kind: BcLow, A0: 0x00},
 			},
 		},
 		kwMemZN: InstPat{
-			nil: InstDat{
+			nil: InstDat{ // LDX ZN
 				{Kind: BcByte, A0: 0xa6},
 				{Kind: BcLow, A0: 0x00},
 			},
 		},
 		kwMemZY: InstPat{
-			nil: InstDat{
+			nil: InstDat{ // LDX ZY
 				{Kind: BcByte, A0: 0xb6},
 				{Kind: BcLow, A0: 0x00},
 			},
 		},
 		kwMemAN: InstPat{
-			nil: InstDat{
+			nil: InstDat{ // LDX AN
 				{Kind: BcByte, A0: 0xae},
 				{Kind: BcLow, A0: 0x00},
 				{Kind: BcHigh, A0: 0x00},
 			},
 		},
 		kwMemAY: InstPat{
-			nil: InstDat{
+			nil: InstDat{ // LDX AY
 				{Kind: BcByte, A0: 0xbe},
 				{Kind: BcLow, A0: 0x00},
 				{Kind: BcHigh, A0: 0x00},
 			},
 		},
 		kwImmNN: InstPat{
-			nil: InstDat{
+			nil: InstDat{ // LDX NN
 				{Kind: BcTemp, A0: 0x00},
 				{Kind: BcTemp, A0: 0x00},
 			},
@@ -246,39 +248,39 @@ var instMap = InstPat{
 	},
 	kwLDY: InstPat{
 		kwImmN: InstPat{
-			nil: InstDat{
+			nil: InstDat{ // LDY N
 				{Kind: BcByte, A0: 0xa0},
 				{Kind: BcLow, A0: 0x00},
 			},
 		},
 		kwMemZN: InstPat{
-			nil: InstDat{
+			nil: InstDat{ // LDY ZN
 				{Kind: BcByte, A0: 0xa4},
 				{Kind: BcLow, A0: 0x00},
 			},
 		},
 		kwMemZX: InstPat{
-			nil: InstDat{
+			nil: InstDat{ // LDY ZX
 				{Kind: BcByte, A0: 0xb4},
 				{Kind: BcLow, A0: 0x00},
 			},
 		},
 		kwMemAN: InstPat{
-			nil: InstDat{
+			nil: InstDat{ // LDY AN
 				{Kind: BcByte, A0: 0xac},
 				{Kind: BcLow, A0: 0x00},
 				{Kind: BcHigh, A0: 0x00},
 			},
 		},
 		kwMemAX: InstPat{
-			nil: InstDat{
+			nil: InstDat{ // LDY AX
 				{Kind: BcByte, A0: 0xbc},
 				{Kind: BcLow, A0: 0x00},
 				{Kind: BcHigh, A0: 0x00},
 			},
 		},
 		kwImmNN: InstPat{
-			nil: InstDat{
+			nil: InstDat{ // LDY NN
 				{Kind: BcTemp, A0: 0x00},
 				{Kind: BcTemp, A0: 0x00},
 			},
@@ -286,52 +288,52 @@ var instMap = InstPat{
 	},
 	kwSTA: InstPat{
 		kwMemZN: InstPat{
-			nil: InstDat{
+			nil: InstDat{ // STA ZN
 				{Kind: BcByte, A0: 0x85},
 				{Kind: BcLow, A0: 0x00},
 			},
 		},
 		kwMemZX: InstPat{
-			nil: InstDat{
+			nil: InstDat{ // STA ZX
 				{Kind: BcByte, A0: 0x95},
 				{Kind: BcLow, A0: 0x00},
 			},
 		},
 		kwMemAN: InstPat{
-			nil: InstDat{
+			nil: InstDat{ // STA AN
 				{Kind: BcByte, A0: 0x8d},
 				{Kind: BcLow, A0: 0x00},
 				{Kind: BcHigh, A0: 0x00},
 			},
 		},
 		kwMemAX: InstPat{
-			nil: InstDat{
+			nil: InstDat{ // STA AX
 				{Kind: BcByte, A0: 0x9d},
 				{Kind: BcLow, A0: 0x00},
 				{Kind: BcHigh, A0: 0x00},
 			},
 		},
 		kwMemAY: InstPat{
-			nil: InstDat{
+			nil: InstDat{ // STA AY
 				{Kind: BcByte, A0: 0x99},
 				{Kind: BcLow, A0: 0x00},
 				{Kind: BcHigh, A0: 0x00},
 			},
 		},
 		kwMemIX: InstPat{
-			nil: InstDat{
+			nil: InstDat{ // STA IX
 				{Kind: BcByte, A0: 0x81},
 				{Kind: BcLow, A0: 0x00},
 			},
 		},
 		kwMemIY: InstPat{
-			nil: InstDat{
+			nil: InstDat{ // STA IY
 				{Kind: BcByte, A0: 0x91},
 				{Kind: BcLow, A0: 0x00},
 			},
 		},
 		kwMemZY: InstPat{
-			nil: InstDat{
+			nil: InstDat{ // STA ZY
 				{Kind: BcByte, A0: 0x99},
 				{Kind: BcLow, A0: 0x00},
 				{Kind: BcHigh, A0: 0x00},
@@ -340,26 +342,26 @@ var instMap = InstPat{
 	},
 	kwSTX: InstPat{
 		kwMemZN: InstPat{
-			nil: InstDat{
+			nil: InstDat{ // STX ZN
 				{Kind: BcByte, A0: 0x86},
 				{Kind: BcLow, A0: 0x00},
 			},
 		},
 		kwMemZY: InstPat{
-			nil: InstDat{
+			nil: InstDat{ // STX ZY
 				{Kind: BcByte, A0: 0x96},
 				{Kind: BcLow, A0: 0x00},
 			},
 		},
 		kwMemAN: InstPat{
-			nil: InstDat{
+			nil: InstDat{ // STX AN
 				{Kind: BcByte, A0: 0x8e},
 				{Kind: BcLow, A0: 0x00},
 				{Kind: BcHigh, A0: 0x00},
 			},
 		},
 		kwMemAY: InstPat{
-			nil: InstDat{
+			nil: InstDat{ // STX AY
 				{Kind: BcTemp, A0: 0x00},
 				{Kind: BcTemp, A0: 0x00},
 			},
@@ -367,153 +369,153 @@ var instMap = InstPat{
 	},
 	kwSTY: InstPat{
 		kwMemZN: InstPat{
-			nil: InstDat{
+			nil: InstDat{ // STY ZN
 				{Kind: BcByte, A0: 0x84},
 				{Kind: BcLow, A0: 0x00},
 			},
 		},
 		kwMemZX: InstPat{
-			nil: InstDat{
+			nil: InstDat{ // STY ZX
 				{Kind: BcByte, A0: 0x94},
 				{Kind: BcLow, A0: 0x00},
 			},
 		},
 		kwMemAN: InstPat{
-			nil: InstDat{
+			nil: InstDat{ // STY AN
 				{Kind: BcByte, A0: 0x8c},
 				{Kind: BcLow, A0: 0x00},
 				{Kind: BcHigh, A0: 0x00},
 			},
 		},
 		kwMemAX: InstPat{
-			nil: InstDat{
+			nil: InstDat{ // STY AX
 				{Kind: BcTemp, A0: 0x00},
 				{Kind: BcTemp, A0: 0x00},
 			},
 		},
 	},
 	kwTAX: InstPat{
-		nil: InstDat{
+		nil: InstDat{ // TAX
 			{Kind: BcByte, A0: 0xaa},
 		},
 	},
 	kwTAY: InstPat{
-		nil: InstDat{
+		nil: InstDat{ // TAY
 			{Kind: BcByte, A0: 0xa8},
 		},
 	},
 	kwTSX: InstPat{
-		nil: InstDat{
+		nil: InstDat{ // TSX
 			{Kind: BcByte, A0: 0xba},
 		},
 	},
 	kwTXA: InstPat{
-		nil: InstDat{
+		nil: InstDat{ // TXA
 			{Kind: BcByte, A0: 0x8a},
 		},
 	},
 	kwTXS: InstPat{
-		nil: InstDat{
+		nil: InstDat{ // TXS
 			{Kind: BcByte, A0: 0x9a},
 		},
 	},
 	kwTYA: InstPat{
-		nil: InstDat{
+		nil: InstDat{ // TYA
 			{Kind: BcByte, A0: 0x98},
 		},
 	},
 	kwPHA: InstPat{
-		nil: InstDat{
+		nil: InstDat{ // PHA
 			{Kind: BcByte, A0: 0x48},
 		},
 	},
 	kwPHP: InstPat{
-		nil: InstDat{
+		nil: InstDat{ // PHP
 			{Kind: BcByte, A0: 0x08},
 		},
 	},
 	kwPLP: InstPat{
-		nil: InstDat{
+		nil: InstDat{ // PLP
 			{Kind: BcByte, A0: 0x28},
 		},
 	},
 	kwPLA: InstPat{
-		nil: InstDat{
+		nil: InstDat{ // PLA
 			{Kind: BcByte, A0: 0x68},
 		},
 	},
 	kwCLC: InstPat{
-		nil: InstDat{
+		nil: InstDat{ // CLC
 			{Kind: BcByte, A0: 0x18},
 		},
 	},
 	kwCLI: InstPat{
-		nil: InstDat{
+		nil: InstDat{ // CLI
 			{Kind: BcByte, A0: 0x58},
 		},
 	},
 	kwCLD: InstPat{
-		nil: InstDat{
+		nil: InstDat{ // CLD
 			{Kind: BcByte, A0: 0xd8},
 		},
 	},
 	kwCLV: InstPat{
-		nil: InstDat{
+		nil: InstDat{ // CLV
 			{Kind: BcByte, A0: 0xb8},
 		},
 	},
 	kwSEC: InstPat{
-		nil: InstDat{
+		nil: InstDat{ // SEC
 			{Kind: BcByte, A0: 0x38},
 		},
 	},
 	kwSEI: InstPat{
-		nil: InstDat{
+		nil: InstDat{ // SEI
 			{Kind: BcByte, A0: 0x78},
 		},
 	},
 	kwSED: InstPat{
-		nil: InstDat{
+		nil: InstDat{ // SED
 			{Kind: BcByte, A0: 0xf8},
 		},
 	},
 	kwBRK: InstPat{
-		nil: InstDat{
+		nil: InstDat{ // BRK
 			{Kind: BcByte, A0: 0x00},
 		},
 	},
 	kwNOP: InstPat{
-		nil: InstDat{
+		nil: InstDat{ // NOP
 			{Kind: BcByte, A0: 0xea},
 		},
 	},
 	kwRTS: InstPat{
-		nil: InstDat{
+		nil: InstDat{ // RTS
 			{Kind: BcByte, A0: 0x60},
 		},
 	},
 	kwRTI: InstPat{
-		nil: InstDat{
+		nil: InstDat{ // RTI
 			{Kind: BcByte, A0: 0x40},
 		},
 	},
 	kwJMP: InstPat{
 		kwMemAN: InstPat{
-			nil: InstDat{
+			nil: InstDat{ // JMP AN
 				{Kind: BcByte, A0: 0x4c},
 				{Kind: BcLow, A0: 0x00},
 				{Kind: BcHigh, A0: 0x00},
 			},
 		},
 		kwMemIN: InstPat{
-			nil: InstDat{
+			nil: InstDat{ // JMP IN
 				{Kind: BcByte, A0: 0x6c},
 				{Kind: BcLow, A0: 0x00},
 				{Kind: BcHigh, A0: 0x00},
 			},
 		},
 		kwMemZN: InstPat{
-			nil: InstDat{
+			nil: InstDat{ // JMP ZN
 				{Kind: BcByte, A0: 0x4c},
 				{Kind: BcLow, A0: 0x00},
 				{Kind: BcHigh, A0: 0x00},
@@ -522,14 +524,14 @@ var instMap = InstPat{
 	},
 	kwJSR: InstPat{
 		kwMemAN: InstPat{
-			nil: InstDat{
+			nil: InstDat{ // JSR AN
 				{Kind: BcByte, A0: 0x20},
 				{Kind: BcLow, A0: 0x00},
 				{Kind: BcHigh, A0: 0x00},
 			},
 		},
 		kwMemZN: InstPat{
-			nil: InstDat{
+			nil: InstDat{ // JSR ZN
 				{Kind: BcByte, A0: 0x20},
 				{Kind: BcLow, A0: 0x00},
 				{Kind: BcHigh, A0: 0x00},
@@ -538,13 +540,13 @@ var instMap = InstPat{
 	},
 	kwBPL: InstPat{
 		kwImmNN: InstPat{
-			nil: InstDat{
+			nil: InstDat{ // BPL NN
 				{Kind: BcByte, A0: 0x10},
 				{Kind: BcRlow, A0: 0x00, A1: 0xfe, A2: 0x01},
 			},
 		},
 		kwImmN: InstPat{
-			nil: InstDat{
+			nil: InstDat{ // BPL N
 				{Kind: BcByte, A0: 0x10},
 				{Kind: BcRlow, A0: 0x00, A1: 0xfe, A2: 0x01},
 			},
@@ -552,13 +554,13 @@ var instMap = InstPat{
 	},
 	kwBMI: InstPat{
 		kwImmNN: InstPat{
-			nil: InstDat{
+			nil: InstDat{ // BMI NN
 				{Kind: BcByte, A0: 0x30},
 				{Kind: BcRlow, A0: 0x00, A1: 0xfe, A2: 0x01},
 			},
 		},
 		kwImmN: InstPat{
-			nil: InstDat{
+			nil: InstDat{ // BMI N
 				{Kind: BcByte, A0: 0x30},
 				{Kind: BcRlow, A0: 0x00, A1: 0xfe, A2: 0x01},
 			},
@@ -566,13 +568,13 @@ var instMap = InstPat{
 	},
 	kwBVC: InstPat{
 		kwImmNN: InstPat{
-			nil: InstDat{
+			nil: InstDat{ // BVC NN
 				{Kind: BcByte, A0: 0x50},
 				{Kind: BcRlow, A0: 0x00, A1: 0xfe, A2: 0x01},
 			},
 		},
 		kwImmN: InstPat{
-			nil: InstDat{
+			nil: InstDat{ // BVC N
 				{Kind: BcByte, A0: 0x50},
 				{Kind: BcRlow, A0: 0x00, A1: 0xfe, A2: 0x01},
 			},
@@ -580,13 +582,13 @@ var instMap = InstPat{
 	},
 	kwBVS: InstPat{
 		kwImmNN: InstPat{
-			nil: InstDat{
+			nil: InstDat{ // BVS NN
 				{Kind: BcByte, A0: 0x70},
 				{Kind: BcRlow, A0: 0x00, A1: 0xfe, A2: 0x01},
 			},
 		},
 		kwImmN: InstPat{
-			nil: InstDat{
+			nil: InstDat{ // BVS N
 				{Kind: BcByte, A0: 0x70},
 				{Kind: BcRlow, A0: 0x00, A1: 0xfe, A2: 0x01},
 			},
@@ -594,13 +596,13 @@ var instMap = InstPat{
 	},
 	kwBCC: InstPat{
 		kwImmNN: InstPat{
-			nil: InstDat{
+			nil: InstDat{ // BCC NN
 				{Kind: BcByte, A0: 0x90},
 				{Kind: BcRlow, A0: 0x00, A1: 0xfe, A2: 0x01},
 			},
 		},
 		kwImmN: InstPat{
-			nil: InstDat{
+			nil: InstDat{ // BCC N
 				{Kind: BcByte, A0: 0x90},
 				{Kind: BcRlow, A0: 0x00, A1: 0xfe, A2: 0x01},
 			},
@@ -608,13 +610,13 @@ var instMap = InstPat{
 	},
 	kwBCS: InstPat{
 		kwImmNN: InstPat{
-			nil: InstDat{
+			nil: InstDat{ // BCS NN
 				{Kind: BcByte, A0: 0xb0},
 				{Kind: BcRlow, A0: 0x00, A1: 0xfe, A2: 0x01},
 			},
 		},
 		kwImmN: InstPat{
-			nil: InstDat{
+			nil: InstDat{ // BCS N
 				{Kind: BcByte, A0: 0xb0},
 				{Kind: BcRlow, A0: 0x00, A1: 0xfe, A2: 0x01},
 			},
@@ -622,13 +624,13 @@ var instMap = InstPat{
 	},
 	kwBNE: InstPat{
 		kwImmNN: InstPat{
-			nil: InstDat{
+			nil: InstDat{ // BNE NN
 				{Kind: BcByte, A0: 0xd0},
 				{Kind: BcRlow, A0: 0x00, A1: 0xfe, A2: 0x01},
 			},
 		},
 		kwImmN: InstPat{
-			nil: InstDat{
+			nil: InstDat{ // BNE N
 				{Kind: BcByte, A0: 0xd0},
 				{Kind: BcRlow, A0: 0x00, A1: 0xfe, A2: 0x01},
 			},
@@ -636,13 +638,13 @@ var instMap = InstPat{
 	},
 	kwBEQ: InstPat{
 		kwImmNN: InstPat{
-			nil: InstDat{
+			nil: InstDat{ // BEQ NN
 				{Kind: BcByte, A0: 0xf0},
 				{Kind: BcRlow, A0: 0x00, A1: 0xfe, A2: 0x01},
 			},
 		},
 		kwImmN: InstPat{
-			nil: InstDat{
+			nil: InstDat{ // BEQ N
 				{Kind: BcByte, A0: 0xf0},
 				{Kind: BcRlow, A0: 0x00, A1: 0xfe, A2: 0x01},
 			},
@@ -650,13 +652,13 @@ var instMap = InstPat{
 	},
 	KwJump: InstPat{
 		kwImmNN: InstPat{
-			nil: InstDat{
+			nil: InstDat{ // #.jump NN
 				{Kind: BcByte, A0: 0x4c},
 				{Kind: BcLow, A0: 0x00},
 				{Kind: BcHigh, A0: 0x00},
 			},
 			kwCondPL: InstPat{
-				nil: InstDat{
+				nil: InstDat{ // #.jump NN PL?
 					{Kind: BcByte, A0: 0x30},
 					{Kind: BcByte, A0: 0x03},
 					{Kind: BcByte, A0: 0x4c},
@@ -665,7 +667,7 @@ var instMap = InstPat{
 				},
 			},
 			kwCondMI: InstPat{
-				nil: InstDat{
+				nil: InstDat{ // #.jump NN MI?
 					{Kind: BcByte, A0: 0x10},
 					{Kind: BcByte, A0: 0x03},
 					{Kind: BcByte, A0: 0x4c},
@@ -674,7 +676,7 @@ var instMap = InstPat{
 				},
 			},
 			kwCondVC: InstPat{
-				nil: InstDat{
+				nil: InstDat{ // #.jump NN VC?
 					{Kind: BcByte, A0: 0x70},
 					{Kind: BcByte, A0: 0x03},
 					{Kind: BcByte, A0: 0x4c},
@@ -683,7 +685,7 @@ var instMap = InstPat{
 				},
 			},
 			kwCondVS: InstPat{
-				nil: InstDat{
+				nil: InstDat{ // #.jump NN VS?
 					{Kind: BcByte, A0: 0x50},
 					{Kind: BcByte, A0: 0x03},
 					{Kind: BcByte, A0: 0x4c},
@@ -692,7 +694,7 @@ var instMap = InstPat{
 				},
 			},
 			kwCondCC: InstPat{
-				nil: InstDat{
+				nil: InstDat{ // #.jump NN CC?
 					{Kind: BcByte, A0: 0xb0},
 					{Kind: BcByte, A0: 0x03},
 					{Kind: BcByte, A0: 0x4c},
@@ -701,7 +703,7 @@ var instMap = InstPat{
 				},
 			},
 			kwCondCS: InstPat{
-				nil: InstDat{
+				nil: InstDat{ // #.jump NN CS?
 					{Kind: BcByte, A0: 0x90},
 					{Kind: BcByte, A0: 0x03},
 					{Kind: BcByte, A0: 0x4c},
@@ -710,7 +712,7 @@ var instMap = InstPat{
 				},
 			},
 			kwCondNE: InstPat{
-				nil: InstDat{
+				nil: InstDat{ // #.jump NN NE?
 					{Kind: BcByte, A0: 0xf0},
 					{Kind: BcByte, A0: 0x03},
 					{Kind: BcByte, A0: 0x4c},
@@ -719,7 +721,7 @@ var instMap = InstPat{
 				},
 			},
 			kwCondEQ: InstPat{
-				nil: InstDat{
+				nil: InstDat{ // #.jump NN EQ?
 					{Kind: BcByte, A0: 0xd0},
 					{Kind: BcByte, A0: 0x03},
 					{Kind: BcByte, A0: 0x4c},
@@ -729,13 +731,13 @@ var instMap = InstPat{
 			},
 		},
 		kwImmN: InstPat{
-			nil: InstDat{
+			nil: InstDat{ // #.jump N
 				{Kind: BcByte, A0: 0x4c},
 				{Kind: BcLow, A0: 0x00},
 				{Kind: BcHigh, A0: 0x00},
 			},
 			kwCondPL: InstPat{
-				nil: InstDat{
+				nil: InstDat{ // #.jump N PL?
 					{Kind: BcByte, A0: 0x30},
 					{Kind: BcByte, A0: 0x03},
 					{Kind: BcByte, A0: 0x4c},
@@ -744,7 +746,7 @@ var instMap = InstPat{
 				},
 			},
 			kwCondMI: InstPat{
-				nil: InstDat{
+				nil: InstDat{ // #.jump N MI?
 					{Kind: BcByte, A0: 0x10},
 					{Kind: BcByte, A0: 0x03},
 					{Kind: BcByte, A0: 0x4c},
@@ -753,7 +755,7 @@ var instMap = InstPat{
 				},
 			},
 			kwCondVC: InstPat{
-				nil: InstDat{
+				nil: InstDat{ // #.jump N VC?
 					{Kind: BcByte, A0: 0x70},
 					{Kind: BcByte, A0: 0x03},
 					{Kind: BcByte, A0: 0x4c},
@@ -762,7 +764,7 @@ var instMap = InstPat{
 				},
 			},
 			kwCondVS: InstPat{
-				nil: InstDat{
+				nil: InstDat{ // #.jump N VS?
 					{Kind: BcByte, A0: 0x50},
 					{Kind: BcByte, A0: 0x03},
 					{Kind: BcByte, A0: 0x4c},
@@ -771,7 +773,7 @@ var instMap = InstPat{
 				},
 			},
 			kwCondCC: InstPat{
-				nil: InstDat{
+				nil: InstDat{ // #.jump N CC?
 					{Kind: BcByte, A0: 0xb0},
 					{Kind: BcByte, A0: 0x03},
 					{Kind: BcByte, A0: 0x4c},
@@ -780,7 +782,7 @@ var instMap = InstPat{
 				},
 			},
 			kwCondCS: InstPat{
-				nil: InstDat{
+				nil: InstDat{ // #.jump N CS?
 					{Kind: BcByte, A0: 0x90},
 					{Kind: BcByte, A0: 0x03},
 					{Kind: BcByte, A0: 0x4c},
@@ -789,7 +791,7 @@ var instMap = InstPat{
 				},
 			},
 			kwCondNE: InstPat{
-				nil: InstDat{
+				nil: InstDat{ // #.jump N NE?
 					{Kind: BcByte, A0: 0xf0},
 					{Kind: BcByte, A0: 0x03},
 					{Kind: BcByte, A0: 0x4c},
@@ -798,7 +800,7 @@ var instMap = InstPat{
 				},
 			},
 			kwCondEQ: InstPat{
-				nil: InstDat{
+				nil: InstDat{ // #.jump N EQ?
 					{Kind: BcByte, A0: 0xd0},
 					{Kind: BcByte, A0: 0x03},
 					{Kind: BcByte, A0: 0x4c},
@@ -810,160 +812,221 @@ var instMap = InstPat{
 	},
 	KwCall: InstPat{
 		kwImmNN: InstPat{
-			nil: InstDat{
+			nil: InstDat{ // #.call NN
 				{Kind: BcByte, A0: 0x20},
 				{Kind: BcLow, A0: 0x00},
 				{Kind: BcHigh, A0: 0x00},
 			},
 			kwCondNE: InstPat{
-				nil: InstDat{
+				nil: InstDat{ // #.call NN NE?
 					{Kind: BcUnsupported, A0: 0x00},
 				},
 			},
 			kwCondEQ: InstPat{
-				nil: InstDat{
+				nil: InstDat{ // #.call NN EQ?
 					{Kind: BcUnsupported, A0: 0x00},
 				},
 			},
 			kwCondCC: InstPat{
-				nil: InstDat{
+				nil: InstDat{ // #.call NN CC?
 					{Kind: BcUnsupported, A0: 0x00},
 				},
 			},
 			kwCondCS: InstPat{
-				nil: InstDat{
+				nil: InstDat{ // #.call NN CS?
 					{Kind: BcUnsupported, A0: 0x00},
 				},
 			},
 			kwCondVC: InstPat{
-				nil: InstDat{
+				nil: InstDat{ // #.call NN VC?
 					{Kind: BcUnsupported, A0: 0x00},
 				},
 			},
 			kwCondVS: InstPat{
-				nil: InstDat{
+				nil: InstDat{ // #.call NN VS?
 					{Kind: BcUnsupported, A0: 0x00},
 				},
 			},
 			kwCondPL: InstPat{
-				nil: InstDat{
+				nil: InstDat{ // #.call NN PL?
 					{Kind: BcUnsupported, A0: 0x00},
 				},
 			},
 			kwCondMI: InstPat{
-				nil: InstDat{
+				nil: InstDat{ // #.call NN MI?
 					{Kind: BcUnsupported, A0: 0x00},
 				},
 			},
 		},
 		kwImmN: InstPat{
-			nil: InstDat{
+			nil: InstDat{ // #.call N
 				{Kind: BcByte, A0: 0x20},
 				{Kind: BcLow, A0: 0x00},
 				{Kind: BcHigh, A0: 0x00},
 			},
 			kwCondNE: InstPat{
-				nil: InstDat{
+				nil: InstDat{ // #.call N NE?
 					{Kind: BcUnsupported, A0: 0x00},
 				},
 			},
 			kwCondEQ: InstPat{
-				nil: InstDat{
+				nil: InstDat{ // #.call N EQ?
 					{Kind: BcUnsupported, A0: 0x00},
 				},
 			},
 			kwCondCC: InstPat{
-				nil: InstDat{
+				nil: InstDat{ // #.call N CC?
 					{Kind: BcUnsupported, A0: 0x00},
 				},
 			},
 			kwCondCS: InstPat{
-				nil: InstDat{
+				nil: InstDat{ // #.call N CS?
 					{Kind: BcUnsupported, A0: 0x00},
 				},
 			},
 			kwCondVC: InstPat{
-				nil: InstDat{
+				nil: InstDat{ // #.call N VC?
 					{Kind: BcUnsupported, A0: 0x00},
 				},
 			},
 			kwCondVS: InstPat{
-				nil: InstDat{
+				nil: InstDat{ // #.call N VS?
 					{Kind: BcUnsupported, A0: 0x00},
 				},
 			},
 			kwCondPL: InstPat{
-				nil: InstDat{
+				nil: InstDat{ // #.call N PL?
 					{Kind: BcUnsupported, A0: 0x00},
 				},
 			},
 			kwCondMI: InstPat{
-				nil: InstDat{
+				nil: InstDat{ // #.call N MI?
 					{Kind: BcUnsupported, A0: 0x00},
 				},
 			},
 		},
 	},
+	KwReturn: InstPat{
+		nil: InstDat{ // #.return
+			{Kind: BcByte, A0: 0x60},
+		},
+		kwCondPL: InstPat{
+			nil: InstDat{ // #.return PL?
+				{Kind: BcByte, A0: 0x30},
+				{Kind: BcByte, A0: 0x01},
+				{Kind: BcByte, A0: 0x60},
+			},
+		},
+		kwCondMI: InstPat{
+			nil: InstDat{ // #.return MI?
+				{Kind: BcByte, A0: 0x10},
+				{Kind: BcByte, A0: 0x01},
+				{Kind: BcByte, A0: 0x60},
+			},
+		},
+		kwCondVC: InstPat{
+			nil: InstDat{ // #.return VC?
+				{Kind: BcByte, A0: 0x70},
+				{Kind: BcByte, A0: 0x01},
+				{Kind: BcByte, A0: 0x60},
+			},
+		},
+		kwCondVS: InstPat{
+			nil: InstDat{ // #.return VS?
+				{Kind: BcByte, A0: 0x50},
+				{Kind: BcByte, A0: 0x01},
+				{Kind: BcByte, A0: 0x60},
+			},
+		},
+		kwCondCC: InstPat{
+			nil: InstDat{ // #.return CC?
+				{Kind: BcByte, A0: 0xb0},
+				{Kind: BcByte, A0: 0x01},
+				{Kind: BcByte, A0: 0x60},
+			},
+		},
+		kwCondCS: InstPat{
+			nil: InstDat{ // #.return CS?
+				{Kind: BcByte, A0: 0x90},
+				{Kind: BcByte, A0: 0x01},
+				{Kind: BcByte, A0: 0x60},
+			},
+		},
+		kwCondNE: InstPat{
+			nil: InstDat{ // #.return NE?
+				{Kind: BcByte, A0: 0xf0},
+				{Kind: BcByte, A0: 0x01},
+				{Kind: BcByte, A0: 0x60},
+			},
+		},
+		kwCondEQ: InstPat{
+			nil: InstDat{ // #.return EQ?
+				{Kind: BcByte, A0: 0xd0},
+				{Kind: BcByte, A0: 0x01},
+				{Kind: BcByte, A0: 0x60},
+			},
+		},
+	},
 	kwORA: InstPat{
 		kwImmN: InstPat{
-			nil: InstDat{
+			nil: InstDat{ // ORA N
 				{Kind: BcByte, A0: 0x09},
 				{Kind: BcLow, A0: 0x00},
 			},
 		},
 		kwMemZN: InstPat{
-			nil: InstDat{
+			nil: InstDat{ // ORA ZN
 				{Kind: BcByte, A0: 0x05},
 				{Kind: BcLow, A0: 0x00},
 			},
 		},
 		kwMemZX: InstPat{
-			nil: InstDat{
+			nil: InstDat{ // ORA ZX
 				{Kind: BcByte, A0: 0x15},
 				{Kind: BcLow, A0: 0x00},
 			},
 		},
 		kwMemAN: InstPat{
-			nil: InstDat{
+			nil: InstDat{ // ORA AN
 				{Kind: BcByte, A0: 0x0d},
 				{Kind: BcLow, A0: 0x00},
 				{Kind: BcHigh, A0: 0x00},
 			},
 		},
 		kwMemAX: InstPat{
-			nil: InstDat{
+			nil: InstDat{ // ORA AX
 				{Kind: BcByte, A0: 0x1d},
 				{Kind: BcLow, A0: 0x00},
 				{Kind: BcHigh, A0: 0x00},
 			},
 		},
 		kwMemAY: InstPat{
-			nil: InstDat{
+			nil: InstDat{ // ORA AY
 				{Kind: BcByte, A0: 0x19},
 				{Kind: BcLow, A0: 0x00},
 				{Kind: BcHigh, A0: 0x00},
 			},
 		},
 		kwMemIX: InstPat{
-			nil: InstDat{
+			nil: InstDat{ // ORA IX
 				{Kind: BcByte, A0: 0x01},
 				{Kind: BcLow, A0: 0x00},
 			},
 		},
 		kwMemIY: InstPat{
-			nil: InstDat{
+			nil: InstDat{ // ORA IY
 				{Kind: BcByte, A0: 0x11},
 				{Kind: BcLow, A0: 0x00},
 			},
 		},
 		kwImmNN: InstPat{
-			nil: InstDat{
+			nil: InstDat{ // ORA NN
 				{Kind: BcTemp, A0: 0x00},
 				{Kind: BcTemp, A0: 0x00},
 			},
 		},
 		kwMemZY: InstPat{
-			nil: InstDat{
+			nil: InstDat{ // ORA ZY
 				{Kind: BcByte, A0: 0x19},
 				{Kind: BcLow, A0: 0x00},
 				{Kind: BcHigh, A0: 0x00},
@@ -972,64 +1035,64 @@ var instMap = InstPat{
 	},
 	kwAND: InstPat{
 		kwImmN: InstPat{
-			nil: InstDat{
+			nil: InstDat{ // AND N
 				{Kind: BcByte, A0: 0x29},
 				{Kind: BcLow, A0: 0x00},
 			},
 		},
 		kwMemZN: InstPat{
-			nil: InstDat{
+			nil: InstDat{ // AND ZN
 				{Kind: BcByte, A0: 0x25},
 				{Kind: BcLow, A0: 0x00},
 			},
 		},
 		kwMemZX: InstPat{
-			nil: InstDat{
+			nil: InstDat{ // AND ZX
 				{Kind: BcByte, A0: 0x35},
 				{Kind: BcLow, A0: 0x00},
 			},
 		},
 		kwMemAN: InstPat{
-			nil: InstDat{
+			nil: InstDat{ // AND AN
 				{Kind: BcByte, A0: 0x2d},
 				{Kind: BcLow, A0: 0x00},
 				{Kind: BcHigh, A0: 0x00},
 			},
 		},
 		kwMemAX: InstPat{
-			nil: InstDat{
+			nil: InstDat{ // AND AX
 				{Kind: BcByte, A0: 0x3d},
 				{Kind: BcLow, A0: 0x00},
 				{Kind: BcHigh, A0: 0x00},
 			},
 		},
 		kwMemAY: InstPat{
-			nil: InstDat{
+			nil: InstDat{ // AND AY
 				{Kind: BcByte, A0: 0x39},
 				{Kind: BcLow, A0: 0x00},
 				{Kind: BcHigh, A0: 0x00},
 			},
 		},
 		kwMemIX: InstPat{
-			nil: InstDat{
+			nil: InstDat{ // AND IX
 				{Kind: BcByte, A0: 0x21},
 				{Kind: BcLow, A0: 0x00},
 			},
 		},
 		kwMemIY: InstPat{
-			nil: InstDat{
+			nil: InstDat{ // AND IY
 				{Kind: BcByte, A0: 0x31},
 				{Kind: BcLow, A0: 0x00},
 			},
 		},
 		kwImmNN: InstPat{
-			nil: InstDat{
+			nil: InstDat{ // AND NN
 				{Kind: BcTemp, A0: 0x00},
 				{Kind: BcTemp, A0: 0x00},
 			},
 		},
 		kwMemZY: InstPat{
-			nil: InstDat{
+			nil: InstDat{ // AND ZY
 				{Kind: BcByte, A0: 0x39},
 				{Kind: BcLow, A0: 0x00},
 				{Kind: BcHigh, A0: 0x00},
@@ -1038,64 +1101,64 @@ var instMap = InstPat{
 	},
 	kwEOR: InstPat{
 		kwImmN: InstPat{
-			nil: InstDat{
+			nil: InstDat{ // EOR N
 				{Kind: BcByte, A0: 0x49},
 				{Kind: BcLow, A0: 0x00},
 			},
 		},
 		kwMemZN: InstPat{
-			nil: InstDat{
+			nil: InstDat{ // EOR ZN
 				{Kind: BcByte, A0: 0x45},
 				{Kind: BcLow, A0: 0x00},
 			},
 		},
 		kwMemZX: InstPat{
-			nil: InstDat{
+			nil: InstDat{ // EOR ZX
 				{Kind: BcByte, A0: 0x55},
 				{Kind: BcLow, A0: 0x00},
 			},
 		},
 		kwMemAN: InstPat{
-			nil: InstDat{
+			nil: InstDat{ // EOR AN
 				{Kind: BcByte, A0: 0x4d},
 				{Kind: BcLow, A0: 0x00},
 				{Kind: BcHigh, A0: 0x00},
 			},
 		},
 		kwMemAX: InstPat{
-			nil: InstDat{
+			nil: InstDat{ // EOR AX
 				{Kind: BcByte, A0: 0x5d},
 				{Kind: BcLow, A0: 0x00},
 				{Kind: BcHigh, A0: 0x00},
 			},
 		},
 		kwMemAY: InstPat{
-			nil: InstDat{
+			nil: InstDat{ // EOR AY
 				{Kind: BcByte, A0: 0x59},
 				{Kind: BcLow, A0: 0x00},
 				{Kind: BcHigh, A0: 0x00},
 			},
 		},
 		kwMemIX: InstPat{
-			nil: InstDat{
+			nil: InstDat{ // EOR IX
 				{Kind: BcByte, A0: 0x41},
 				{Kind: BcLow, A0: 0x00},
 			},
 		},
 		kwMemIY: InstPat{
-			nil: InstDat{
+			nil: InstDat{ // EOR IY
 				{Kind: BcByte, A0: 0x51},
 				{Kind: BcLow, A0: 0x00},
 			},
 		},
 		kwImmNN: InstPat{
-			nil: InstDat{
+			nil: InstDat{ // EOR NN
 				{Kind: BcTemp, A0: 0x00},
 				{Kind: BcTemp, A0: 0x00},
 			},
 		},
 		kwMemZY: InstPat{
-			nil: InstDat{
+			nil: InstDat{ // EOR ZY
 				{Kind: BcByte, A0: 0x59},
 				{Kind: BcLow, A0: 0x00},
 				{Kind: BcHigh, A0: 0x00},
@@ -1104,64 +1167,64 @@ var instMap = InstPat{
 	},
 	kwADC: InstPat{
 		kwImmN: InstPat{
-			nil: InstDat{
+			nil: InstDat{ // ADC N
 				{Kind: BcByte, A0: 0x69},
 				{Kind: BcLow, A0: 0x00},
 			},
 		},
 		kwMemZN: InstPat{
-			nil: InstDat{
+			nil: InstDat{ // ADC ZN
 				{Kind: BcByte, A0: 0x65},
 				{Kind: BcLow, A0: 0x00},
 			},
 		},
 		kwMemZX: InstPat{
-			nil: InstDat{
+			nil: InstDat{ // ADC ZX
 				{Kind: BcByte, A0: 0x75},
 				{Kind: BcLow, A0: 0x00},
 			},
 		},
 		kwMemAN: InstPat{
-			nil: InstDat{
+			nil: InstDat{ // ADC AN
 				{Kind: BcByte, A0: 0x6d},
 				{Kind: BcLow, A0: 0x00},
 				{Kind: BcHigh, A0: 0x00},
 			},
 		},
 		kwMemAX: InstPat{
-			nil: InstDat{
+			nil: InstDat{ // ADC AX
 				{Kind: BcByte, A0: 0x7d},
 				{Kind: BcLow, A0: 0x00},
 				{Kind: BcHigh, A0: 0x00},
 			},
 		},
 		kwMemAY: InstPat{
-			nil: InstDat{
+			nil: InstDat{ // ADC AY
 				{Kind: BcByte, A0: 0x79},
 				{Kind: BcLow, A0: 0x00},
 				{Kind: BcHigh, A0: 0x00},
 			},
 		},
 		kwMemIX: InstPat{
-			nil: InstDat{
+			nil: InstDat{ // ADC IX
 				{Kind: BcByte, A0: 0x61},
 				{Kind: BcLow, A0: 0x00},
 			},
 		},
 		kwMemIY: InstPat{
-			nil: InstDat{
+			nil: InstDat{ // ADC IY
 				{Kind: BcByte, A0: 0x71},
 				{Kind: BcLow, A0: 0x00},
 			},
 		},
 		kwImmNN: InstPat{
-			nil: InstDat{
+			nil: InstDat{ // ADC NN
 				{Kind: BcTemp, A0: 0x00},
 				{Kind: BcTemp, A0: 0x00},
 			},
 		},
 		kwMemZY: InstPat{
-			nil: InstDat{
+			nil: InstDat{ // ADC ZY
 				{Kind: BcByte, A0: 0x79},
 				{Kind: BcLow, A0: 0x00},
 				{Kind: BcHigh, A0: 0x00},
@@ -1170,64 +1233,64 @@ var instMap = InstPat{
 	},
 	kwCMP: InstPat{
 		kwImmN: InstPat{
-			nil: InstDat{
+			nil: InstDat{ // CMP N
 				{Kind: BcByte, A0: 0xc9},
 				{Kind: BcLow, A0: 0x00},
 			},
 		},
 		kwMemZN: InstPat{
-			nil: InstDat{
+			nil: InstDat{ // CMP ZN
 				{Kind: BcByte, A0: 0xc5},
 				{Kind: BcLow, A0: 0x00},
 			},
 		},
 		kwMemZX: InstPat{
-			nil: InstDat{
+			nil: InstDat{ // CMP ZX
 				{Kind: BcByte, A0: 0xd5},
 				{Kind: BcLow, A0: 0x00},
 			},
 		},
 		kwMemAN: InstPat{
-			nil: InstDat{
+			nil: InstDat{ // CMP AN
 				{Kind: BcByte, A0: 0xcd},
 				{Kind: BcLow, A0: 0x00},
 				{Kind: BcHigh, A0: 0x00},
 			},
 		},
 		kwMemAX: InstPat{
-			nil: InstDat{
+			nil: InstDat{ // CMP AX
 				{Kind: BcByte, A0: 0xdd},
 				{Kind: BcLow, A0: 0x00},
 				{Kind: BcHigh, A0: 0x00},
 			},
 		},
 		kwMemAY: InstPat{
-			nil: InstDat{
+			nil: InstDat{ // CMP AY
 				{Kind: BcByte, A0: 0xd9},
 				{Kind: BcLow, A0: 0x00},
 				{Kind: BcHigh, A0: 0x00},
 			},
 		},
 		kwMemIX: InstPat{
-			nil: InstDat{
+			nil: InstDat{ // CMP IX
 				{Kind: BcByte, A0: 0xc1},
 				{Kind: BcLow, A0: 0x00},
 			},
 		},
 		kwMemIY: InstPat{
-			nil: InstDat{
+			nil: InstDat{ // CMP IY
 				{Kind: BcByte, A0: 0xd1},
 				{Kind: BcLow, A0: 0x00},
 			},
 		},
 		kwImmNN: InstPat{
-			nil: InstDat{
+			nil: InstDat{ // CMP NN
 				{Kind: BcTemp, A0: 0x00},
 				{Kind: BcTemp, A0: 0x00},
 			},
 		},
 		kwMemZY: InstPat{
-			nil: InstDat{
+			nil: InstDat{ // CMP ZY
 				{Kind: BcByte, A0: 0xd9},
 				{Kind: BcLow, A0: 0x00},
 				{Kind: BcHigh, A0: 0x00},
@@ -1236,64 +1299,64 @@ var instMap = InstPat{
 	},
 	kwSBC: InstPat{
 		kwImmN: InstPat{
-			nil: InstDat{
+			nil: InstDat{ // SBC N
 				{Kind: BcByte, A0: 0xe9},
 				{Kind: BcLow, A0: 0x00},
 			},
 		},
 		kwMemZN: InstPat{
-			nil: InstDat{
+			nil: InstDat{ // SBC ZN
 				{Kind: BcByte, A0: 0xe5},
 				{Kind: BcLow, A0: 0x00},
 			},
 		},
 		kwMemZX: InstPat{
-			nil: InstDat{
+			nil: InstDat{ // SBC ZX
 				{Kind: BcByte, A0: 0xf5},
 				{Kind: BcLow, A0: 0x00},
 			},
 		},
 		kwMemAN: InstPat{
-			nil: InstDat{
+			nil: InstDat{ // SBC AN
 				{Kind: BcByte, A0: 0xed},
 				{Kind: BcLow, A0: 0x00},
 				{Kind: BcHigh, A0: 0x00},
 			},
 		},
 		kwMemAX: InstPat{
-			nil: InstDat{
+			nil: InstDat{ // SBC AX
 				{Kind: BcByte, A0: 0xfd},
 				{Kind: BcLow, A0: 0x00},
 				{Kind: BcHigh, A0: 0x00},
 			},
 		},
 		kwMemAY: InstPat{
-			nil: InstDat{
+			nil: InstDat{ // SBC AY
 				{Kind: BcByte, A0: 0xf9},
 				{Kind: BcLow, A0: 0x00},
 				{Kind: BcHigh, A0: 0x00},
 			},
 		},
 		kwMemIX: InstPat{
-			nil: InstDat{
+			nil: InstDat{ // SBC IX
 				{Kind: BcByte, A0: 0xe1},
 				{Kind: BcLow, A0: 0x00},
 			},
 		},
 		kwMemIY: InstPat{
-			nil: InstDat{
+			nil: InstDat{ // SBC IY
 				{Kind: BcByte, A0: 0xf1},
 				{Kind: BcLow, A0: 0x00},
 			},
 		},
 		kwImmNN: InstPat{
-			nil: InstDat{
+			nil: InstDat{ // SBC NN
 				{Kind: BcTemp, A0: 0x00},
 				{Kind: BcTemp, A0: 0x00},
 			},
 		},
 		kwMemZY: InstPat{
-			nil: InstDat{
+			nil: InstDat{ // SBC ZY
 				{Kind: BcByte, A0: 0xf9},
 				{Kind: BcLow, A0: 0x00},
 				{Kind: BcHigh, A0: 0x00},
@@ -1302,13 +1365,13 @@ var instMap = InstPat{
 	},
 	kwBIT: InstPat{
 		kwMemZN: InstPat{
-			nil: InstDat{
+			nil: InstDat{ // BIT ZN
 				{Kind: BcByte, A0: 0x24},
 				{Kind: BcLow, A0: 0x00},
 			},
 		},
 		kwMemAN: InstPat{
-			nil: InstDat{
+			nil: InstDat{ // BIT AN
 				{Kind: BcByte, A0: 0x2c},
 				{Kind: BcLow, A0: 0x00},
 				{Kind: BcHigh, A0: 0x00},
@@ -1317,26 +1380,26 @@ var instMap = InstPat{
 	},
 	kwCPX: InstPat{
 		kwImmN: InstPat{
-			nil: InstDat{
+			nil: InstDat{ // CPX N
 				{Kind: BcByte, A0: 0xe0},
 				{Kind: BcLow, A0: 0x00},
 			},
 		},
 		kwMemZN: InstPat{
-			nil: InstDat{
+			nil: InstDat{ // CPX ZN
 				{Kind: BcByte, A0: 0xe4},
 				{Kind: BcLow, A0: 0x00},
 			},
 		},
 		kwMemAN: InstPat{
-			nil: InstDat{
+			nil: InstDat{ // CPX AN
 				{Kind: BcByte, A0: 0xec},
 				{Kind: BcLow, A0: 0x00},
 				{Kind: BcHigh, A0: 0x00},
 			},
 		},
 		kwImmNN: InstPat{
-			nil: InstDat{
+			nil: InstDat{ // CPX NN
 				{Kind: BcTemp, A0: 0x00},
 				{Kind: BcTemp, A0: 0x00},
 			},
@@ -1344,26 +1407,26 @@ var instMap = InstPat{
 	},
 	kwCPY: InstPat{
 		kwImmN: InstPat{
-			nil: InstDat{
+			nil: InstDat{ // CPY N
 				{Kind: BcByte, A0: 0xc0},
 				{Kind: BcLow, A0: 0x00},
 			},
 		},
 		kwMemZN: InstPat{
-			nil: InstDat{
+			nil: InstDat{ // CPY ZN
 				{Kind: BcByte, A0: 0xc4},
 				{Kind: BcLow, A0: 0x00},
 			},
 		},
 		kwMemAN: InstPat{
-			nil: InstDat{
+			nil: InstDat{ // CPY AN
 				{Kind: BcByte, A0: 0xcc},
 				{Kind: BcLow, A0: 0x00},
 				{Kind: BcHigh, A0: 0x00},
 			},
 		},
 		kwImmNN: InstPat{
-			nil: InstDat{
+			nil: InstDat{ // CPY NN
 				{Kind: BcTemp, A0: 0x00},
 				{Kind: BcTemp, A0: 0x00},
 			},
@@ -1371,26 +1434,26 @@ var instMap = InstPat{
 	},
 	kwINC: InstPat{
 		kwMemZN: InstPat{
-			nil: InstDat{
+			nil: InstDat{ // INC ZN
 				{Kind: BcByte, A0: 0xe6},
 				{Kind: BcLow, A0: 0x00},
 			},
 		},
 		kwMemZX: InstPat{
-			nil: InstDat{
+			nil: InstDat{ // INC ZX
 				{Kind: BcByte, A0: 0xf6},
 				{Kind: BcLow, A0: 0x00},
 			},
 		},
 		kwMemAN: InstPat{
-			nil: InstDat{
+			nil: InstDat{ // INC AN
 				{Kind: BcByte, A0: 0xee},
 				{Kind: BcLow, A0: 0x00},
 				{Kind: BcHigh, A0: 0x00},
 			},
 		},
 		kwMemAX: InstPat{
-			nil: InstDat{
+			nil: InstDat{ // INC AX
 				{Kind: BcByte, A0: 0xfe},
 				{Kind: BcLow, A0: 0x00},
 				{Kind: BcHigh, A0: 0x00},
@@ -1398,37 +1461,37 @@ var instMap = InstPat{
 		},
 	},
 	kwINX: InstPat{
-		nil: InstDat{
+		nil: InstDat{ // INX
 			{Kind: BcByte, A0: 0xe8},
 		},
 	},
 	kwINY: InstPat{
-		nil: InstDat{
+		nil: InstDat{ // INY
 			{Kind: BcByte, A0: 0xc8},
 		},
 	},
 	kwDEC: InstPat{
 		kwMemZN: InstPat{
-			nil: InstDat{
+			nil: InstDat{ // DEC ZN
 				{Kind: BcByte, A0: 0xc6},
 				{Kind: BcLow, A0: 0x00},
 			},
 		},
 		kwMemZX: InstPat{
-			nil: InstDat{
+			nil: InstDat{ // DEC ZX
 				{Kind: BcByte, A0: 0xd6},
 				{Kind: BcLow, A0: 0x00},
 			},
 		},
 		kwMemAN: InstPat{
-			nil: InstDat{
+			nil: InstDat{ // DEC AN
 				{Kind: BcByte, A0: 0xce},
 				{Kind: BcLow, A0: 0x00},
 				{Kind: BcHigh, A0: 0x00},
 			},
 		},
 		kwMemAX: InstPat{
-			nil: InstDat{
+			nil: InstDat{ // DEC AX
 				{Kind: BcByte, A0: 0xde},
 				{Kind: BcLow, A0: 0x00},
 				{Kind: BcHigh, A0: 0x00},
@@ -1436,42 +1499,42 @@ var instMap = InstPat{
 		},
 	},
 	kwDEX: InstPat{
-		nil: InstDat{
+		nil: InstDat{ // DEX
 			{Kind: BcByte, A0: 0xca},
 		},
 	},
 	kwDEY: InstPat{
-		nil: InstDat{
+		nil: InstDat{ // DEY
 			{Kind: BcByte, A0: 0x88},
 		},
 	},
 	kwASL: InstPat{
 		kwRegA: InstPat{
-			nil: InstDat{
+			nil: InstDat{ // ASL A
 				{Kind: BcByte, A0: 0x0a},
 			},
 		},
 		kwMemZN: InstPat{
-			nil: InstDat{
+			nil: InstDat{ // ASL ZN
 				{Kind: BcByte, A0: 0x06},
 				{Kind: BcLow, A0: 0x00},
 			},
 		},
 		kwMemZX: InstPat{
-			nil: InstDat{
+			nil: InstDat{ // ASL ZX
 				{Kind: BcByte, A0: 0x16},
 				{Kind: BcLow, A0: 0x00},
 			},
 		},
 		kwMemAN: InstPat{
-			nil: InstDat{
+			nil: InstDat{ // ASL AN
 				{Kind: BcByte, A0: 0x0e},
 				{Kind: BcLow, A0: 0x00},
 				{Kind: BcHigh, A0: 0x00},
 			},
 		},
 		kwMemAX: InstPat{
-			nil: InstDat{
+			nil: InstDat{ // ASL AX
 				{Kind: BcByte, A0: 0x1e},
 				{Kind: BcLow, A0: 0x00},
 				{Kind: BcHigh, A0: 0x00},
@@ -1480,31 +1543,31 @@ var instMap = InstPat{
 	},
 	kwLSR: InstPat{
 		kwRegA: InstPat{
-			nil: InstDat{
+			nil: InstDat{ // LSR A
 				{Kind: BcByte, A0: 0x4a},
 			},
 		},
 		kwMemZN: InstPat{
-			nil: InstDat{
+			nil: InstDat{ // LSR ZN
 				{Kind: BcByte, A0: 0x46},
 				{Kind: BcLow, A0: 0x00},
 			},
 		},
 		kwMemZX: InstPat{
-			nil: InstDat{
+			nil: InstDat{ // LSR ZX
 				{Kind: BcByte, A0: 0x56},
 				{Kind: BcLow, A0: 0x00},
 			},
 		},
 		kwMemAN: InstPat{
-			nil: InstDat{
+			nil: InstDat{ // LSR AN
 				{Kind: BcByte, A0: 0x4e},
 				{Kind: BcLow, A0: 0x00},
 				{Kind: BcHigh, A0: 0x00},
 			},
 		},
 		kwMemAX: InstPat{
-			nil: InstDat{
+			nil: InstDat{ // LSR AX
 				{Kind: BcByte, A0: 0x5e},
 				{Kind: BcLow, A0: 0x00},
 				{Kind: BcHigh, A0: 0x00},
@@ -1513,31 +1576,31 @@ var instMap = InstPat{
 	},
 	kwROL: InstPat{
 		kwRegA: InstPat{
-			nil: InstDat{
+			nil: InstDat{ // ROL A
 				{Kind: BcByte, A0: 0x2a},
 			},
 		},
 		kwMemZN: InstPat{
-			nil: InstDat{
+			nil: InstDat{ // ROL ZN
 				{Kind: BcByte, A0: 0x26},
 				{Kind: BcLow, A0: 0x00},
 			},
 		},
 		kwMemZX: InstPat{
-			nil: InstDat{
+			nil: InstDat{ // ROL ZX
 				{Kind: BcByte, A0: 0x36},
 				{Kind: BcLow, A0: 0x00},
 			},
 		},
 		kwMemAN: InstPat{
-			nil: InstDat{
+			nil: InstDat{ // ROL AN
 				{Kind: BcByte, A0: 0x2e},
 				{Kind: BcLow, A0: 0x00},
 				{Kind: BcHigh, A0: 0x00},
 			},
 		},
 		kwMemAX: InstPat{
-			nil: InstDat{
+			nil: InstDat{ // ROL AX
 				{Kind: BcByte, A0: 0x3e},
 				{Kind: BcLow, A0: 0x00},
 				{Kind: BcHigh, A0: 0x00},
@@ -1546,31 +1609,31 @@ var instMap = InstPat{
 	},
 	kwROR: InstPat{
 		kwRegA: InstPat{
-			nil: InstDat{
+			nil: InstDat{ // ROR A
 				{Kind: BcByte, A0: 0x6a},
 			},
 		},
 		kwMemZN: InstPat{
-			nil: InstDat{
+			nil: InstDat{ // ROR ZN
 				{Kind: BcByte, A0: 0x66},
 				{Kind: BcLow, A0: 0x00},
 			},
 		},
 		kwMemZX: InstPat{
-			nil: InstDat{
+			nil: InstDat{ // ROR ZX
 				{Kind: BcByte, A0: 0x76},
 				{Kind: BcLow, A0: 0x00},
 			},
 		},
 		kwMemAN: InstPat{
-			nil: InstDat{
+			nil: InstDat{ // ROR AN
 				{Kind: BcByte, A0: 0x6e},
 				{Kind: BcLow, A0: 0x00},
 				{Kind: BcHigh, A0: 0x00},
 			},
 		},
 		kwMemAX: InstPat{
-			nil: InstDat{
+			nil: InstDat{ // ROR AX
 				{Kind: BcByte, A0: 0x7e},
 				{Kind: BcLow, A0: 0x00},
 				{Kind: BcHigh, A0: 0x00},
@@ -1943,6 +2006,69 @@ var ctxOpMap = CtxOpMap{
 			},
 			kwCondMI: {
 				{KwJump, &Vec{Int(0), nil}, &Operand{Kind: kwCondPL}},
+			},
+		},
+	},
+	Intern("-return"): {
+		kwRegPC: {
+			nil: {
+				{KwReturn},
+			},
+		},
+	},
+	Intern("-return-if"): {
+		kwRegPC: {
+			kwCondNE: {
+				{KwReturn, &Vec{Int(1), nil}},
+			},
+			kwCondEQ: {
+				{KwReturn, &Vec{Int(1), nil}},
+			},
+			kwCondCC: {
+				{KwReturn, &Vec{Int(1), nil}},
+			},
+			kwCondCS: {
+				{KwReturn, &Vec{Int(1), nil}},
+			},
+			kwCondVC: {
+				{KwReturn, &Vec{Int(1), nil}},
+			},
+			kwCondVS: {
+				{KwReturn, &Vec{Int(1), nil}},
+			},
+			kwCondPL: {
+				{KwReturn, &Vec{Int(1), nil}},
+			},
+			kwCondMI: {
+				{KwReturn, &Vec{Int(1), nil}},
+			},
+		},
+	},
+	Intern("-return-unless"): {
+		kwRegPC: {
+			kwCondNE: {
+				{KwReturn, &Operand{Kind: kwCondEQ}},
+			},
+			kwCondEQ: {
+				{KwReturn, &Operand{Kind: kwCondNE}},
+			},
+			kwCondCC: {
+				{KwReturn, &Operand{Kind: kwCondCS}},
+			},
+			kwCondCS: {
+				{KwReturn, &Operand{Kind: kwCondCC}},
+			},
+			kwCondVC: {
+				{KwReturn, &Operand{Kind: kwCondVS}},
+			},
+			kwCondVS: {
+				{KwReturn, &Operand{Kind: kwCondVC}},
+			},
+			kwCondPL: {
+				{KwReturn, &Operand{Kind: kwCondMI}},
+			},
+			kwCondMI: {
+				{KwReturn, &Operand{Kind: kwCondPL}},
 			},
 		},
 	},

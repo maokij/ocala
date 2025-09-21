@@ -9,6 +9,7 @@ import (
 	"os"
 	"regexp"
 	"strings"
+	"testing"
 )
 
 func init() {
@@ -28,6 +29,7 @@ func NewGenerator(src string) *Generator {
 	}
 }
 
+var IdTestid = InternalId(Intern("testid"))
 var reArch = regexp.MustCompile(`\A\s*arch +([^;\r\n]+)`)
 
 func BuildGenerator(base string, src string) *Generator {
@@ -50,17 +52,35 @@ func BuildGenerator(base string, src string) *Generator {
 	return g
 }
 
-func Compile(base string, src string) ([]byte, string) {
+func ExpectCompileOk(t *testing.T, base string, src string) []byte {
 	g := BuildGenerator(base, src)
 	binary, _, mes := DoCompile(g, "-")
-	return binary, mes
+	if mes != "" {
+		t.Helper()
+		t.Fatalf("%s\n%s", mes, src)
+	}
+	return binary
 }
 
-func GenList(base string, src string) (string, string) {
+func ExpectCompileError(t *testing.T, base string, src string) string {
+	g := BuildGenerator(base, src)
+	binary, _, mes := DoCompile(g, "-")
+	if len(binary) != 0 || mes == "" {
+		t.Helper()
+		t.Fatalf("%s\n%s", mes, src)
+	}
+	return mes
+}
+
+func ExpectGenListOk(t *testing.T, base string, src string) string {
 	g := BuildGenerator(base, src)
 	g.GenList = true
 	_, list, mes := DoCompile(g, "-")
-	return string(list), mes
+	if len(list) == 0 || mes != "" {
+		t.Helper()
+		t.Fatalf("%s\n%s", mes, src)
+	}
+	return string(list)
 }
 
 func DoCompile(g *Generator, path string) ([]byte, []byte, string) {
@@ -69,6 +89,14 @@ func DoCompile(g *Generator, path string) ([]byte, []byte, string) {
 		return g.GenerateBin(g.Compile(path, g.InReader.(*bytes.Buffer).Bytes()))
 	}()
 	return binary, *g.ListText, g.ErrorMessage()
+}
+
+func WarningMessages(g *Generator) []string {
+	warns := []string{}
+	for _, i := range g.Warnings {
+		warns = append(warns, i.Error())
+	}
+	return warns
 }
 
 func CompileTestFile(base string, path string) ([]byte, []byte, string) {
@@ -82,7 +110,8 @@ func CompileTestFile(base string, path string) ([]byte, []byte, string) {
 		return []byte{}, []byte{1}, err.Error()
 	}
 
-	a, mes := Compile(base, string(s))
+	g := BuildGenerator(base, string(s))
+	a, _, mes := DoCompile(g, "-")
 	return a, b, mes
 }
 
@@ -99,6 +128,7 @@ func BuildCompiler() *Compiler {
 		KwRegA:          kwRegA,
 		TokenWords:      tokenWords,
 		AdjustOperand:   adjustOperand,
+		OperandToNamed:  operandToNamed,
 		BMaps:           bmaps,
 		TokenAliases:    tokenAliases,
 		IsValidProcTail: isValidProcTail,
@@ -124,6 +154,7 @@ var syntaxMap = map[*Keyword]SyntaxFn{
 
 	Intern("link-as-tests"): SyntaxFn(sLinkAsTests),
 	Intern("expect"):        SyntaxFn(sExpect),
+	KwOptimize:              SyntaxFn(sOptimize),
 }
 
 func exprToOperand(cc *Compiler, e Value) *Operand {
@@ -170,45 +201,54 @@ func adjustOperand(cc *Compiler, e *Operand, n int, etag *Identifier) {
 	}
 }
 
-func isValidProcTail(cc *Compiler, inst *Inst) bool {
-	return inst.MatchCode(kwJMP, kwRET, KwJump)
+func operandToNamed(cc *Compiler, v Value) *Named {
+	return OperandA0ToNamed(cc, v, kwImmNN)
 }
 
-func adjustInline(cc *Compiler, insts []*Inst) {
+func isValidProcTail(cc *Compiler, inst *Inst) bool {
+	switch inst.Args[0] {
+	case kwJMP, KwJump:
+		return len(inst.Args) == 2
+	case kwRET, KwReturn:
+		return len(inst.Args) == 1
+	}
+	return false
+}
+
+func adjustInline(cc *Compiler, env *Env, insts []*Inst) {
 	ci := insts[0]
 	for _, i := range insts {
 		switch i.Kind {
 		case InstLabel, InstCode:
 			ci = i
 			switch i.Args[0] {
-			case kwRET:
-				a := i.ExprTag().Expand(KwEndInline).ToConstexpr(nil)
-				i.Args = []Value{kwJMP, &Operand{From: i.From, Kind: kwImmNN, A0: a}}
+			case kwRET, KwReturn:
+				a := i.ExprTag().Expand(KwEndInline).ToConstexpr(env)
+				i.Args = append(
+					[]Value{KwJump, &Operand{From: i.From, Kind: kwImmNN, A0: a}},
+					i.Args[1:]...)
 			}
 		}
 	}
 
-	if !ci.MatchCode(kwJMP) {
+	if !ci.MatchCode(kwJMP, KwJump) || len(ci.Args) != 2 {
 		cc.ErrorAt(ci).With("invalid inline proc tail")
 	}
 	if a := ci.Args[1].(*Operand); a.Kind == kwImmNN &&
 		KwEndInline.MatchId(GetConstBody(a.A0)) != nil {
-		*ci = *NewInst(ci.From, InstMisc, KwUNDER)
+		ci.CommentOut()
 	}
 }
 
 func optimizeBCode(cc *Compiler, inst *Inst, bcodes []BCode, commit bool) []BCode {
-	if inst.MatchCode(KwJump, KwCall) && commit {
-		n := len(inst.Args)
+	if commit {
 		switch kw := inst.Args[0].(*Keyword); kw {
 		case KwJump:
-			if n == 2 {
-				inst.Args[0] = kwJMP
-			} else {
-				inst.Args[0] = kwBCO
-			}
+			inst.Args[0] = kwJMP
 		case KwCall:
 			inst.Args[0] = kwJSR
+		case KwReturn:
+			inst.Args[0] = kwRET
 		}
 	}
 	return bcodes
@@ -276,4 +316,14 @@ func sExpect(cc *Compiler, env *Env, e *Vec) Value {
 	s := NewStr("assertion failed: " + cond.Inspect())
 	inst := NewInst(e, InstAssert, cc.CompileExpr(env, cond), s)
 	return cc.EmitCode(inst)
+}
+
+// SYNTAX: (optimize ...)
+func sOptimize(cc *Compiler, env *Env, e *Vec) Value {
+	etag, _ := CheckExpr(e, 2, -1, CtModule|CtProc, cc)
+	k := CheckConstPlainId(e.At(1), "kind", etag, cc)
+
+	CheckToplevelEnv(env, etag, cc)
+	cc.ProcessDefaultOptimizeOption(env, e, k, etag)
+	return NIL
 }

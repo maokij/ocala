@@ -152,10 +152,10 @@ func (cli *CLI) Run(args []string) int {
 		return 1
 	}
 
-	if !g.CompileAndGenerate(path) {
-		g.ErrWriter.Write(g.FullErrorMessage())
+	g.CompileAndGenerate(path)
+	g.FlushMessages()
+	if g.Err != nil {
 		return 1
 	}
-
 	return 0
 }

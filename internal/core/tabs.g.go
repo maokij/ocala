@@ -48,6 +48,7 @@ var SyntaxMap = map[*Keyword]SyntaxFn{
 	Intern("#.field"):             SyntaxFn((*Compiler).sFieldOffset),
 	Intern("#.with"):              SyntaxFn((*Compiler).sWith),
 	Intern("compile-error"):       SyntaxFn((*Compiler).sCompileError),
+	Intern("warn"):                SyntaxFn((*Compiler).sWarn),
 	Intern("assert"):              SyntaxFn((*Compiler).sAssert),
 	Intern("import"):              SyntaxFn((*Compiler).sImport),
 	Intern("expand-loop"):         SyntaxFn((*Compiler).sExpandLoop),

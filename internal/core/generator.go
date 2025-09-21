@@ -7,10 +7,10 @@ import (
 )
 
 type InternalError struct {
-	message   string
-	tag       string
-	at        []Value
-	DebugMode bool
+	message string
+	tag     string
+	at      []Value
+	g       *Generator
 }
 
 func (err *InternalError) Error() string {
@@ -19,7 +19,7 @@ func (err *InternalError) Error() string {
 
 func (err *InternalError) With(message string, args ...any) {
 	err.message = fmt.Sprintf(message, args...)
-	if err.DebugMode {
+	if err.g.DebugMode {
 		for i := 1; ; i++ {
 			if _, file, line, ok := runtime.Caller(i); ok {
 				err.message += fmt.Sprintf("\n-- %s:%d", file, line)
@@ -31,48 +31,17 @@ func (err *InternalError) With(message string, args ...any) {
 	raiseError(err)
 }
 
-type Generator struct {
-	DebugMode bool
-	GenList   bool
-	IsSub     bool
-	InReader  io.Reader
-	OutWriter io.Writer
-	ErrWriter io.Writer
-	IncPaths  []string
-	Defs      []string
-	ListText  *[]byte
-	ListPath  string
-	OutPath   string
-	Err       *InternalError
-	changes   int
-	cc        *Compiler
+type Warning struct {
+	message string
+	at      []Value
 }
 
-func (g *Generator) ErrorAt(values ...Value) *InternalError {
-	return &InternalError{
-		tag:       "generate error: ",
-		at:        values,
-		DebugMode: g.DebugMode,
-	}
+func (err *Warning) Error() string {
+	return "warning: " + err.message
 }
 
-func (g *Generator) ErrorWith(message string, args ...any) {
-	g.ErrorAt().With(message, args...)
-}
-
-func (g *Generator) Changed() {
-	g.changes += 1
-}
-
-func (g *Generator) IsChanged() bool {
-	return g.changes > 0
-}
-
-func (g *Generator) ErrorMessage() string {
-	if g.Err != nil {
-		return g.Err.Error()
-	}
-	return ""
+func (err *Warning) With(message string, args ...any) {
+	err.message = fmt.Sprintf(message, args...)
 }
 
 func FindToken(v Value) *Token {
@@ -95,16 +64,12 @@ func FindToken(v Value) *Token {
 	return nil
 }
 
-func (g *Generator) FullErrorMessage() []byte {
-	if g.Err == nil {
-		return []byte{}
-	}
-
-	message := g.ErrorMessage() + string('\n')
+func FullErrorMessage(kind string, message string, at []Value) []byte {
+	message += "\n"
 	x := 0
-	for _, i := range g.Err.at {
+	for _, i := range at {
 		if token := FindToken(i); token != nil {
-			message += fmt.Sprintf("[error #%d]\n", x)
+			message += fmt.Sprintf("[%s #%d]\n", kind, x)
 			message += token.FormatAsErrorLine("at")
 			if id, ok := token.Value.(*Identifier); ok {
 				for ; id.ExpandedBy != nil; id = id.ExpandedBy {
@@ -115,6 +80,66 @@ func (g *Generator) FullErrorMessage() []byte {
 		}
 	}
 	return []byte(message)
+}
+
+type Generator struct {
+	DebugMode bool
+	GenList   bool
+	IsSub     bool
+	InReader  io.Reader
+	OutWriter io.Writer
+	ErrWriter io.Writer
+	IncPaths  []string
+	Defs      []string
+	ListText  *[]byte
+	ListPath  string
+	OutPath   string
+	Warnings  []*Warning
+	Err       *InternalError
+	changes   int
+	cc        *Compiler
+}
+
+func (g *Generator) WarnAt(values ...Value) *Warning {
+	warn := &Warning{at: values}
+	g.Warnings = append(g.Warnings, warn)
+	return warn
+}
+
+func (g *Generator) ErrorAt(values ...Value) *InternalError {
+	return &InternalError{
+		tag: "generate error: ",
+		at:  values,
+		g:   g,
+	}
+}
+
+func (g *Generator) ErrorWith(message string, args ...any) {
+	g.ErrorAt().With(message, args...)
+}
+
+func (g *Generator) Changed() {
+	g.changes += 1
+}
+
+func (g *Generator) IsChanged() bool {
+	return g.changes > 0
+}
+
+func (g *Generator) ErrorMessage() string {
+	if g.Err != nil {
+		return g.Err.Error()
+	}
+	return ""
+}
+
+func (g *Generator) FlushMessages() {
+	for _, i := range g.Warnings {
+		g.ErrWriter.Write(FullErrorMessage("warning", i.Error(), i.at))
+	}
+	if err := g.Err; err != nil {
+		g.ErrWriter.Write(FullErrorMessage("error", err.Error(), err.at))
+	}
 }
 
 func (g *Generator) HandlePanic() {

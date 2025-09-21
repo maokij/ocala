@@ -22,6 +22,7 @@ class GenerateArch
     "#.REP": "KwREP",
     "#.INVALID": "KwINVALID",
     "#.jump": "KwJump",
+    "#.return": "KwReturn",
     "#.call": "KwCall"
   }.freeze
   Operand = Struct.new(:name, :go, :oc, :asm, :alt, :temp)
@@ -362,29 +363,33 @@ class GenerateArch
 
   def adjust_temp
     alts = arch.merged(:operands).filter { |_, v| v.alt }
+    traverse = lambda do |rest, acc, temp, &block|
+      if rest.empty?
+        block.call(acc, temp)
+      else
+        a = rest[0]
+        rest = rest[1..]
+        traverse.call(rest, acc + [a], temp, &block)
+        a = alts[a] and
+          traverse.call(rest, acc + [a.alt], temp | a.temp, &block)
+      end
+    end
+
     arch.opcodes.each_value do |pats|
       as = {}
       pats.each do |pat, body|
-        temp = false
-        apat = pat.map do |i|
-          j = alts[i]
-          if j
-            temp |= j.temp
-            j.alt
-          else
-            i
-          end
-        end
-        next unless apat != pat && !pats[apat]
+        traverse.call(pat, [], false) do |i, temp|
+          next if i == pat || pats[i]
 
-        as[apat] =
-          if body[0].t == :unsupported
-            [BCode.new(:unsupported, [0])]
-          elsif temp
-            [BCode.new(:temp, [0])] * body.size
-          else
-            body
-          end
+          as[i] =
+            if body[0].t == :unsupported
+              [BCode.new(:unsupported, [0])]
+            elsif temp
+              [BCode.new(:temp, [0])] * body.size
+            else
+              body
+            end
+        end
       end
       pats.merge!(as)
     end
@@ -417,14 +422,14 @@ class GenerateArch
       arch.fetch(:operands, a)&.go || "nil"
     end
 
-    bcodes_code = lambda do |ls|
+    bcodes_code = lambda do |title, ls|
       s = ls.map do |i|
         v = i.v.map.with_index do |j, x|
           format("A%d: 0x%02x", x, [j].pack("C")[0].ord)
         end
         "{Kind: Bc#{i.t.capitalize}, #{v.join(', ')}}"
       end
-      "{\n#{s.join(",\n")},\n}"
+      "{ // #{title}\n#{s.join(",\n")},\n}"
     end
 
     scodes_code = lambda do |es, nest = false|
@@ -455,14 +460,15 @@ class GenerateArch
       "#{prefix}{\n#{s.join(",\n")},\n}"
     end
 
-    map_code_list = lambda do |pats|
+    map_code_list = lambda do |name, pats, acc = []|
       s = []
       pats.each do |k, v|
         if v.is_a? Array
-          s << %(#{operand_code.call(k)}: InstDat#{bcodes_code.call(v)},)
+          title = [name, *acc].join(" ")
+          s << %(#{operand_code.call(k)}: InstDat#{bcodes_code.call(title, v)},)
         else
           s << %(#{operand_code.call(k)}: InstPat{)
-          s.concat(map_code_list.call(v))
+          s.concat(map_code_list.call(name, v, acc + [k]))
           s << %(},)
         end
       end
@@ -535,7 +541,7 @@ class GenerateArch
       code << "var instMap#{suffix} = InstPat{"
       arch.opcodes.each do |name, pats|
         code << %(  #{intern(name)}: InstPat{)
-        code.concat(map_code_list.call(nest_map(pats)))
+        code.concat(map_code_list.call(name, nest_map(pats)))
         code << %(  },)
       end
       code << "}" << ""
@@ -604,6 +610,11 @@ class GenerateArch
     true
   end
 
+  def use_matched_examples(name, pat, a, b)
+    keys = @all_examples.keys.grep(name)
+    keys.each { |i| use_example i, pat, a, b }
+  end
+
   def find_asm_example(name, pat)
     c = @all_examples.dig(name, pat) or return
     c[1] if c[0] == :_
@@ -614,48 +625,48 @@ class GenerateArch
     cocl = []
     casm = []
 
-    add_label = lambda do
-      (nlabels += 1).tap do |n|
-        cocl << "L#{n}:"
-        casm << "L#{n}:"
-      end
-    end
-
     opcodes = arch.merged(:opcodes)
     suffix = arch.base ? arch.name.to_s.gsub(/\A\W/, "_") : ""
     use_example(:$prologue, [:*], cocl, casm)
     opcodes.each do |name, pats|
       next if pats.values.all? { |i| i[0].invalid? }
 
-      n = add_label.call
+      n = nlabels + 1
       next if use_example(name, [:*], cocl, casm)
 
+      docl = ["L#{n}:"]
+      dasm = ["L#{n}:"]
       pats.each do |operands, body|
         next if body[0].invalid?
-        next if use_example(name, operands, cocl, casm)
+        next if use_example(name, operands, docl, dasm)
 
         alt = find_asm_example(name, operands)
         operands = operands.map { |i| arch.fetch(:operands, i) or raise "unknown operand #{i.inspect}" }
-        ocs = operands.map { |i| pfill(i.oc) }
-        asms = operands.map { |i| pfill(i.asm) }
+        ocl_args = operands.map { |i| pfill(i.oc) }
+        asm_args = operands.map { |i| pfill(i.asm) }
         rel = body.find { |i| i.t == :rlow }
         if rel
           x = rel.v[0]
-          asms[x] = ocs[x] = "L#{n - 1}"
-          cocl << "    #{name} #{ocs.join(' ')}"
-          casm << "    #{name} #{asms.join(', ')}"
+          asm_args[x] = ocl_args[x] = "L#{n - 1}"
+          docl << "    #{name} #{ocl_args.join(' ')}"
+          dasm << "    #{name} #{asm_args.join(', ')}" unless alt
 
-          asms[x] = ocs[x] = "L#{n + 2}"
+          asm_args[x] = ocl_args[x] = "L#{n + 2}"
         end
 
-        cocl << "    #{name} #{ocs.join(' ')}"
-        casm <<
+        docl << "    #{name} #{ocl_args.join(' ')}"
+        dasm <<
           if alt
             "    #{alt}"
           else
-            "    #{name} #{asms.join(', ')}"
+            "    #{name} #{asm_args.join(', ')}"
           end
       end
+      next unless dasm.size > 1
+
+      casm.concat(dasm)
+      cocl.concat(docl)
+      nlabels = n
     end
     use_example(:$epilogue, [:*], cocl, casm)
 
@@ -770,7 +781,7 @@ class GenerateArch
         end
       end
     end
-    use_example(:$operators, [:*], cocl, casm)
+    use_matched_examples(/\A\$operators\./, [:*], cocl, casm)
     use_example(:$epilogue, [:*], cocl, casm)
 
     File.write(testdata_path(path, "operators#{suffix}.oc"),

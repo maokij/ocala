@@ -274,6 +274,7 @@ module LLPg
   class Table
     include Enumerable
     extend Forwardable
+
     def_delegators :@table, :[], :keys, :values, :each, :each_key, :each_value
 
     EMPTY = :@EMPTY

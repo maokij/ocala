@@ -3,13 +3,12 @@ package core_test
 import (
 	"ocala/internal/tt"
 	"ocala/internal/tt/ttarch"
-	"slices"
 	"testing"
 )
 
 func TestCompileFunctions(t *testing.T) {
 	t.Run("ok: operators", func(t *testing.T) {
-		dat, mes := compile(`flat!
+		dat := expectCompileOk(t, `flat!
 			link-as-tests
 			expect 6   (2 * 3)
 			expect -15 (3 * -5)
@@ -81,18 +80,18 @@ func TestCompileFunctions(t *testing.T) {
 			expect 0xab hibyte(0xabcd)
 			expect 0xabcd asword(0xab 0xcd)
 		`)
-		tt.Eq(t, "ok", string(dat), mes)
+		tt.Eq(t, "ok", string(dat))
 	})
 
 	t.Run("ok: expand-binary", func(t *testing.T) {
-		dat, mes := compile(`flat!
+		dat := expectCompileOk(t, `flat!
 			$(0xFF) -byte; $(0xFE) -byte; $(0x01) -rep 6
 		`)
-		tt.EqSlice(t, []byte{0xff, 0xfe, 1, 1, 1, 1, 1, 1}, dat, mes, dat)
+		tt.EqSlice(t, []byte{0xff, 0xfe, 1, 1, 1, 1, 1, 1}, dat)
 	})
 
 	t.Run("ok: typecasts", func(t *testing.T) {
-		dat, mes := compile(`flat!
+		dat := expectCompileOk(t, `flat!
 			dw byte(-2) byte(-1) byte(0) byte(1) byte(2) byte(255)
 			dw byte(-0xffff) byte(-0x7ffe) byte(-0x7fff) byte(0x1ff) byte(0xffff)
 			dw word(-2) word(-1) word(0) word(1) word(2) word(255)
@@ -103,11 +102,11 @@ func TestCompileFunctions(t *testing.T) {
 			1, +0, 2, +0, 1, +0, 255, +0, 255, +0,
 			254, 255, 255, 255, 0, +0, 1, +0, 2, +0, 255, +0,
 			2, 128, 1, 128, 255, 1, 255, 255,
-		}, dat, mes, dat)
+		}, dat)
 	})
 
 	t.Run("ok: functions", func(t *testing.T) {
-		dat, mes := compile(`flat!
+		dat := expectCompileOk(t, `flat!
 			link-as-tests
 			module ModA { const c001 = 1 }
 			module ModB { const c002 = 2 }
@@ -120,11 +119,11 @@ func TestCompileFunctions(t *testing.T) {
 			expect !defined?(ModA:c002)
 			expect !defined?(ModC:c002)
 		`)
-		tt.Eq(t, "ok", string(dat), mes)
+		tt.Eq(t, "ok", string(dat))
 	})
 
 	t.Run("ok: others", func(t *testing.T) {
-		dat, mes := compile(`
+		dat := expectCompileOk(t, `
 			link { org 0 0 1; merge text ModA ModB _ }
 			module ModA { const c001 = 1 }
 			module ModB { import ModA; const c002 = 2 }
@@ -142,9 +141,10 @@ func TestCompileFunctions(t *testing.T) {
 				A . { db 1 }
 				A . f001(!)
 				A . B@1
+				A <- B@{m}
 				[0x1234] -dnnm
 				@1
-				BCO f001 ==?
+				JMP f001 ==?
 				m [+ X] [X +] (1 / 1) -10 0b1010 '\0' "ok\0" {
 					A
 					  + 1
@@ -153,7 +153,7 @@ func TestCompileFunctions(t *testing.T) {
 					  -byte
 				}
 				m001; m002 1
-				L0: JPR L0
+				L0: BRL L0
 				db 'o' 'k'
 				isform A "reg"
 				isform EQ? "cond"
@@ -168,13 +168,16 @@ func TestCompileFunctions(t *testing.T) {
 				RET
 			}
 		`)
-		tt.True(t, len(dat) > 0, mes)
+		tt.True(t, len(dat) > 0)
 	})
 
 	t.Run("error", func(t *testing.T) {
 		es := []string{
 			"unknown namespace nothing", `flat!
 				import nothing
+			`,
+			"qualified name is not allowed in this context", `flat!
+				import ns:nothing
 			`,
 			"loop counter must be constexpr", `flat!
 				expand-loop A { NOP }
@@ -187,7 +190,7 @@ func TestCompileFunctions(t *testing.T) {
 			`,
 		}
 		for x := 0; x < len(es); x += 2 {
-			_, mes := compile(es[x+1])
+			mes := expectCompileError(t, es[x+1])
 			tt.Eq(t, "compile error: "+es[x], mes, es[x+1])
 		}
 	})
@@ -195,7 +198,7 @@ func TestCompileFunctions(t *testing.T) {
 
 func TestCompileSpecials(t *testing.T) {
 	t.Run("ok", func(t *testing.T) {
-		dat, mes := compile(`flat!
+		dat := expectCompileOk(t, `flat!
 			db $$(__FILE__) $$(loaded-as-main?)
 			db __ORG__ __PC__
 			proc fn() {
@@ -203,7 +206,7 @@ func TestCompileSpecials(t *testing.T) {
 				RET
 			}
 		`)
-		tt.EqSlice(t, []byte{'-', 1, 0, 3, 4, 0, 0x04}, dat, mes, dat)
+		tt.EqSlice(t, []byte{'-', 1, 0, 3, 4, 0, 0x04}, dat)
 	})
 
 	t.Run("ok: __FILE__", func(t *testing.T) {
@@ -211,7 +214,7 @@ func TestCompileSpecials(t *testing.T) {
 			db $$(__FILE__)
 		`)
 		dat, _, mes := ttarch.DoCompile(g, "test.oc")
-		tt.EqSlice(t, []byte("./test.oc"), dat, mes, dat)
+		tt.EqSlice(t, []byte("./test.oc"), dat, mes)
 	})
 
 	t.Run("error", func(t *testing.T) {
@@ -236,7 +239,7 @@ func TestCompileSpecials(t *testing.T) {
 			`,
 		}
 		for x := 0; x < len(es); x += 2 {
-			_, mes := compile(es[x+1])
+			mes := expectCompileError(t, es[x+1])
 			tt.Eq(t, "compile error: "+es[x], mes, es[x+1])
 		}
 	})
@@ -244,15 +247,18 @@ func TestCompileSpecials(t *testing.T) {
 
 func TestCompileBlock(t *testing.T) {
 	t.Run("ok: do", func(t *testing.T) {
-		dat, mes := compile(`flat!
+		expected := expectCompileOk(t, `flat!
+			L01: JMP L01
+		`)
+		dat := expectCompileOk(t, `flat!
 			do ={ L01: }
 			JMP L01
 		`)
-		tt.True(t, len(dat) > 0, mes)
+		tt.EqSlice(t, expected, dat)
 	})
 
 	t.Run("error: prog", func(t *testing.T) {
-		_, mes := compile(`flat!
+		mes := expectCompileError(t, `flat!
 			do { L01: }
 			JMP L01
 		`)
@@ -262,52 +268,61 @@ func TestCompileBlock(t *testing.T) {
 
 func TestCompileLoop(t *testing.T) {
 	t.Run("ok: loop", func(t *testing.T) {
-		dat, mes := compile(`flat!
+		expected := expectCompileOk(t, `flat!
+			L0: JMP L0 ; JMP L2 ; JMP L1
+			L1: JMP L0
+			L2:
+		`)
+		dat := expectCompileOk(t, `flat!
 			loop {
 				JMP _BEG
 				JMP _END
 				JMP _COND
 			}
 		`)
-		tt.True(t, len(dat) > 0, mes)
+		tt.EqSlice(t, expected, dat)
 	})
 
 	t.Run("ok: loop cond", func(t *testing.T) {
-		dat, mes := compile(`flat!
+		expected := expectCompileOk(t, `flat!
+			L0: JMP L1
+			L1:
+		`)
+		dat := expectCompileOk(t, `flat!
 			loop {
 			} JMP _END
 		`)
-		tt.True(t, len(dat) > 0, mes)
+		tt.EqSlice(t, expected, dat)
 	})
 }
 
 func TestCompileApply(t *testing.T) {
 	t.Run("ok: apply", func(t *testing.T) {
-		dat, mes := compile(`flat!
+		dat := expectCompileOk(t, `flat!
 			apply do { NOP }
 		`)
-		tt.EqSlice(t, []byte{0x00}, dat, mes)
+		tt.EqSlice(t, []byte{0x00}, dat)
 	})
 }
 
 func TestCompileIf(t *testing.T) {
 	t.Run("ok", func(t *testing.T) {
-		dat, mes := compile(`flat!
+		dat := expectCompileOk(t, `flat!
 			if (1 == 2) { db 0 }
 			if (1 == 1) { db 0 }
 			if (1 == 2) { db 0 } else { db 1 }
 			if (1 == 2) { db 0 } else if (1 == 1) { db 2 }
 			if (1 == 2) { db 0 } else if (1 == 3) { db 1 } else { db 3 }
 		`)
-		tt.EqSlice(t, []byte{0, 1, 2, 3}, dat, mes)
+		tt.EqSlice(t, []byte{0, 1, 2, 3}, dat)
 	})
 
 	t.Run("ok: if-cond", func(t *testing.T) {
-		s, _ := compile(`flat!
+		expected := expectCompileOk(t, `flat!
 			if EQ? { db 0 }
 			if EQ? { db 0 } else { db 1 }
 		`)
-		dat, mes := compile(`flat!
+		dat := expectCompileOk(t, `flat!
 			l00: $(l02) -jump-unless EQ?
 			l01: db 0
 			l02:
@@ -317,7 +332,7 @@ func TestCompileIf(t *testing.T) {
 			l12: db 1
 			l13:
 		`)
-		tt.True(t, len(s) > 0 && slices.Equal(s, dat), mes)
+		tt.EqSlice(t, expected, dat)
 	})
 
 	t.Run("error", func(t *testing.T) {
@@ -357,7 +372,7 @@ func TestCompileIf(t *testing.T) {
 			`,
 		}
 		for x := 0; x < len(es); x += 2 {
-			_, mes := compile(es[x+1])
+			mes := expectCompileError(t, es[x+1])
 			tt.Eq(t, "compile error: "+es[x], mes, es[x+1])
 		}
 	})
@@ -365,14 +380,14 @@ func TestCompileIf(t *testing.T) {
 
 func TestCompileCase(t *testing.T) {
 	t.Run("ok", func(t *testing.T) {
-		dat, mes := compile(`flat!
+		dat := expectCompileOk(t, `flat!
 			case 1 when 2 { db 0 }
 			case 1 when 1 { db 0 }
 			case 1 when 2 { db 0 } else { db 1 }
 			case 1 when 2 { db 0 } when 1 { db 2 }
 			case 1 when 2 { db 0 } when 3 { db 1 } else { db 3 }
 		`)
-		tt.EqSlice(t, []byte{0, 1, 2, 3}, dat, mes)
+		tt.EqSlice(t, []byte{0, 1, 2, 3}, dat)
 	})
 
 	t.Run("error", func(t *testing.T) {
@@ -403,7 +418,7 @@ func TestCompileCase(t *testing.T) {
 			`,
 		}
 		for x := 0; x < len(es); x += 2 {
-			_, mes := compile(es[x+1])
+			mes := expectCompileError(t, es[x+1])
 			tt.Eq(t, "compile error: "+es[x], mes, es[x+1])
 		}
 	})
@@ -411,7 +426,7 @@ func TestCompileCase(t *testing.T) {
 
 func TestCompileWhen(t *testing.T) {
 	t.Run("ok", func(t *testing.T) {
-		s, _ := compile(`flat!
+		expected := expectCompileOk(t, `flat!
 			when { db 0; &&- EQ? },
 			then { db 1 }
 
@@ -422,7 +437,7 @@ func TestCompileWhen(t *testing.T) {
 			then { db 1 },
 			else { db 2 }
 		`)
-		dat, mes := compile(`flat!
+		dat := expectCompileOk(t, `flat!
 			l00: db 0; $(l02) -jump-unless EQ?
 			l01: db 1
 			l02:
@@ -436,7 +451,7 @@ func TestCompileWhen(t *testing.T) {
 			l22: db 2
 			l23:
 		`)
-		tt.True(t, len(s) > 0 && slices.Equal(s, dat), mes)
+		tt.EqSlice(t, expected, dat)
 	})
 
 	t.Run("error", func(t *testing.T) {
@@ -461,7 +476,7 @@ func TestCompileWhen(t *testing.T) {
 			`,
 		}
 		for x := 0; x < len(es); x += 2 {
-			_, mes := compile(es[x+1])
+			mes := expectCompileError(t, es[x+1])
 			tt.Eq(t, "compile error: "+es[x], mes, es[x+1])
 		}
 	})
@@ -469,7 +484,7 @@ func TestCompileWhen(t *testing.T) {
 
 func TestCompilePragma(t *testing.T) {
 	t.Run("ok: list-constants", func(t *testing.T) {
-		list, mes := genlist(`
+		list := expectGenListOk(t, `
 				module Mod {
 					const a = 1
 					pragma list-constants 0
@@ -491,11 +506,11 @@ func TestCompilePragma(t *testing.T) {
 			                                            Mod:e = 5
 
 			     - 0000                                 .org 0
-		`)[1:]+"\n", list, mes)
+		`)[1:], list)
 	})
 
 	t.Run("ok: comment", func(t *testing.T) {
-		list, mes := genlist(`
+		list := expectGenListOk(t, `
 				pragma comment "comment"
 				pragma comment "value" 1
 		`)
@@ -506,7 +521,7 @@ func TestCompilePragma(t *testing.T) {
 			     - 0000                                 .org 0
 			                                            ; comment
 			                                            ; value 1
-		`)[1:]+"\n", list, mes)
+		`)[1:], list)
 	})
 
 	t.Run("error", func(t *testing.T) {
@@ -540,7 +555,7 @@ func TestCompilePragma(t *testing.T) {
 			`,
 		}
 		for x := 0; x < len(es); x += 2 {
-			_, mes := compile(es[x+1])
+			mes := expectCompileError(t, es[x+1])
 			tt.Eq(t, "compile error: "+es[x], mes, es[x+1])
 		}
 	})
@@ -548,15 +563,15 @@ func TestCompilePragma(t *testing.T) {
 
 func TestCompileTco(t *testing.T) {
 	t.Run("ok", func(t *testing.T) {
-		s, _ := compile(`flat!
+		expected := expectCompileOk(t, `flat!
 			proc f001(!) { RET }
 			JMP f001
 		`)
-		dat, mes := compile(`flat!
+		dat := expectCompileOk(t, `flat!
 			proc f001(!) { RET }
 			tco { f001(!) }
 		`)
-		tt.True(t, len(s) > 0 && slices.Equal(s, dat), mes)
+		tt.EqSlice(t, expected, dat)
 	})
 
 	t.Run("error", func(t *testing.T) {
@@ -575,7 +590,7 @@ func TestCompileTco(t *testing.T) {
 			`,
 		}
 		for x := 0; x < len(es); x += 2 {
-			_, mes := compile(es[x+1])
+			mes := expectCompileError(t, es[x+1])
 			tt.Eq(t, "compile error: "+es[x], mes, es[x+1])
 		}
 	})
@@ -583,46 +598,46 @@ func TestCompileTco(t *testing.T) {
 
 func TestCompilePatch(t *testing.T) {
 	t.Run("ok", func(t *testing.T) {
-		s, u := compile(`flat!
+		expected := expectCompileOk(t, `flat!
 			data d001 = byte @ <reserved>
 			LD [d001] A@10
 			A <- 0; *patch* d001 byte
 		`)
-		dat, mes := compile(`flat!
+		dat := expectCompileOk(t, `flat!
 			LD [l001 + 1] A@10
 			l001: A <- 0
 		`)
-		tt.True(t, len(s) > 0 && slices.Equal(s, dat), u, mes)
+		tt.EqSlice(t, expected, dat)
 	})
 
 	t.Run("ok: word", func(t *testing.T) {
-		s, u := compile(`flat!
+		expected := expectCompileOk(t, `flat!
 			data d001 = word @ <reserved>
 			LD [d001] A@10
 			AB <- 0; *patch* d001 word
 		`)
-		dat, mes := compile(`flat!
+		dat := expectCompileOk(t, `flat!
 			LD [(l001 + 1)] A@10
 			l001: AB <- 0
 		`)
-		tt.True(t, len(s) > 0 && slices.Equal(s, dat), u, mes)
+		tt.EqSlice(t, expected, dat)
 	})
 
 	t.Run("ok: index", func(t *testing.T) {
-		s, u := compile(`flat!
+		expected := expectCompileOk(t, `flat!
 			data d001 = word @ <reserved>
 			LD [d001] A@10
 			AB <- 0; *patch* d001 -2
 		`)
-		dat, mes := compile(`flat!
+		dat := expectCompileOk(t, `flat!
 			LD [(l001 + 1)] A@10
 			l001: AB <- 0
 		`)
-		tt.True(t, len(s) > 0 && slices.Equal(s, dat), u, mes)
+		tt.EqSlice(t, expected, dat)
 	})
 
 	t.Run("ok: proc", func(t *testing.T) {
-		s, u := compile(`flat!
+		expected := expectCompileOk(t, `flat!
 			proc f001() @ <reserved>
 			proc f002() {
 				NOP;
@@ -631,16 +646,16 @@ func TestCompilePatch(t *testing.T) {
 			}
 			f001(); f002()
 		`)
-		dat, mes := compile(`flat!
+		dat := expectCompileOk(t, `flat!
 			l002: NOP
 			l001: RET
 			JSR l001; JSR l002;
 		`)
-		tt.True(t, len(s) > 0 && slices.Equal(s, dat), u, mes)
+		tt.EqSlice(t, expected, dat)
 	})
 
 	t.Run("ok: module", func(t *testing.T) {
-		dat, mes := compile(`flat!
+		dat := expectCompileOk(t, `flat!
 			module ModA {
 				proc f() { A <- [ModB:d001]; RET }
 			}
@@ -649,11 +664,11 @@ func TestCompilePatch(t *testing.T) {
 				proc f() { NOP; *patch* d001 byte; RET }
 			}
 		`)
-		tt.True(t, len(dat) > 0, mes)
+		tt.True(t, len(dat) > 0)
 	})
 
 	t.Run("ok: generate list", func(t *testing.T) {
-		list, mes := genlist(`flat!
+		list := expectGenListOk(t, `flat!
 			data d001 = word @ <reserved>
 			LD [d001] A@10
 			AB <- 0; *patch* d001 word
@@ -661,14 +676,14 @@ func TestCompilePatch(t *testing.T) {
 		tt.EqText(t, tt.Unindent(`
 			|                                            ; generated by ocala
 			                                            __ARCH__ = "ttarch"
-			~                                            d001 = patch\.d001\.G\d+ \+ -2
+			                                            d001 = patch\.d001\.G\d+ \+ -2 ~
 
 			     - 0000                                 .org 0
 			000000 0000[2] 23 0a                        LD     A, 0+ 10
 			000002 0002[3] 34 06 00                     LD     (d001), A
 			000005 0005[3] 3b 00 00                     LD     AB, 0+ 0
-			~     - 0008                             patch\.d001\.G\d+:
-		`)[1:]+"\n", list, mes)
+			     - 0008                             patch\.d001\.G\d+: ~
+		`)[1:], list)
 	})
 
 	t.Run("error", func(t *testing.T) {
@@ -686,7 +701,7 @@ func TestCompilePatch(t *testing.T) {
 			`,
 		}
 		for x := 0; x < len(es); x += 2 {
-			_, mes := compile(es[x+1])
+			mes := expectCompileError(t, es[x+1])
 			tt.Eq(t, "compile error: "+es[x], mes, es[x+1])
 		}
 	})
@@ -694,11 +709,11 @@ func TestCompilePatch(t *testing.T) {
 
 func TestCompileMakeCounter(t *testing.T) {
 	t.Run("ok", func(t *testing.T) {
-		dat, mes := compile(`flat!
+		dat := expectCompileOk(t, `flat!
 			make-counter c 0
 			L1: db c c
 		`)
-		tt.EqSlice(t, []byte{0, 1}, dat, mes, dat)
+		tt.EqSlice(t, []byte{0, 1}, dat)
 	})
 
 	t.Run("error", func(t *testing.T) {
@@ -711,7 +726,7 @@ func TestCompileMakeCounter(t *testing.T) {
 			`,
 		}
 		for x := 0; x < len(es); x += 2 {
-			_, mes := compile(es[x+1])
+			mes := expectCompileError(t, es[x+1])
 			tt.Eq(t, "compile error: "+es[x], mes, es[x+1])
 		}
 	})
@@ -719,11 +734,11 @@ func TestCompileMakeCounter(t *testing.T) {
 
 func TestCompileAssert(t *testing.T) {
 	t.Run("ok", func(t *testing.T) {
-		dat, mes := compile(`flat!
+		dat := expectCompileOk(t, `flat!
 			beg: NOP; end:
 			assert (end - beg == 1)
 		`)
-		tt.True(t, len(dat) == 1, mes)
+		tt.Eq(t, 1, len(dat))
 	})
 
 	t.Run("error", func(t *testing.T) {
@@ -738,7 +753,7 @@ func TestCompileAssert(t *testing.T) {
 			`,
 		}
 		for x := 0; x < len(es); x += 2 {
-			_, mes := compile(es[x+1])
+			mes := expectCompileError(t, es[x+1])
 			tt.Eq(t, "compile error: "+es[x], mes, es[x+1])
 		}
 	})
@@ -746,7 +761,7 @@ func TestCompileAssert(t *testing.T) {
 
 func TestCompileSizeof(t *testing.T) {
 	t.Run("ok", func(t *testing.T) {
-		dat, mes := compile(`flat!
+		dat := expectCompileOk(t, `flat!
 			link-as-tests
 			data d001 = byte * 4 : bss
 			expect 4 sizeof(d001)
@@ -798,7 +813,7 @@ func TestCompileSizeof(t *testing.T) {
 			expect 32 sizeof(d006.x)
 			expect 64 sizeof(d006.y)
 		`)
-		tt.Eq(t, "ok", string(dat), mes)
+		tt.Eq(t, "ok", string(dat))
 	})
 
 	t.Run("error", func(t *testing.T) {
@@ -827,7 +842,7 @@ func TestCompileSizeof(t *testing.T) {
 			`,
 		}
 		for x := 0; x < len(es); x += 2 {
-			_, mes := compile(es[x+1])
+			mes := expectCompileError(t, es[x+1])
 			tt.Eq(t, "compile error: "+es[x], mes, es[x+1])
 		}
 	})
@@ -835,7 +850,7 @@ func TestCompileSizeof(t *testing.T) {
 
 func TestCompileNametypeof(t *testing.T) {
 	t.Run("ok", func(t *testing.T) {
-		dat, mes := compile(`
+		dat := expectCompileOk(t, `
 			link-as-tests
 			module ModA { const c002 = 2 }
 			macro m001() {}
@@ -857,7 +872,7 @@ func TestCompileNametypeof(t *testing.T) {
 				RET
 			}
 		`)
-		tt.Eq(t, "ok", string(dat), mes)
+		tt.Eq(t, "ok", string(dat))
 	})
 
 	t.Run("error", func(t *testing.T) {
@@ -878,7 +893,7 @@ func TestCompileNametypeof(t *testing.T) {
 			`,
 		}
 		for x := 0; x < len(es); x += 2 {
-			_, mes := compile(es[x+1])
+			mes := expectCompileError(t, es[x+1])
 			tt.Eq(t, "compile error: "+es[x], mes, es[x+1])
 		}
 	})

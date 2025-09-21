@@ -43,6 +43,26 @@ macro break-if(cond) {
     $(_END) -jump-if %=cond
 }
 
+macro goto(addr) {
+    $(%=addr) -jump
+}
+
+macro goto-if(cond addr) {
+    $(%=addr) -jump-if %=cond
+}
+
+macro return(call: _) {
+    if use?(%&call) ={
+        tco %=call
+    } else ={
+        PC -return
+    }
+}
+
+macro return-if(cond) {
+    PC -return-if %=cond
+}
+
 macro incbin(s) {
     data byte load-file(%=s)
 }

@@ -2,33 +2,10 @@
 include "noarch.oc"
 
 ////////////////////////////////////////////////////////////
-// return macros
-////////////////////////////////////////////////////////////
-macro return(call: _) {
-    if use?(%&call) {
-        tco %=call
-    } else {
-        RET
-    }
-}
-
-macro return-if(cond) {
-    RET %=cond
-}
-
-////////////////////////////////////////////////////////////
 // goto macros
 ////////////////////////////////////////////////////////////
 macro goto/HL() {
     JP [HL]
-}
-
-macro goto(addr) {
-    $(%=addr) -jump
-}
-
-macro goto-if(cond addr) {
-    $(%=addr) -jump-if %=cond
 }
 
 macro goto-abs(addr) {

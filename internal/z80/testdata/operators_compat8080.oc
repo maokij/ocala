@@ -274,6 +274,30 @@
     H -zero?
     L -zero?
     [HL] -zero?
+    BC <- D : E
+    BC -> D : E
+    BC <- BC
+    BC <- DE
+    BC <- HL
+    DE <- BC
+    DE <- DE
+    DE <- HL
+    HL <- BC
+    HL <- DE
+    HL <- HL
+    BC -> BC
+    BC -> DE
+    BC -> HL
+    DE -> BC
+    DE -> DE
+    DE -> HL
+    HL -> BC
+    HL -> DE
+    HL -> HL
+    A <* 2
+    A <*$ 2
+    A >* 2
+    A >*$ 2
     LBI:
     $(LBI) -jump-if NZ?
     $(LBI) -jump-if Z?
@@ -292,6 +316,23 @@
     $(LBU) -jump-unless PE?
     $(LBU) -jump-unless M?
     $(LBU) -jump-unless P?
+    PC -return
+    PC -return-if NZ?
+    PC -return-if Z?
+    PC -return-if NC?
+    PC -return-if C?
+    PC -return-if PO?
+    PC -return-if PE?
+    PC -return-if M?
+    PC -return-if P?
+    PC -return-unless NZ?
+    PC -return-unless Z?
+    PC -return-unless NC?
+    PC -return-unless C?
+    PC -return-unless PO?
+    PC -return-unless PE?
+    PC -return-unless M?
+    PC -return-unless P?
     proc f(!){ RET }
     f(!)
     NC?.f(!)

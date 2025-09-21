@@ -7,7 +7,7 @@ Ocala is an assembler for Z80 / 6502.
 - Modules and namespaces
 - Flexible link methods
 - Macros and inline procedures
-- Controll flow like if/loop
+- Controll flows like if/loop
 - Infix notation for machine language instructions
 - MSX BIOS functions library
 

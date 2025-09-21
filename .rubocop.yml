@@ -37,5 +37,8 @@ Style/NumericPredicate:
 Style/FormatStringToken:
   EnforcedStyle: unannotated
 
+Style/ItAssignment:
+  Enabled: false
+
 Minitest/MultipleAssertions:
   Max: 8

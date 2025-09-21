@@ -38,10 +38,13 @@ var KwTpl = Intern("#.tpl")
 var KwProg = Intern("#.prog")
 var KwBlock = Intern("#.block")
 var KwWith = Intern("#.with")
+var KwReturn = Intern("#.return")
 var KwCall = Intern("#.call")
 var KwCallproc = Intern("#.callproc")
+var KwBeginProc = Intern("#.beginproc")
 var KwEndProc = Intern("#.endproc")
 var KwFallthrough = Intern("#.fallthrough")
+var KwPatchAnchor = Intern("#.patch-anchor")
 var KwValueOf = Intern("#.valueof")
 var KwExprdata = Intern("#.exprdata")
 var KwEndInline = Intern("#.endinline")
@@ -87,6 +90,7 @@ var KwWhenOr = Intern("||-")
 var KwThen = Intern("then")
 var KwOptimize = Intern("optimize")
 var KwCompileFile = Intern("compile-file")
+var KwFlow = Intern("flow")
 
 var IdUNDER = InternalId(KwUNDER)
 
@@ -178,8 +182,9 @@ type Compiler struct {
 
 	ExprToOperand   func(*Compiler, Value) *Operand
 	AdjustOperand   func(*Compiler, *Operand, int, *Identifier)
+	OperandToNamed  func(*Compiler, Value) *Named
 	IsValidProcTail func(*Compiler, *Inst) bool
-	AdjustInline    func(*Compiler, []*Inst)
+	AdjustInline    func(*Compiler, *Env, []*Inst)
 	AsmOperands     map[*Keyword]AsmOperand
 	TrimAsmOperand  bool
 
@@ -193,15 +198,20 @@ type Compiler struct {
 	MacroNesting  int
 	InlineInsts   []*Inst
 
-	OptimizeBCode func(*Compiler, *Inst, []BCode, bool) []BCode
+	EnableOptimizeFlow bool
+	OptimizeBCode      func(*Compiler, *Inst, []BCode, bool) []BCode
 }
 
 func (cc *Compiler) ErrorAt(values ...Value) *InternalError {
 	return &InternalError{
-		tag:       "compile error: ",
-		at:        values,
-		DebugMode: cc.g.DebugMode,
+		tag: "compile error: ",
+		at:  values,
+		g:   cc.g,
 	}
+}
+
+func (cc *Compiler) WarnAt(values ...Value) *Warning {
+	return cc.g.WarnAt(values...)
 }
 
 func (cc *Compiler) FullArchName() string {
@@ -252,6 +262,9 @@ func (cc *Compiler) EmitCodeToSection(section *Section, code ...*Inst) {
 }
 
 func (cc *Compiler) resolveNamespace(env *Env, id *Identifier) *Env {
+	if id.PlaceHolder != "" {
+		cc.ErrorAt(id).With("invalid placeholder")
+	}
 	if id.Namespace != nil {
 		mod := cc.FindModule(env, id.Namespace, id)
 		if mod == nil {
@@ -278,7 +291,7 @@ func (cc *Compiler) FindNamed(env *Env, id *Identifier) *Named {
 	if env == nil {
 		return nil
 	}
-	return env.FindById(id)
+	return env.Find(id.Name)
 }
 
 func (cc *Compiler) LookupNamed(env *Env, id *Identifier) *Named {
@@ -290,17 +303,17 @@ func (cc *Compiler) LookupNamed(env *Env, id *Identifier) *Named {
 	if env == nil {
 		return nil
 	}
-	return env.LookupById(id)
+	return env.Lookup(id.Name)
 }
 
 func (cc *Compiler) InstallNamed(env *Env, id *Identifier, kind int32, value Value) *Named {
-	if id.Namespace != nil {
-		cc.ErrorAt(id).With("invalid namespace %s", id.Namespace)
+	if !id.IsPlain() {
+		cc.ErrorAt(id).With("%s is not a plain name", id)
 	}
-	if env.FindById(id) != nil {
+	if env.Find(id.Name) != nil {
 		cc.ErrorAt(id).With("%s is already defined", id)
 	}
-	if cc.Builtins.FindById(id) != nil {
+	if cc.Builtins.Find(id.Name) != nil {
 		cc.ErrorAt(id).With("%s is a builtin name", id)
 	}
 
@@ -368,19 +381,22 @@ func (cc *Compiler) initConstvals(phase int) {
 	cc.Phase = phase
 }
 
-func (cc *Compiler) initReservedWords() {
+func (cc *Compiler) initReservedWords(env *Env) {
 	cc.ReservedWords = map[string]int32{}
 	maps.Copy(cc.ReservedWords, reservedWords)
 	for _, i := range cc.TokenWords[0] {
 		cc.ReservedWords[i] = tkREG
+		env.Install(&Named{Name: Intern(i), Kind: NmSpecial, Value: SyntaxFn(sCannotEval)})
 	}
 	for _, i := range cc.TokenWords[1] {
 		cc.ReservedWords[i] = tkCOND
+		env.Install(&Named{Name: Intern(i), Kind: NmSpecial, Value: SyntaxFn(sCannotEval)})
 	}
 
 	cc.Operators = map[string]int{}
 	for _, i := range cc.TokenWords[2] {
 		cc.Operators[i] |= 1
+		env.Install(&Named{Name: Intern(i), Kind: NmSpecial, Value: SyntaxFn(sCannotEval)})
 	}
 
 	cc.Precs = map[*Keyword]int{}
@@ -390,6 +406,7 @@ func (cc *Compiler) initReservedWords() {
 	}
 	for _, i := range cc.TokenWords[3] {
 		cc.Operators[i] |= 2
+		env.Install(&Named{Name: Intern(i), Kind: NmSpecial, Value: SyntaxFn(sCannotEval)})
 	}
 }
 
@@ -417,8 +434,8 @@ func (cc *Compiler) Compile(path string, text []byte) []*Inst {
 	cc.initHooks()
 	cc.initMainPath(path)
 	cc.initTopLevelEnv()
+	cc.initReservedWords(cc.Builtins)
 	cc.initConstvals(PhCompile)
-	cc.initReservedWords()
 	cc.EnterContext(CtModule)
 	cc.EnterCodeBlock() // Constants
 	cc.EnterCodeBlock() // Toplevel
@@ -545,10 +562,10 @@ func GetNamedValue[T Value](v Value, t T) T {
 }
 
 func GetBuiltinTypeById(id *Identifier) *Datatype {
-	if id.Namespace != nil {
-		return nil
+	if id.IsPlain() {
+		return BuiltinTypes[id.Name]
 	}
-	return BuiltinTypes[id.Name]
+	return nil
 }
 
 func CheckToplevelEnv(env *Env, id *Identifier, cc *Compiler) {
@@ -574,7 +591,7 @@ func CheckReserved(nm *Named, id *Identifier, cc *Compiler) {
 
 func CheckConstPlainId(v Value, name string, id *Identifier, cc *Compiler) *Identifier {
 	a := CheckConst(v, IdentifierT, name, id, cc)
-	if a.Namespace != nil {
+	if !a.IsPlain() {
 		cc.ErrorAt(v, id).With("qualified name is not allowed in this context")
 	}
 	return a
@@ -590,14 +607,14 @@ func AsTaggedVec(v Value) (*Identifier, *Vec) {
 }
 
 func AsMemForm(v Value) *Vec {
-	if etag, v := AsTaggedVec(v); etag != nil && etag.Namespace == nil && etag.Name == KwMem {
+	if etag, v := AsTaggedVec(v); etag != nil && etag.IsPlain() && etag.Name == KwMem {
 		return v
 	}
 	return nil
 }
 
 func AsBlockForm(v Value) *Vec {
-	if etag, v := AsTaggedVec(v); etag != nil && etag.Namespace == nil &&
+	if etag, v := AsTaggedVec(v); etag != nil && etag.IsPlain() &&
 		(etag.Name == KwProg || etag.Name == KwBlock) {
 		return v
 	}
@@ -695,7 +712,7 @@ func (cc *Compiler) expandMacroBody(env *Env, e Value, r *Vec, unwrap bool, by *
 			return r.Push(e)
 		}
 
-		nm := cc.FindNamed(env, e)
+		nm := env.Find(e.Name)
 		if nm == nil {
 			cc.ErrorAt(e).With("unknown placeholder %s in macro body", e)
 		}
@@ -823,10 +840,9 @@ func (cc *Compiler) expandInline(env *Env, e *Vec, id *Identifier, inline *Inlin
 	r := cc.expandMacroBody(NewEnv(nil), inline.Body, nil, false, etag)
 
 	cc.EnterCodeBlock()
-	// at least one element required in the body.
 	cc.EmitCode(NewInst(e, InstMisc, KwComment, NewStr("begin-inline "+id.String())))
 	cc.CompileExpr(env, r)
-	cc.AdjustInline(cc, cc.CodeStack[len(cc.CodeStack)-1])
+	cc.AdjustInline(cc, env, cc.CodeStack[len(cc.CodeStack)-1])
 	cc.EmitCode(NewInst(e, InstLabel, nm))
 	cc.EmitCode(cc.LeaveCodeBlock()...)
 	return NIL
@@ -1057,7 +1073,7 @@ func (cc *Compiler) expandAllInlines() {
 
 func flattenInsts(acc *[]*Inst, insts []*Inst) {
 	for _, i := range insts {
-		if i.Kind == InstMisc && i.Args[0] == KwInline {
+		if i.IsMisc(KwInline) {
 			flattenInsts(acc, i.Args[3].(*Section).Insts)
 		} else {
 			*acc = append(*acc, i)
@@ -1096,13 +1112,13 @@ func (cc *Compiler) doLink() []*Inst {
 					continue
 				}
 
-				id := CheckConst(i, IdentifierT, "module name", etag, cc)
+				id := CheckConstPlainId(i, "module name", etag, cc)
 				if id.Name == KwUNDER {
 					for _, nm := range modules {
 						cc.emitCodeFromModule(nm.Value.(*Module), sec.Name)
 					}
 				} else {
-					nm := cc.Toplevel.FindById(id)
+					nm := cc.FindNamed(cc.Toplevel, id)
 					if nm == nil || nm.Kind != NmModule {
 						cc.ErrorAt(etag).With("unknown module %s", id)
 					}
@@ -1174,4 +1190,36 @@ func MergeTokenWords(a, b [][]string) [][]string {
 		slices.Concat(a[2], b[2]),
 		slices.Concat(a[3], b[3]),
 	}
+}
+
+func (cc *Compiler) ProcessDefaultOptimizeOption(env *Env, e *Vec, k *Identifier, etag *Identifier) {
+	n := e.Size()
+	switch k.Name {
+	case KwFlow:
+		v := Int(1)
+		if n == 3 {
+			v = CheckAndEvalConstAs(e.At(2), env, IntT, "option", etag, cc)
+		}
+		cc.EnableOptimizeFlow = v != Int(0)
+	default:
+		cc.ErrorAt(etag).With("unknown optimizer: %s", k)
+	}
+}
+
+func OperandA0ToNamed(cc *Compiler, v Value, kind *Keyword) *Named {
+	a, ok := v.(*Operand)
+	if !ok || a.Kind != kind {
+		return nil
+	}
+
+	c, ok := a.A0.(*Constexpr)
+	if !ok {
+		return nil
+	}
+
+	id, ok := c.Body.(*Identifier)
+	if !ok {
+		return nil
+	}
+	return cc.LookupNamed(c.Env, id)
 }

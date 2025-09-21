@@ -819,8 +819,6 @@ L46:
 L47:
     RST 16
 L48:
-L49:
-L50:
     IN A, (5)
     IN A, (C)
     IN B, (C)
@@ -831,15 +829,15 @@ L50:
     IN L, (C)
     DB 0xED, 0x70
     DB 0xED, 0x70
-L51:
+L49:
     INI
-L52:
+L50:
     INIR
-L53:
+L51:
     IND
-L54:
+L52:
     INDR
-L55:
+L53:
     OUT (5), A
     OUT (C), A
     OUT (C), B
@@ -849,35 +847,35 @@ L55:
     OUT (C), H
     OUT (C), L
     DB 0xED, 0x71
-L56:
+L54:
     OUTI
-L57:
+L55:
     OTIR
-L58:
+L56:
     OUTD
-L59:
+L57:
     OTDR
-L60:
+L58:
     DAA
-L61:
+L59:
     CPL
-L62:
+L60:
     NEG
-L63:
+L61:
     CCF
-L64:
+L62:
     SCF
-L65:
+L63:
     NOP
-L66:
+L64:
     HALT
-L67:
+L65:
     DI
-L68:
+L66:
     EI
-L69:
+L67:
     IM 1
-L70:
+L68:
     DB 0xCB, 0x37
     DB 0xCB, 0x30
     DB 0xCB, 0x31

@@ -33,6 +33,12 @@ func (cc *Compiler) sReserved(env *Env, e *Vec) Value {
 	return NIL
 }
 
+func sCannotEval(cc *Compiler, env *Env, e *Vec) Value {
+	etag, _ := CheckExpr(e, 1, 1, CtConstexpr, cc)
+	cc.ErrorAt(etag).With("[BUG] invalid evaluation")
+	return NIL
+}
+
 // SPECIAL: (__FILE__)
 // func (cc *Compiler) sFilename(env *Env, e *Vec) Value
 
@@ -534,11 +540,12 @@ func (cc *Compiler) sProc(env *Env, e *Vec) Value {
 	cc.EnterCodeBlock()
 
 	nm := cc.InstallNamed(env, name, NmLabel, &Label{Sig: sig})
-	cc.EmitCode(NewInst(e, InstLabel, nm, NIL)) // #1(NIL): last inst link
+	cc.EmitCode(NewInst(e, InstMisc, KwBeginProc, NIL)) // #1(NIL): last inst link
+	cc.EmitCode(NewInst(e, InstLabel, nm))
 
 	env = env.Enter()
-	procNm := cc.InstallNamed(env, etag.Expand(KwPROCNAME), NmConst, name.ToConstexpr(env))
-	cc.EmitCode(NewInst(e, InstConst, procNm))
+	procNm := cc.InstallNamed(env, etag.Expand(KwPROCNAME), NmLabel, &Label{})
+	cc.EmitCode(NewInst(e, InstLabel, procNm))
 
 	cc.sBlock(env, body)
 	cc.EmitCode(NewInst(e, InstMisc, KwEndProc))
@@ -579,8 +586,8 @@ func (cc *Compiler) sFallthrough(env *Env, e *Vec) Value {
 // SYNTAX: (tco a)
 func (cc *Compiler) sTco(env *Env, e *Vec) Value {
 	etag, _ := CheckExpr(e, 2, 2, CtProc, cc)
-	body := CheckBlockForm(e.At(1), "body", etag, cc)
 
+	body := CheckBlockForm(e.At(1), "body", etag, cc)
 	if body.Size() != 2 {
 		cc.ErrorAt(body, etag).With("only one statement is allowed within the tco form")
 	}
@@ -933,11 +940,22 @@ func (cc *Compiler) sWith(env *Env, e *Vec) Value {
 // SYNTAX: (compile-error s)
 func (cc *Compiler) sCompileError(env *Env, e *Vec) Value {
 	etag, _ := CheckExpr(e, 2, 2, CtModule|CtProc, cc)
-	s := CheckConst(e.At(1), StrT, "error message", etag, cc)
+	s := CheckConst(e.At(1), StrT, "message", etag, cc)
 	if etag.ExpandedBy != nil {
 		etag = etag.ExpandedBy
 	}
 	cc.ErrorAt(etag).With("%s", s)
+	return NIL
+}
+
+// SYNTAX: (warn s)
+func (cc *Compiler) sWarn(env *Env, e *Vec) Value {
+	etag, _ := CheckExpr(e, 2, 2, CtModule|CtProc, cc)
+	s := CheckConst(e.At(1), StrT, "message", etag, cc)
+	if etag.ExpandedBy != nil {
+		etag = etag.ExpandedBy
+	}
+	cc.WarnAt(etag).With("%s", s)
 	return NIL
 }
 
@@ -958,7 +976,7 @@ func (cc *Compiler) sAssert(env *Env, e *Vec) Value {
 // SYNTAX: (import s)
 func (cc *Compiler) sImport(env *Env, e *Vec) Value {
 	etag, _ := CheckExpr(e, 2, 2, CtModule|CtProc, cc)
-	id := CheckConst(e.At(1), IdentifierT, "module name", etag, cc)
+	id := CheckConstPlainId(e.At(1), "module name", etag, cc)
 
 	mod := cc.FindModule(env, id.Name, id)
 	if mod == nil {
@@ -1000,10 +1018,11 @@ func (cc *Compiler) sPatch(env *Env, e *Vec) Value {
 	}
 
 	id := etag.Expand(Gensym("patch." + name.String()))
-	label := cc.InstallNamed(env, id, NmLabel, &Label{})
+	labelNm := cc.InstallNamed(env, id, NmLabel, &Label{})
 
 	nm.Value.(*Label).At = &Constexpr{Env: env, Body: &Vec{etag.Expand(KwPlusOp), id, delta}}
-	return cc.EmitCode(NewInst(e, InstLabel, label))
+	cc.EmitCode(NewInst(e, InstMisc, KwPatchAnchor, nm))
+	return cc.EmitCode(NewInst(e, InstLabel, labelNm))
 }
 
 // SYNTAX: (make-counter name value)

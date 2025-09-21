@@ -198,10 +198,25 @@ func TestOperand(t *testing.T) {
 }
 
 func TestInst(t *testing.T) {
-	a := NewInst(&Vec{InternalId(Intern("expr"))}, InstLabel, Int(1))
-	tt.Eq(t, "0 [1]", a.Inspect())
+	nm := &Named{Name: Intern("L0")}
+	a := NewInst(&Vec{InternalId(Intern("expr"))}, InstLabel, nm)
+	tt.Eq(t, "label [<Named:L0>]", a.Inspect())
 	tt.True(t, Value(a) != a.Dup())
 	tt.Eq(t, "expr", a.ExprTag().String())
+
+	a.CommentOut()
+	tt.Eq(t, InstMisc, a.Kind)
+	tt.Eq(t, KwComment, a.Args[0].(*Keyword))
+	tt.Eq(t, `misc [:comment "// label"]`, a.Inspect())
+
+	b := NewInst(&Vec{}, InstCode, Intern("NOP"))
+	tt.Eq(t, "code [:NOP]", b.Inspect())
+	tt.True(t, Value(b) != b.Dup())
+
+	b.CommentOut()
+	tt.Eq(t, InstMisc, b.Kind)
+	tt.Eq(t, KwComment, b.Args[0].(*Keyword))
+	tt.Eq(t, `misc [:comment "//" :NOP]`, b.Inspect())
 }
 
 func TestSection(t *testing.T) {

@@ -39,8 +39,8 @@ const (
     tkDOP
     tkCOND
     tkMIAT
-    tkDLMI
-    tkDLDLMI
+    tkDLAT
+    tkDLDLAT
     tkDTMI
     tkINTEGER
     tkRESERVED
@@ -67,8 +67,8 @@ var tokenKinds = map[string]int32{
     "={": tkEQLC,
     "@-": tkATMI,
     "-@": tkMIAT,
-    "$-": tkDLMI,
-    "$$-": tkDLDLMI,
+    "$@": tkDLAT,
+    "$$@": tkDLDLAT,
     ".-": tkDTMI,
 }
 
@@ -107,8 +107,8 @@ var tokenLabels = [...]string{
     "DOP", // tkDOP
     "COND", // tkCOND
     "'-@'", // tkMIAT
-    "'$-'", // tkDLMI
-    "'$$-'", // tkDLDLMI
+    "'$@'", // tkDLAT
+    "'$$@'", // tkDLDLAT
     "'.-'", // tkDTMI
     "INTEGER", // tkINTEGER
     "RESERVED", // tkRESERVED
@@ -128,7 +128,6 @@ var reservedWords = map[string]int32{
   "_BEG": tkRESERVED,
   "_END": tkRESERVED,
   "_COND": tkRESERVED,
-  "__PROC__": tkRESERVED,
 }
 
 func (p *Parser) _parse() (res Value, ok bool) {
@@ -150,7 +149,7 @@ func (p *Parser) _parseProgram() (res Value) {
     // RULE: program -> _program_1o _program_4r
     v := &Vec{_markerid(p, KwBlock)}
     switch p.PeekToken().Kind {
-    case tkMACRO, tkPROC, tkCONST, tkDATA, tkMODULE, tkLABEL, tkSTRUCT, tkIDENTIFIER, tkCONDDOT, tkATMI, tkIDENTIFIERP, tkREG, tkLS, tkDLMI, tkDLDLMI, tkSC, tkEOF, tkRC:
+    case tkMACRO, tkPROC, tkCONST, tkDATA, tkMODULE, tkLABEL, tkSTRUCT, tkIDENTIFIER, tkCONDDOT, tkATMI, tkIDENTIFIERP, tkREG, tkLS, tkDLAT, tkDLDLAT, tkSC, tkEOF, tkRC:
             // @ _program_1o _program_4r
             var _1 Value; _ = _1
             for {
@@ -158,14 +157,14 @@ func (p *Parser) _parseProgram() (res Value) {
                 // RULE: _program_1o -> stmt
                 // RULE: _program_1o -> 
                 switch p.PeekToken().Kind {
-                case tkMACRO, tkPROC, tkCONST, tkDATA, tkMODULE, tkLABEL, tkSTRUCT, tkIDENTIFIER, tkCONDDOT, tkATMI, tkIDENTIFIERP, tkREG, tkLS, tkDLMI, tkDLDLMI:
+                case tkMACRO, tkPROC, tkCONST, tkDATA, tkMODULE, tkLABEL, tkSTRUCT, tkIDENTIFIER, tkCONDDOT, tkATMI, tkIDENTIFIERP, tkREG, tkLS, tkDLAT, tkDLDLAT:
                         // @ stmt
                         _1 := p._parseStmt(); _ = _1
                         *res = _1 // DEFAULT OPT ACTION
                 case tkSC, tkEOF, tkRC:
                         // NOP
                 default:
-                    p.ErrorUnexpected(p.PeekToken(), "MACRO, PROC, CONST, DATA, MODULE, LABEL, STRUCT, IDENTIFIER, CONDDOT, '@-', IDENTIFIERP, REG, '[', '$-', '$$-', ';', EOF, '}'")
+                    p.ErrorUnexpected(p.PeekToken(), "MACRO, PROC, CONST, DATA, MODULE, LABEL, STRUCT, IDENTIFIER, CONDDOT, '@-', IDENTIFIERP, REG, '[', '$@', '$$@', ';', EOF, '}'")
                 }
                 break
             }
@@ -189,14 +188,14 @@ func (p *Parser) _parseProgram() (res Value) {
                             // RULE: _program_2o -> stmt
                             // RULE: _program_2o -> 
                             switch p.PeekToken().Kind {
-                            case tkMACRO, tkPROC, tkCONST, tkDATA, tkMODULE, tkLABEL, tkSTRUCT, tkIDENTIFIER, tkCONDDOT, tkATMI, tkIDENTIFIERP, tkREG, tkLS, tkDLMI, tkDLDLMI:
+                            case tkMACRO, tkPROC, tkCONST, tkDATA, tkMODULE, tkLABEL, tkSTRUCT, tkIDENTIFIER, tkCONDDOT, tkATMI, tkIDENTIFIERP, tkREG, tkLS, tkDLAT, tkDLDLAT:
                                     // @ stmt
                                     _1 := p._parseStmt(); _ = _1
                                     *res = _1 // DEFAULT OPT ACTION
                             case tkSC, tkEOF, tkRC:
                                     // NOP
                             default:
-                                p.ErrorUnexpected(p.PeekToken(), "MACRO, PROC, CONST, DATA, MODULE, LABEL, STRUCT, IDENTIFIER, CONDDOT, '@-', IDENTIFIERP, REG, '[', '$-', '$$-', ';', EOF, '}'")
+                                p.ErrorUnexpected(p.PeekToken(), "MACRO, PROC, CONST, DATA, MODULE, LABEL, STRUCT, IDENTIFIER, CONDDOT, '@-', IDENTIFIERP, REG, '[', '$@', '$$@', ';', EOF, '}'")
                             }
                             break
                         }
@@ -212,7 +211,7 @@ func (p *Parser) _parseProgram() (res Value) {
             }
             res = v
     default:
-        p.ErrorUnexpected(p.PeekToken(), "MACRO, PROC, CONST, DATA, MODULE, LABEL, STRUCT, IDENTIFIER, CONDDOT, '@-', IDENTIFIERP, REG, '[', '$-', '$$-', ';', EOF, '}'")
+        p.ErrorUnexpected(p.PeekToken(), "MACRO, PROC, CONST, DATA, MODULE, LABEL, STRUCT, IDENTIFIER, CONDDOT, '@-', IDENTIFIERP, REG, '[', '$@', '$$@', ';', EOF, '}'")
     }
     return
 }
@@ -593,12 +592,12 @@ func (p *Parser) _parseStmt() (res Value) {
             // @ struct
             _1 := p._parseStruct(); _ = _1
             v := _1.(*Vec); v.SetAt(1, NIL); res = v
-    case tkIDENTIFIER, tkCONDDOT, tkATMI, tkIDENTIFIERP, tkREG, tkLS, tkDLMI, tkDLDLMI:
+    case tkIDENTIFIER, tkCONDDOT, tkATMI, tkIDENTIFIERP, tkREG, tkLS, tkDLAT, tkDLDLAT:
             // @ expr
             _1 := p._parseExpr(); _ = _1
             res = _1
     default:
-        p.ErrorUnexpected(p.PeekToken(), "MACRO, PROC, CONST, DATA, MODULE, LABEL, STRUCT, IDENTIFIER, CONDDOT, '@-', IDENTIFIERP, REG, '[', '$-', '$$-'")
+        p.ErrorUnexpected(p.PeekToken(), "MACRO, PROC, CONST, DATA, MODULE, LABEL, STRUCT, IDENTIFIER, CONDDOT, '@-', IDENTIFIERP, REG, '[', '$@', '$$@'")
     }
     return
 }
@@ -925,7 +924,7 @@ func (p *Parser) _parseDatalist() (res Value) {
                 // RULE: _datalist_33g -> dataexpr
                 // RULE: _datalist_33g -> datalist
                 switch p.PeekToken().Kind {
-                case tkDLMI, tkDLDLMI, tkINTEGER, tkSTRING, tkRESERVED, tkIDENTIFIER, tkIDENTIFIERP, tkLP, tkAOP:
+                case tkDLAT, tkDLDLAT, tkINTEGER, tkSTRING, tkRESERVED, tkIDENTIFIER, tkIDENTIFIERP, tkLP, tkAOP:
                         // @ dataexpr
                         _1 := p._parseDataexpr(); _ = _1
                         v.Push(_1)
@@ -940,7 +939,7 @@ func (p *Parser) _parseDatalist() (res Value) {
                 case tkRS:
                     // NOP
                 default:
-                    p.ErrorUnexpected(p.PeekToken(), "'$-', '$$-', INTEGER, STRING, RESERVED, IDENTIFIER, IDENTIFIERP, '(', AOP, '[', '{', ']'")
+                    p.ErrorUnexpected(p.PeekToken(), "'$@', '$$@', INTEGER, STRING, RESERVED, IDENTIFIER, IDENTIFIERP, '(', AOP, '[', '{', ']'")
                 }
                 break
             }
@@ -965,7 +964,7 @@ func (p *Parser) _parseDatalist() (res Value) {
                 // RULE: _datalist_35g -> dataexpr
                 // RULE: _datalist_35g -> datalist
                 switch p.PeekToken().Kind {
-                case tkDLMI, tkDLDLMI, tkINTEGER, tkSTRING, tkRESERVED, tkIDENTIFIER, tkIDENTIFIERP, tkLP, tkAOP:
+                case tkDLAT, tkDLDLAT, tkINTEGER, tkSTRING, tkRESERVED, tkIDENTIFIER, tkIDENTIFIERP, tkLP, tkAOP:
                         // @ dataexpr
                         _1 := p._parseDataexpr(); _ = _1
                         v.Push(_1)
@@ -980,7 +979,7 @@ func (p *Parser) _parseDatalist() (res Value) {
                 case tkRC:
                     // NOP
                 default:
-                    p.ErrorUnexpected(p.PeekToken(), "'$-', '$$-', INTEGER, STRING, RESERVED, IDENTIFIER, IDENTIFIERP, '(', AOP, '[', '{', '}'")
+                    p.ErrorUnexpected(p.PeekToken(), "'$@', '$$@', INTEGER, STRING, RESERVED, IDENTIFIER, IDENTIFIERP, '(', AOP, '[', '{', '}'")
                 }
                 break
             }
@@ -1010,12 +1009,12 @@ func (p *Parser) _parseDataexpr() (res Value) {
             // @ constexpr
             _1 := p._parseConstexpr(); _ = _1
             res = _1
-    case tkDLMI, tkDLDLMI:
+    case tkDLAT, tkDLDLAT:
             // @ explicitval
             _1 := p._parseExplicitval(); _ = _1
             res = _1
     default:
-        p.ErrorUnexpected(p.PeekToken(), "INTEGER, STRING, RESERVED, IDENTIFIER, IDENTIFIERP, '(', AOP, '$-', '$$-'")
+        p.ErrorUnexpected(p.PeekToken(), "INTEGER, STRING, RESERVED, IDENTIFIER, IDENTIFIERP, '(', AOP, '$@', '$$@'")
     }
     return
 }
@@ -1033,12 +1032,12 @@ func (p *Parser) _parseDataval() (res Value) {
             // @ constval
             _1 := p._parseConstval(); _ = _1
             res = _1
-    case tkDLMI, tkDLDLMI:
+    case tkDLAT, tkDLDLAT:
             // @ explicitval
             _1 := p._parseExplicitval(); _ = _1
             res = _1
     default:
-        p.ErrorUnexpected(p.PeekToken(), "INTEGER, STRING, RESERVED, IDENTIFIER, IDENTIFIERP, '(', AOP, '$-', '$$-'")
+        p.ErrorUnexpected(p.PeekToken(), "INTEGER, STRING, RESERVED, IDENTIFIER, IDENTIFIERP, '(', AOP, '$@', '$$@'")
     }
     return
 }
@@ -1308,7 +1307,7 @@ func (p *Parser) _parseExpr() (res Value) {
                 // RULE: _expr_48r -> _expr_47g*
                 // RULE: _expr_47g -> oper
                 switch p.PeekToken().Kind {
-                case tkCOND, tkLC, tkEQLC, tkREG, tkLS, tkDLMI, tkDLDLMI, tkINTEGER, tkSTRING, tkRESERVED, tkIDENTIFIER, tkIDENTIFIERP, tkLP, tkAOP:
+                case tkCOND, tkLC, tkEQLC, tkREG, tkLS, tkDLAT, tkDLDLAT, tkINTEGER, tkSTRING, tkRESERVED, tkIDENTIFIER, tkIDENTIFIERP, tkLP, tkAOP:
                         // @ oper
                         _1 := p._parseOper(); _ = _1
                         v.Push(_1)
@@ -1317,7 +1316,7 @@ func (p *Parser) _parseExpr() (res Value) {
                 case tkSC, tkEOF, tkRC:
                     // NOP
                 default:
-                    p.ErrorUnexpected(p.PeekToken(), "COND, '{', '={', REG, '[', '$-', '$$-', INTEGER, STRING, RESERVED, IDENTIFIER, IDENTIFIERP, '(', AOP, ';', EOF, '}'")
+                    p.ErrorUnexpected(p.PeekToken(), "COND, '{', '={', REG, '[', '$@', '$$@', INTEGER, STRING, RESERVED, IDENTIFIER, IDENTIFIERP, '(', AOP, ';', EOF, '}'")
                 }
                 break
             }
@@ -1326,12 +1325,12 @@ func (p *Parser) _parseExpr() (res Value) {
             // @ callproc
             _1 := p._parseCallproc(); _ = _1
             res = _1
-    case tkATMI, tkREG, tkLS, tkDLMI, tkDLDLMI:
+    case tkATMI, tkREG, tkLS, tkDLAT, tkDLDLAT:
             // @ contextexpr
             _1 := p._parseContextexpr(); _ = _1
             res = _1
     default:
-        p.ErrorUnexpected(p.PeekToken(), "IDENTIFIER, CONDDOT, IDENTIFIERP, '@-', REG, '[', '$-', '$$-'")
+        p.ErrorUnexpected(p.PeekToken(), "IDENTIFIER, CONDDOT, IDENTIFIERP, '@-', REG, '[', '$@', '$$@'")
     }
     return
 }
@@ -1404,7 +1403,7 @@ func (p *Parser) _parseContextexpr() (res Value) {
     // RULE: contextexpr -> _contextexpr_50g _contextexpr_52r
     v := &Vec{_markerid(p, KwWith)}
     switch p.PeekToken().Kind {
-    case tkATMI, tkREG, tkLS, tkDLMI, tkDLDLMI:
+    case tkATMI, tkREG, tkLS, tkDLAT, tkDLDLAT:
             // @ _contextexpr_50g _contextexpr_52r
             var _1 Value; _ = _1
             for {
@@ -1422,7 +1421,7 @@ func (p *Parser) _parseContextexpr() (res Value) {
                         // @ mem
                         _1 := p._parseMem(); _ = _1
                         v.Push(_1)
-                case tkDLMI, tkDLDLMI:
+                case tkDLAT, tkDLDLAT:
                         // @ explicitval
                         _1 := p._parseExplicitval(); _ = _1
                         v.Push(_1)
@@ -1432,9 +1431,9 @@ func (p *Parser) _parseContextexpr() (res Value) {
                 
                         // '@-' @ prim
                         _2 := p._parsePrim(); _ = _2
-                        v.Push(p.cc.KwRegA.ToId(_1), &Vec{KwLeftArrow.ToId(_1), _2})
+                        v.Push(p.cc.KwRegA.ToId(_1), &Vec{_atopid(_2, _1), _2})
                 default:
-                    p.ErrorUnexpected(p.PeekToken(), "REG, '[', '$-', '$$-', '@-'")
+                    p.ErrorUnexpected(p.PeekToken(), "REG, '[', '$@', '$$@', '@-'")
                 }
                 break
             }
@@ -1472,16 +1471,16 @@ func (p *Parser) _parseContextexpr() (res Value) {
                         v.Push(&Vec{_1.Value, _2})
                 
                         continue
-                case tkSC, tkEOF, tkATMI, tkREG, tkLS, tkDLMI, tkDLDLMI, tkINTEGER, tkSTRING, tkRESERVED, tkIDENTIFIER, tkIDENTIFIERP, tkLP, tkAOP, tkRC, tkRS:
+                case tkSC, tkEOF, tkATMI, tkREG, tkLS, tkDLAT, tkDLDLAT, tkINTEGER, tkSTRING, tkRESERVED, tkIDENTIFIER, tkIDENTIFIERP, tkLP, tkAOP, tkRC, tkRS:
                     // NOP
                 default:
-                    p.ErrorUnexpected(p.PeekToken(), "UOP, BOP, DOP, ';', EOF, '@-', REG, '[', '$-', '$$-', INTEGER, STRING, RESERVED, IDENTIFIER, IDENTIFIERP, '(', AOP, '}', ']'")
+                    p.ErrorUnexpected(p.PeekToken(), "UOP, BOP, DOP, ';', EOF, '@-', REG, '[', '$@', '$$@', INTEGER, STRING, RESERVED, IDENTIFIER, IDENTIFIERP, '(', AOP, '}', ']'")
                 }
                 break
             }
             res = v
     default:
-        p.ErrorUnexpected(p.PeekToken(), "'@-', REG, '[', '$-', '$$-'")
+        p.ErrorUnexpected(p.PeekToken(), "'@-', REG, '[', '$@', '$$@'")
     }
     return
 }
@@ -1495,7 +1494,7 @@ func (p *Parser) _parseContextexpr() (res Value) {
 func (p *Parser) _parseOper() (res Value) {
     // RULE: oper -> prim _oper_54o
     switch p.PeekToken().Kind {
-    case tkCOND, tkLC, tkEQLC, tkREG, tkLS, tkDLMI, tkDLDLMI, tkINTEGER, tkSTRING, tkRESERVED, tkIDENTIFIER, tkIDENTIFIERP, tkLP, tkAOP:
+    case tkCOND, tkLC, tkEQLC, tkREG, tkLS, tkDLAT, tkDLDLAT, tkINTEGER, tkSTRING, tkRESERVED, tkIDENTIFIER, tkIDENTIFIERP, tkLP, tkAOP:
             // @ prim _oper_54o
             _1 := p._parsePrim(); _ = _1
             v := _1
@@ -1514,16 +1513,16 @@ func (p *Parser) _parseOper() (res Value) {
                         // ':' @ prim
                         _2 := p._parsePrim(); _ = _2
                         v = &Vec{KwTpl.ToId(_1), v, _2}
-                case tkCOND, tkLC, tkEQLC, tkREG, tkLS, tkDLMI, tkDLDLMI, tkINTEGER, tkSTRING, tkRESERVED, tkIDENTIFIER, tkIDENTIFIERP, tkLP, tkAOP, tkUOP, tkBOP, tkDOP, tkSC, tkEOF, tkRC, tkATMI, tkRS:
+                case tkCOND, tkLC, tkEQLC, tkREG, tkLS, tkDLAT, tkDLDLAT, tkINTEGER, tkSTRING, tkRESERVED, tkIDENTIFIER, tkIDENTIFIERP, tkLP, tkAOP, tkUOP, tkBOP, tkDOP, tkSC, tkEOF, tkRC, tkATMI, tkRS:
                     // NOP
                 default:
-                    p.ErrorUnexpected(p.PeekToken(), "':', COND, '{', '={', REG, '[', '$-', '$$-', INTEGER, STRING, RESERVED, IDENTIFIER, IDENTIFIERP, '(', AOP, UOP, BOP, DOP, ';', EOF, '}', '@-', ']'")
+                    p.ErrorUnexpected(p.PeekToken(), "':', COND, '{', '={', REG, '[', '$@', '$$@', INTEGER, STRING, RESERVED, IDENTIFIER, IDENTIFIERP, '(', AOP, UOP, BOP, DOP, ';', EOF, '}', '@-', ']'")
                 }
                 break
             }
             res = v
     default:
-        p.ErrorUnexpected(p.PeekToken(), "COND, '{', '={', REG, '[', '$-', '$$-', INTEGER, STRING, RESERVED, IDENTIFIER, IDENTIFIERP, '(', AOP")
+        p.ErrorUnexpected(p.PeekToken(), "COND, '{', '={', REG, '[', '$@', '$$@', INTEGER, STRING, RESERVED, IDENTIFIER, IDENTIFIERP, '(', AOP")
     }
     return
 }
@@ -1555,7 +1554,7 @@ func (p *Parser) _parsePrim() (res Value) {
             // @ mem
             _1 := p._parseMem(); _ = _1
             res = _1
-    case tkDLMI, tkDLDLMI, tkINTEGER, tkSTRING, tkRESERVED, tkIDENTIFIER, tkIDENTIFIERP, tkLP, tkAOP:
+    case tkDLAT, tkDLDLAT, tkINTEGER, tkSTRING, tkRESERVED, tkIDENTIFIER, tkIDENTIFIERP, tkLP, tkAOP:
             // @ dataval
             _1 := p._parseDataval(); _ = _1
             res = _1
@@ -1564,7 +1563,7 @@ func (p *Parser) _parsePrim() (res Value) {
             _1 := p._parseBlock(); _ = _1
             res = _1
     default:
-        p.ErrorUnexpected(p.PeekToken(), "COND, REG, '[', '$-', '$$-', INTEGER, STRING, RESERVED, IDENTIFIER, IDENTIFIERP, '(', AOP, '{', '={'")
+        p.ErrorUnexpected(p.PeekToken(), "COND, REG, '[', '$@', '$$@', INTEGER, STRING, RESERVED, IDENTIFIER, IDENTIFIERP, '(', AOP, '{', '={'")
     }
     return
 }
@@ -1596,11 +1595,11 @@ func (p *Parser) _parseRegld() (res Value) {
                 
                         // '-@' @ prim
                         _2 := p._parsePrim(); _ = _2
-                        v.Push(&Vec{KwLeftArrow.ToId(_1), _2})
-                case tkCL, tkUOP, tkBOP, tkDOP, tkCOND, tkLC, tkEQLC, tkREG, tkLS, tkDLMI, tkDLDLMI, tkINTEGER, tkSTRING, tkRESERVED, tkIDENTIFIER, tkIDENTIFIERP, tkLP, tkAOP, tkSC, tkEOF, tkATMI, tkRC, tkRS:
+                        v.Push(&Vec{_atopid(_2, _1), _2})
+                case tkCL, tkUOP, tkBOP, tkDOP, tkCOND, tkLC, tkEQLC, tkREG, tkLS, tkDLAT, tkDLDLAT, tkINTEGER, tkSTRING, tkRESERVED, tkIDENTIFIER, tkIDENTIFIERP, tkLP, tkAOP, tkSC, tkEOF, tkATMI, tkRC, tkRS:
                     // NOP
                 default:
-                    p.ErrorUnexpected(p.PeekToken(), "'-@', ':', UOP, BOP, DOP, COND, '{', '={', REG, '[', '$-', '$$-', INTEGER, STRING, RESERVED, IDENTIFIER, IDENTIFIERP, '(', AOP, ';', EOF, '@-', '}', ']'")
+                    p.ErrorUnexpected(p.PeekToken(), "'-@', ':', UOP, BOP, DOP, COND, '{', '={', REG, '[', '$@', '$$@', INTEGER, STRING, RESERVED, IDENTIFIER, IDENTIFIERP, '(', AOP, ';', EOF, '@-', '}', ']'")
                 }
                 break
             }
@@ -1634,7 +1633,7 @@ func (p *Parser) _parseMem() (res Value) {
                 // RULE: _mem_57g -> contextexpr
                 // RULE: _mem_57g -> constexpr
                 switch p.PeekToken().Kind {
-                case tkATMI, tkREG, tkLS, tkDLMI, tkDLDLMI:
+                case tkATMI, tkREG, tkLS, tkDLAT, tkDLDLAT:
                         // @ contextexpr
                         _1 := p._parseContextexpr(); _ = _1
                         v.Push(_maybeunwrapwith(_1))
@@ -1649,7 +1648,7 @@ func (p *Parser) _parseMem() (res Value) {
                 case tkRS:
                     // NOP
                 default:
-                    p.ErrorUnexpected(p.PeekToken(), "'@-', REG, '[', '$-', '$$-', INTEGER, STRING, RESERVED, IDENTIFIER, IDENTIFIERP, '(', AOP, ']'")
+                    p.ErrorUnexpected(p.PeekToken(), "'@-', REG, '[', '$@', '$$@', INTEGER, STRING, RESERVED, IDENTIFIER, IDENTIFIERP, '(', AOP, ']'")
                 }
                 break
             }
@@ -1697,29 +1696,29 @@ func (p *Parser) _parseDotarg() (res Value) {
 
 /** ** **
   explicitval ->
-      '$-' constval
-    | '$$-' constval
+      '$@' constval
+    | '$$@' constval
  ** ** **/
 func (p *Parser) _parseExplicitval() (res Value) {
-    // RULE: explicitval -> '$-' constval
-    // RULE: explicitval -> '$$-' constval
+    // RULE: explicitval -> '$@' constval
+    // RULE: explicitval -> '$$@' constval
     switch p.PeekToken().Kind {
-    case tkDLMI:
-            // @ '$-' constval
+    case tkDLAT:
+            // @ '$@' constval
             _1 := p.ConsumeToken(); _ = _1
     
-            // '$-' @ constval
+            // '$@' @ constval
             _2 := p._parseConstval(); _ = _2
             res = _2
-    case tkDLDLMI:
-            // @ '$$-' constval
+    case tkDLDLAT:
+            // @ '$$@' constval
             _1 := p.ConsumeToken(); _ = _1
     
-            // '$$-' @ constval
+            // '$$@' @ constval
             _2 := p._parseConstval(); _ = _2
             res = &Vec{KwValueOf.ToId(_1), _2}
     default:
-        p.ErrorUnexpected(p.PeekToken(), "'$-', '$$-'")
+        p.ErrorUnexpected(p.PeekToken(), "'$@', '$$@'")
     }
     return
 }
@@ -1790,10 +1789,10 @@ func (p *Parser) _parseIexpr() (res Value) {
                         v = p.cc.orderByPrec(v, _1.Value.(*Identifier), _2)
                 
                         continue
-                case tkRP, tkIDENTIFIER, tkLABEL, tkSC, tkEOF, tkLS, tkLC, tkDLMI, tkDLDLMI, tkINTEGER, tkSTRING, tkRESERVED, tkIDENTIFIERP, tkLP, tkAOP, tkATMI, tkREG, tkRS, tkREST, tkRC:
+                case tkRP, tkIDENTIFIER, tkLABEL, tkSC, tkEOF, tkLS, tkLC, tkDLAT, tkDLDLAT, tkINTEGER, tkSTRING, tkRESERVED, tkIDENTIFIERP, tkLP, tkAOP, tkATMI, tkREG, tkRS, tkREST, tkRC:
                     // NOP
                 default:
-                    p.ErrorUnexpected(p.PeekToken(), "BOP, ')', IDENTIFIER, LABEL, ';', EOF, '[', '{', '$-', '$$-', INTEGER, STRING, RESERVED, IDENTIFIERP, '(', AOP, '@-', REG, ']', REST, '}'")
+                    p.ErrorUnexpected(p.PeekToken(), "BOP, ')', IDENTIFIER, LABEL, ';', EOF, '[', '{', '$@', '$$@', INTEGER, STRING, RESERVED, IDENTIFIERP, '(', AOP, '@-', REG, ']', REST, '}'")
                 }
                 break
             }
@@ -1883,18 +1882,18 @@ func (p *Parser) _parseIval() (res Value) {
                                     w.Push(_2.Value)
                             
                                     continue
-                            case tkBOP, tkCL, tkIDENTIFIER, tkLABEL, tkSC, tkEOF, tkLS, tkLC, tkDLMI, tkDLDLMI, tkINTEGER, tkSTRING, tkRESERVED, tkIDENTIFIERP, tkLP, tkAOP, tkUOP, tkDOP, tkRP, tkATMI, tkREG, tkAT, tkCOND, tkEQLC, tkREST, tkRC, tkRS:
+                            case tkBOP, tkCL, tkIDENTIFIER, tkLABEL, tkSC, tkEOF, tkLS, tkLC, tkDLAT, tkDLDLAT, tkINTEGER, tkSTRING, tkRESERVED, tkIDENTIFIERP, tkLP, tkAOP, tkUOP, tkDOP, tkRP, tkATMI, tkREG, tkAT, tkCOND, tkEQLC, tkREST, tkRC, tkRS:
                                 // NOP
                             default:
-                                p.ErrorUnexpected(p.PeekToken(), "'.-', BOP, ':', IDENTIFIER, LABEL, ';', EOF, '[', '{', '$-', '$$-', INTEGER, STRING, RESERVED, IDENTIFIERP, '(', AOP, UOP, DOP, ')', '@-', REG, '@', COND, '={', REST, '}', ']'")
+                                p.ErrorUnexpected(p.PeekToken(), "'.-', BOP, ':', IDENTIFIER, LABEL, ';', EOF, '[', '{', '$@', '$$@', INTEGER, STRING, RESERVED, IDENTIFIERP, '(', AOP, UOP, DOP, ')', '@-', REG, '@', COND, '={', REST, '}', ']'")
                             }
                             break
                         }
                         v = w
-                case tkBOP, tkCL, tkIDENTIFIER, tkLABEL, tkSC, tkEOF, tkLS, tkLC, tkDLMI, tkDLDLMI, tkINTEGER, tkSTRING, tkRESERVED, tkIDENTIFIERP, tkLP, tkAOP, tkUOP, tkDOP, tkRP, tkATMI, tkREG, tkAT, tkCOND, tkEQLC, tkREST, tkRC, tkRS:
+                case tkBOP, tkCL, tkIDENTIFIER, tkLABEL, tkSC, tkEOF, tkLS, tkLC, tkDLAT, tkDLDLAT, tkINTEGER, tkSTRING, tkRESERVED, tkIDENTIFIERP, tkLP, tkAOP, tkUOP, tkDOP, tkRP, tkATMI, tkREG, tkAT, tkCOND, tkEQLC, tkREST, tkRC, tkRS:
                     // NOP
                 default:
-                    p.ErrorUnexpected(p.PeekToken(), "'.-', BOP, ':', IDENTIFIER, LABEL, ';', EOF, '[', '{', '$-', '$$-', INTEGER, STRING, RESERVED, IDENTIFIERP, '(', AOP, UOP, DOP, ')', '@-', REG, '@', COND, '={', REST, '}', ']'")
+                    p.ErrorUnexpected(p.PeekToken(), "'.-', BOP, ':', IDENTIFIER, LABEL, ';', EOF, '[', '{', '$@', '$$@', INTEGER, STRING, RESERVED, IDENTIFIERP, '(', AOP, UOP, DOP, ')', '@-', REG, '@', COND, '={', REST, '}', ']'")
                 }
                 break
             }

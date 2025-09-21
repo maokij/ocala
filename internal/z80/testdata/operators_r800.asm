@@ -608,6 +608,46 @@
     DEC IYH
     INC IYL
     DEC IYL
+    LD B, D
+    LD C, E
+    LD D, B
+    LD E, C
+    LD B, B
+    LD C, C
+    LD B, D
+    LD C, E
+    LD B, H
+    LD C, L
+    LD D, B
+    LD E, C
+    LD D, D
+    LD E, E
+    LD D, H
+    LD E, L
+    LD H, B
+    LD L, C
+    LD H, D
+    LD L, E
+    LD H, H
+    LD L, L
+    LD B, B
+    LD C, C
+    LD D, B
+    LD E, C
+    LD H, B
+    LD L, C
+    LD B, D
+    LD C, E
+    LD D, D
+    LD E, E
+    LD H, D
+    LD L, E
+    LD B, H
+    LD C, L
+    LD D, H
+    LD E, L
+    LD H, H
+    LD L, L
     RLCA
     RLCA
     RLC B
@@ -654,6 +694,23 @@
     JP PO, LBU
     JP P, LBU
     JP M, LBU
+    RET
+    RET NZ
+    RET Z
+    RET NC
+    RET C
+    RET PO
+    RET PE
+    RET M
+    RET P
+    RET Z
+    RET NZ
+    RET C
+    RET NC
+    RET PE
+    RET PO
+    RET P
+    RET M
     f: RET
     CALL f
     CALL NC, f

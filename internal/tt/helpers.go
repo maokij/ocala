@@ -24,21 +24,26 @@ func Eq[T comparable](t *testing.T, a, b T, rest ...any) {
 }
 
 func EqSlice[S ~[]E, E comparable](t *testing.T, a, b S, rest ...any) {
+	if len(a) == 0 {
+		t.Helper()
+		t.Errorf("slice is empty; %v %v %v", a, b, rest)
+	}
 	if !slices.Equal(a, b) {
 		t.Helper()
-		t.Errorf("slices not equal; %v", rest)
+		t.Errorf("expected %v, but %v; %v", a, b, rest)
 	}
 }
 
 func EqText(t *testing.T, a, b string, rest ...any) {
-	as := strings.Split(a, "\n")
-	bs := strings.Split(b, "\n")
+	as := strings.Split(strings.TrimRight(a, " \t\n"), "\n")
+	bs := strings.Split(strings.TrimRight(b, " \t\n"), "\n")
 	ok := len(as) == len(bs)
 	diff := []string{}
 	for x, n := 0, min(len(as), len(bs)); x < n; x++ {
 		matched := as[x] == bs[x]
-		if len(as[x]) > 0 && as[x][0] == '~' {
-			matched = regexp.MustCompile(string(as[x][1:])).MatchString(bs[x])
+		if strings.HasSuffix(as[x], " ~") {
+			s := as[x][:len(as[x])-2]
+			matched = regexp.MustCompile(s).MatchString(bs[x])
 		}
 
 		if matched {
@@ -60,6 +65,16 @@ func Prefix(t *testing.T, a, b string, rest ...any) {
 		t.Helper()
 		t.Errorf("expected %v..., but %v; %v", a, b, rest)
 	}
+}
+
+func FilterByPrefix(s string, prefix string) []string {
+	r := []string{}
+	for _, i := range strings.Split(s, "\n") {
+		if strings.HasPrefix(i, prefix) {
+			r = append(r, i)
+		}
+	}
+	return r
 }
 
 func Unindent(s string) string {
