@@ -23,15 +23,16 @@ func (g *Generator) validateProcTail(inst *Inst) {
 		With("the last instruction must be a return/fallthrough within the proc")
 }
 
-func (g *Generator) validateFallthrough(insts []*Inst) {
-	for _, i := range insts {
+func (g *Generator) validateFallthrough(insts []*Inst) *Named {
+	for x, i := range insts {
 		if i.IsMisc(KwEndProc) {
 			continue
 		} else if i.IsMisc(KwBeginProc) {
-			break // OK
+			return insts[x+1].Args[0].(*Named)
 		}
 		g.cc.ErrorAt(i).With("the fallthrough must be followed by a proc")
 	}
+	panic("[BUG] cannot happen")
 }
 
 func (g *Generator) validateCallproc(inst *Inst) {
@@ -101,7 +102,7 @@ func (g *Generator) validateInsts(insts []*Inst) {
 				insts[s.from].Args[1] = tail // update begin-proc
 				s, states = states[len(states)-1], states[:len(states)-1]
 			case KwFallthrough:
-				g.validateFallthrough(insts[x+1:])
+				i.Args[1] = g.validateFallthrough(insts[x+1:])
 				s.to = x
 			}
 		}
@@ -301,9 +302,6 @@ func (g *Generator) resolveInsts(insts []*Inst, pass int) int {
 			g.cc.Pc += i.Size
 		case InstAlign:
 			n := int(i.Args[0].(Int)) - 1
-			if n < 0 || (n&(n+1)) != 0 {
-				g.cc.ErrorAt(i).With("the alignment size must be power of 2")
-			}
 			i.Size = ((g.cc.Pc + n) & ^n) - g.cc.Pc
 			g.cc.Pc += i.Size
 		case InstBlob:
@@ -513,12 +511,14 @@ func (g *Generator) generateList(insts []*Inst, code []byte) {
 			case KwListConstants:
 				enabled = int(i.Args[1].(Int)) != 0
 			case KwComment:
-				s := ""
-				for _, i := range i.Args[2:] {
-					i := GetCachedValueIfConst(i, g.cc)
-					s += " " + g.ValueToAsm(nil, i)
+				if comment, ok := i.Args[1].(*Str); ok {
+					s := ""
+					for _, i := range i.Args[2:] {
+						i := GetCachedValueIfConst(i, g.cc)
+						s += " " + g.ValueToAsm(nil, i)
+					}
+					writes("    ; %s%s", comment.String(), s)
 				}
-				writes("    ; %s%s", i.Args[1].(*Str), s)
 			case KwBeginProc, KwEndProc:
 				writes("")
 			}
@@ -626,6 +626,7 @@ func (g *Generator) generateList(insts []*Inst, code []byte) {
 func (g *Generator) prepareToGenerateBin(insts []*Inst) {
 	g.validateInsts(insts)
 	g.cc.optimizeFlow(insts)
+	g.cc.optimizeLink(insts)
 
 	oldCodeSize := g.resolveInsts(insts, asmPassEstimate)
 	codeSizes := []int{oldCodeSize}

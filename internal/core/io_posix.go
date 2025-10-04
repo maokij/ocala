@@ -135,7 +135,7 @@ func (cc *Compiler) sInclude(env *Env, e *Vec) Value {
 		cc.ErrorAt(etag).With(err.Error())
 	}
 
-	return cc.CompileIncluded(rpath, text)
+	return cc.CompileIncluded(etag, rpath, text)
 }
 
 // SYNTAX: (load-file path)

@@ -256,3 +256,181 @@ func (cc *Compiler) optimizeFlow(insts []*Inst) {
 		}
 	}
 }
+
+func (cc *Compiler) optimizeLink(insts []*Inst) {
+	if len(cc.LinkEntryPoints) == 0 {
+		return
+	}
+
+	type part struct {
+		nm     *Named
+		insts  []*Inst
+		marked bool
+	}
+
+	var traverse func(Value)
+	traverse = func(v Value) {
+		switch v := v.(type) {
+		case *Vec:
+			for _, i := range *v {
+				traverse(i)
+			}
+		case *Constexpr:
+			EvalAndCacheIfConst(v, cc)
+		}
+	}
+
+	mark := func(insts []*Inst) {
+		for _, i := range insts {
+			switch i.Kind {
+			case InstMisc:
+				switch i.Args[0] {
+				case KwComment:
+					traverse(NewVec(i.Args[2:]))
+				case KwFallthrough:
+					i.Args[1].(*Named).Found()
+				}
+			case InstAssert:
+				EvalAndCacheIfConst(i.Args[0], cc)
+			case InstConst:
+				EvalAndCacheIfConst(GetNamedValue(i.Args[0], ConstexprT), cc)
+			case InstBind:
+				EvalAndCacheIfConst(GetNamedValue(i.Args[0], LabelT).At, cc)
+			case InstCode:
+				for _, i := range i.Args[1:] {
+					EvalAndCacheIfConst(i.(*Operand).A0, cc)
+				}
+			case InstData:
+				traverse(i.Args[4])
+			case InstLabel, InstOrg, InstDS, InstAlign, InstBlob:
+				// OK
+			default:
+				cc.ErrorAt(i).With("[BUG] invalid inst kind %v", i)
+			}
+		}
+	}
+
+	deps := map[*Named][]*Named{}
+	for _, i := range insts {
+		if !i.IsMisc(KwBeginDep) {
+			continue
+		}
+
+		from := i.Args[1].(*Named)
+		env := i.Args[2].(*Env)
+		for _, id := range *i.Args[3].(*Vec) {
+			id := id.(*Identifier)
+			to := cc.LookupNamed(env, id)
+			if to == nil || to.Kind != NmLabel {
+				cc.ErrorAt(id, i).With("invalid dependency '%s'", id)
+			}
+			deps[to] = append(deps[to], from)
+		}
+	}
+
+	parts := []*part{}
+	others := []*Inst{}
+	register := func(nm *Named, insts []*Inst) {
+		m := &part{nm: nm, insts: insts}
+		nm.OnFound = func(*Named) {
+			if !m.marked {
+				m.marked = true
+				for _, i := range deps[nm] {
+					i.Found()
+				}
+				cc.EnterContext(CtModule)
+				mark(m.insts)
+				cc.LeaveContext()
+			}
+		}
+		parts = append(parts, m)
+	}
+
+	label := &Label{}
+	cc.initConstvals(PhLink)
+	for x := 0; x < len(insts); x++ {
+		i := insts[x]
+		switch i.Kind {
+		case InstMisc:
+			switch i.Args[0] {
+			case KwComment, KwFallthrough:
+				others = append(others, i)
+			case KwBeginProc:
+				n := x
+				nm := insts[x+1].Args[0].(*Named)
+				for ; x < len(insts); x++ {
+					i := insts[x]
+					if i.IsMisc(KwEndProc) && i.Args[1] == nm {
+						break
+					} else if i.IsMisc(KwPatchAnchor) {
+						labelNm := insts[x+1].Args[0].(*Named)
+						labelNm.OnFound = func(*Named) {
+							nm.OnFound(nm)
+						}
+						parts = append(parts, &part{nm: labelNm, marked: true})
+					}
+				}
+				register(nm, insts[n:x+1])
+			case KwBeginDep:
+				n := x
+				nm := i.Args[1].(*Named)
+				for ; x < len(insts); x++ {
+					if insts[x].IsMisc(KwEndDep) {
+						break
+					}
+				}
+				register(nm, insts[n:x+1])
+			}
+		case InstConst:
+			register(i.Args[0].(*Named), insts[x:x+1])
+		case InstBind:
+			register(i.Args[0].(*Named), insts[x:x+1])
+		case InstLabel:
+			label = GetNamedValue(i.Args[0], LabelT)
+		case InstData, InstDS:
+			if label.Link == i {
+				register(insts[x-1].Args[0].(*Named), insts[x-1:x+1])
+				continue
+			}
+			others = append(others, i)
+		case InstAssert, InstCode:
+			others = append(others, i)
+		case InstOrg, InstAlign, InstBlob:
+			// OK
+		default:
+			cc.ErrorAt(i).With("[BUG] invalid inst kind %v", i)
+		}
+	}
+
+	mark(others)
+	for _, id := range cc.LinkEntryPoints {
+		nm := cc.LookupNamed(cc.Toplevel, id)
+		if nm == nil || nm.OnFound == nil {
+			cc.ErrorAt(id).With("invalid entry point '%s'", id)
+		}
+		nm.Found()
+	}
+
+	for _, i := range parts {
+		i.nm.OnFound = nil
+		delete(deps, i.nm)
+		if i.marked {
+			continue
+		}
+
+		name := i.nm.AsmName.String()
+		for _, i := range i.insts {
+			i.Kind = InstMisc
+			i.Args = []Value{KwUNDER}
+		}
+		if len(i.insts) > 1 {
+			i.insts[0].Args = []Value{KwComment, NewStr("// UNLINKED: " + name)}
+		}
+	}
+
+	for k, v := range deps {
+		for _, i := range v {
+			cc.WarnAt(i, k).With("the label cannot be used as a dependency")
+		}
+	}
+}

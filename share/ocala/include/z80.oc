@@ -279,19 +279,19 @@ macro DE+A() {
 }
 
 macro skip-1() {
-    data byte [0xfe] // CP N
+    data byte [opcode("CP 0")]
 }
 
 macro skip-2!BC() {
-    data byte [0x01] // LD BC NN
+    data byte [opcode("LD BC 0")]
 }
 
 macro skip-2!DE() {
-    data byte [0x11] // LD DE NN
+    data byte [opcode("LD DE 0")]
 }
 
 macro skip-2!HL() {
-    data byte [0x21] // LD HL NN
+    data byte [opcode("LD HL 0")]
 }
 
 ////////////////////////////////////////////////////////////

@@ -53,11 +53,60 @@
     "M" "MI?" "minus?"))
 
 (defconst ocala-reserved-words
-  '("module" "macro" "proc" "const" "data" "struct" "section" "link" "align"
-    "arch" "include" "incbin" "never-return" "fallthrough" "recur"
-    "if" "else" "when" "loop" "once" "do" "prog" "<reserved>" "*patch*"
-    "goto" "goto-if" "goto-rel" "goto-rel-if" "return" "return-if"
-    "redo" "redo-if" "continue" "continue-if" "break" "break-if"))
+  '("*patch*"
+    "<reserved>"
+    "alias"
+    "align"
+    "apply"
+    "arch"
+    "assert"
+    "break"
+    "break-if"
+    "case"
+    "compile-error"
+    "const"
+    "continue"
+    "continue-if"
+    "data"
+    "debug-inspect"
+    "defined?"
+    "do"
+    "else"
+    "expand-loop"
+    "exprtypeof"
+    "fallthrough"
+    "flat!"
+    "goto"
+    "goto-if"
+    "if"
+    "import"
+    "incbin"
+    "include"
+    "link"
+    "load-file"
+    "loop"
+    "macro"
+    "make-counter"
+    "module"
+    "nameof"
+    "nametypeof"
+    "never-return"
+    "once"
+    "optimize"
+    "pragma"
+    "proc"
+    "quote"
+    "recur"
+    "redo"
+    "redo-if"
+    "return"
+    "return-if"
+    "section"
+    "sizeof"
+    "struct"
+    "tco"
+    "warn"
+    "when"))
 
 (defconst ocala-binary-operators
   '("<-"
@@ -100,7 +149,8 @@
 (defconst ocala-operators-tail-re "\\([^({[]\\|$\\)")
 
 (defconst ocala-binary-operators-re
-  (concat (regexp-opt ocala-binary-operators 'symbols) ocala-operators-tail-re))
+  (rx (or "." (regexp (regexp-opt ocala-binary-operators 'symbols)))
+      (regexp ocala-operators-tail-re)))
 
 (defconst ocala-unary-operators
   '("++"
@@ -112,10 +162,12 @@
     "-zero?"))
 
 (defconst ocala-unary-operators-re
-  (concat (regexp-opt ocala-unary-operators 'symbols) ocala-operators-tail-re))
+  (rx (regexp (regexp-opt ocala-unary-operators 'symbols))
+      (regexp ocala-operators-tail-re)))
 
 (defconst ocala-operators-re
-  (concat (regexp-opt (append ocala-binary-operators ocala-unary-operators) 'symbols) ocala-operators-tail-re))
+  (rx (or "." (regexp (regexp-opt (append ocala-binary-operators ocala-unary-operators) 'symbols)))
+      (regexp ocala-operators-tail-re)))
 
 (defconst ocala-font-lock-keywords
   (list
@@ -153,10 +205,10 @@
   (save-excursion
     (skip-chars-backward " \t")
     (let* ((p (nth 1 (syntax-ppss)))
-           (q (save-excursion (re-search-backward "[^,][ \t]*$" p t))))
+           (q (save-excursion (re-search-backward "[^,][ \t]*(//.*)?$" p t))))
       (and q (setq p (save-excursion
                        (goto-char q)
-                       (beginning-of-line)
+                       (end-of-line)
                        (point))))
       (re-search-backward ", *//-" p t))))
 
@@ -197,10 +249,10 @@
      ((and (> pos (line-end-position))
            (ocala-smie--implicit-semi-p))
       ";")
-     ((looking-back "[]})({[;]" (- (point) 2) t)
+     ((looking-back "[]})({[;]" (- (point) 1) t)
       (forward-char -1)
       (match-string 0))
-     ((looking-back "," (- (point) 2))
+     ((looking-back "," (- (point) 1))
       (forward-char -1)
       (if (or (looking-at ", *//-")
               (ocala-smie--multi-line-seq-p))
@@ -228,7 +280,9 @@
              (let* ((a (progn (beginning-of-line) (point)))
                     (b (progn (skip-chars-forward " \t") (point)))
                     (c (- b a)))
-               (if (looking-at ocala-operators-re) c (+ c ocala-indent-basic))))))
+               (if (looking-at ocala-operators-re)
+                   c
+                 (+ c ocala-indent-basic))))))
     (`(:before . ,(or `"[" `"(" `"{"))
      (unless (looking-back "^[ \t]+")
        (smie-rule-parent)))))

@@ -24,7 +24,7 @@ func (p *Parser) ErrorUnexpected(token *Token, expected string) {
 	label := tokenLabels[token.Kind]
 	err := &InternalError{
 		tag: "parse error: ",
-		at:  []Value{token},
+		at:  append([]Value{token}, p.cc.nested...),
 		g:   p.cc.g,
 	}
 	err.With("unexpected %s, expected %s\n", label, expected)

@@ -21,7 +21,7 @@ module main {
         SP <- msx:STACK_ADDR
         msx:enable-slot/page2 // skip EI
 
-        msx:set-vdp-registers,
+        msx:set-vdp-registers, //-
             0  0b0000_0110, // mode: graphic-4, intr/h: false
             1  0b0110_0000, // visible: true, intr/v: true, sprite-size: 16, sprite-scale: 1
             2  0b0001_1111, // vdp-page: 0
@@ -32,7 +32,7 @@ module main {
             11 0b0000_0011, // sat-page: 3
             16 0            // palette-index: 0
 
-        msx:set-vdp-palette,
+        msx:set-vdp-palette, //-
             msx:rgb(0 0 0), // 0
             msx:rgb(0 0 0), // 1
             msx:rgb(0 0 7), // 2

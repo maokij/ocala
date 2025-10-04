@@ -10,11 +10,11 @@ module device {
     data screen-sync = byte @ <reserved>
 
     macro screen-sync/enable() {
-        @0xfe -> [device:screen-sync] // CP <byte>
+        @opcode("CP 0") -> [device:screen-sync]
     }
 
     macro screen-sync/disable() {
-        @0x18 -> [device:screen-sync] // JR <byte> (default)
+        @opcode("JR 0") -> [device:screen-sync]
     }
 
     data key-changes = byte : bss

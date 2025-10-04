@@ -72,8 +72,11 @@ func (cc *Compiler) sArch(env *Env, e *Vec) Value {
 // SYNTAX: (align a)
 func (cc *Compiler) sAlign(env *Env, e *Vec) Value {
 	etag, _ := CheckExpr(e, 2, 2, CtModule|CtProc, cc)
-	a := CheckAndEvalConstAs(e.At(1), env, IntT, "argument", etag, cc)
-	return cc.EmitCode(NewInst(e, InstAlign, a))
+	n := CheckAndEvalConstAs(e.At(1), env, IntT, "argument", etag, cc)
+	if n < 1 || (n&(n-1)) != 0 {
+		cc.ErrorAt(etag).With("the alignment size must be power of 2")
+	}
+	return cc.EmitCode(NewInst(e, InstAlign, n))
 }
 
 // SYNTAX: (#.label l)
@@ -413,6 +416,47 @@ func (cc *Compiler) sLink(env *Env, e *Vec) Value {
 	return NIL
 }
 
+// SYNTAX: (link/keep ...)
+func (cc *Compiler) sLinkKeep(env *Env, e *Vec) Value {
+	etag, _ := CheckExpr(e, 2, -1, CtModule|CtProc, cc)
+	r := []Value{KwComment, NIL}
+	for _, i := range (*e)[1:] {
+		CheckConst(i, IdentifierT, "name", etag, cc)
+		r = append(r, cc.CompileExpr(env, i))
+	}
+	return cc.EmitCode(NewInst(e, InstMisc, r...))
+}
+
+// SYNTAX: (link/with ...)
+func (cc *Compiler) sLinkWith(env *Env, e *Vec) Value {
+	etag, n := CheckExpr(e, 3, -1, CtModule|CtProc, cc)
+
+	r := &Vec{}
+	for _, i := range (*e)[1 : n-1] {
+		id := CheckConst(i, IdentifierT, "dependency", etag, cc)
+		r.Push(id)
+	}
+
+	body := CheckBlockForm(e.At(n-1), "body", etag, cc)
+	if body.ExprTag().Name != KwProg {
+		cc.ErrorAt(body, etag).With("body must be scoped block")
+	}
+
+	nm := cc.InstallNamed(env, etag.Expand(Gensym("link/with")), NmLabel, &Label{})
+	cc.EmitCode(NewInst(e, InstMisc, KwBeginDep, nm, env, r, NIL))
+	for _, i := range (*body)[1:] {
+		id, _ := AsTaggedVec(i)
+		if id == nil || !id.IsPlain() {
+			cc.ErrorAt(i, etag).With("invalid form")
+		}
+		if kw := id.Name; kw != KwAssert && kw != KwAlign && kw != KwLinkKeep {
+			cc.ErrorAt(id, etag).With("unsupported form '%s'", id)
+		}
+		cc.CompileExpr(env, i)
+	}
+	return cc.EmitCode(NewInst(e, InstMisc, KwEndDep))
+}
+
 // SYNTAX: (flat! ...)
 func (cc *Compiler) sFlatMode(env *Env, e *Vec) Value {
 	etag, _ := CheckExpr(e, 1, 1, CtModule, cc)
@@ -451,6 +495,7 @@ func (cc *Compiler) sPragma(env *Env, e *Vec) Value {
 		v := CheckAndEvalConstAs(e.At(2), env, StrT, "comment", etag, cc)
 		r := []Value{KwComment, v}
 		for _, i := range (*e)[3:] {
+			i := CheckValue(i, ConstexprT, "comment element", etag, cc)
 			r = append(r, cc.CompileExpr(env, i))
 		}
 		cc.EmitCode(NewInst(e, InstMisc, r...))
@@ -548,7 +593,7 @@ func (cc *Compiler) sProc(env *Env, e *Vec) Value {
 	cc.EmitCode(NewInst(e, InstLabel, procNm))
 
 	cc.sBlock(env, body)
-	cc.EmitCode(NewInst(e, InstMisc, KwEndProc))
+	cc.EmitCode(NewInst(e, InstMisc, KwEndProc, nm))
 	cc.EmitCode(cc.LeaveCodeBlock()...)
 	cc.LeaveContext()
 	return NIL
@@ -580,7 +625,7 @@ func (cc *Compiler) sCallproc(env *Env, e *Vec) Value {
 // SYNTAX: (fallthrough ...)
 func (cc *Compiler) sFallthrough(env *Env, e *Vec) Value {
 	CheckExpr(e, 1, 1, CtProc, cc)
-	return cc.EmitCode(NewInst(e, InstMisc, KwFallthrough))
+	return cc.EmitCode(NewInst(e, InstMisc, KwFallthrough, NIL)) // NIL(#1): next proc nm
 }
 
 // SYNTAX: (tco a)
@@ -964,13 +1009,11 @@ func (cc *Compiler) sAssert(env *Env, e *Vec) Value {
 	etag, n := CheckExpr(e, 2, 3, CtModule|CtProc, cc)
 	cond := CheckValue(e.At(1), ConstexprT, "cond", etag, cc)
 
-	s := Value(NewStr(fmt.Sprintf("assertion %s failed", cond.Inspect())))
-	if n > 2 {
-		s = CheckConst(e.At(2), StrT, "message", etag, cc)
+	s := NewStr("assertion failed")
+	if n == 3 {
+		s = CheckAndEvalConstAs(e.At(2), env, StrT, "message", etag, cc)
 	}
-
-	cc.EmitCode(NewInst(e, InstAssert, cc.CompileExpr(env, cond), s))
-	return NIL
+	return cc.EmitCode(NewInst(e, InstAssert, cc.CompileExpr(env, cond), s))
 }
 
 // SYNTAX: (import s)
@@ -1496,4 +1539,60 @@ func (cc *Compiler) fFormtypeof(env *Env, e *Vec) Value {
 		}
 	}
 	return NewStr("unknown")
+}
+
+// FUN: (opcode asm size)
+func (cc *Compiler) fOpcode(_ *Env, e *Vec) Value {
+	etag, n := CheckExpr(e, 2, 3, CtConstexpr, cc)
+	asm := CheckValue(e.At(1), StrT, "mnemonic", etag, cc)
+	size := 1
+	if n == 3 {
+		size = int(CheckValue(e.At(2), IntT, "size", etag, cc))
+	}
+
+	cc.nested = append([]Value{etag}, cc.nested...)
+	r := cc.Parse("<opcode>", []byte(*asm)).AtOrUndef(1)
+	v := CheckValue(r, VecT, "mnemonic", etag, cc)
+
+	op := v.ExprTag()
+	if !op.IsPlain() {
+		cc.ErrorAt(etag).With("unknown mnemonic")
+	}
+
+	found, ok := cc.InstMap[op.Name]
+	if !ok {
+		cc.ErrorAt(etag).With("unknown mnemonic")
+	}
+
+	env := cc.Builtins.Enter()
+	ab := []*Operand{}
+	tab := found.(InstPat)
+	for _, i := range (*v)[1:] {
+		i := cc.ExprToOperand(cc, cc.CompileExpr(env, i))
+		if c, ok := i.A0.(*Constexpr); ok {
+			n := CheckConst(c, IntT, "operand", etag, cc)
+			cc.Constvals[c] = n
+			cc.AdjustOperand(cc, i, int(n), etag)
+		}
+
+		ab = append(ab, i)
+		tab, ok = tab[i.Kind].(InstPat)
+		if !ok {
+			break
+		}
+	}
+
+	body, ok := tab[nil].(InstDat)
+	if !ok || body[0].Kind == BcTemp {
+		cc.ErrorAt(etag).With("invalid operands for '%s'", op)
+	}
+
+	inst := NewInst(e, InstMisc, KwUNDER)
+	code := uint64(0)
+	for x := range min(size, len(body), 8) {
+		code = (code << 8) | uint64(cc.g.expandBCode(inst, body[x], ab, 0))
+	}
+	cc.nested = cc.nested[1:]
+
+	return Int(code)
 }

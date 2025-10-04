@@ -27,6 +27,8 @@ var SyntaxMap = map[*Keyword]SyntaxFn{
 	Intern("#.module"):            SyntaxFn((*Compiler).sModule),
 	Intern("section"):             SyntaxFn((*Compiler).sSection),
 	Intern("link"):                SyntaxFn((*Compiler).sLink),
+	Intern("link/keep"):           SyntaxFn((*Compiler).sLinkKeep),
+	Intern("link/with"):           SyntaxFn((*Compiler).sLinkWith),
 	Intern("flat!"):               SyntaxFn((*Compiler).sFlatMode),
 	Intern("pragma"):              SyntaxFn((*Compiler).sPragma),
 	Intern("#.macro"):             SyntaxFn((*Compiler).sMacro),
@@ -96,4 +98,5 @@ var FunMap = map[*Keyword]SyntaxFn{
 	Intern("unuse?"):     SyntaxFn((*Compiler).fUnusep),
 	Intern("use?"):       SyntaxFn((*Compiler).fUsep),
 	Intern("formtypeof"): SyntaxFn((*Compiler).fFormtypeof),
+	Intern("opcode"):     SyntaxFn((*Compiler).fOpcode),
 }

@@ -43,6 +43,8 @@ var KwCall = Intern("#.call")
 var KwCallproc = Intern("#.callproc")
 var KwBeginProc = Intern("#.beginproc")
 var KwEndProc = Intern("#.endproc")
+var KwBeginDep = Intern("#.begindep")
+var KwEndDep = Intern("#.enddep")
 var KwFallthrough = Intern("#.fallthrough")
 var KwPatchAnchor = Intern("#.patch-anchor")
 var KwValueOf = Intern("#.valueof")
@@ -91,6 +93,10 @@ var KwThen = Intern("then")
 var KwOptimize = Intern("optimize")
 var KwCompileFile = Intern("compile-file")
 var KwFlow = Intern("flow")
+var KwLink = Intern("link")
+var KwLinkKeep = Intern("link/keep")
+var KwAssert = Intern("assert")
+var KwAlign = Intern("align")
 
 var IdUNDER = InternalId(KwUNDER)
 
@@ -167,6 +173,7 @@ type Compiler struct {
 	Phase     int
 	link      *Vec
 	loaded    []string
+	nested    []Value
 	g         *Generator
 
 	hooks struct {
@@ -199,13 +206,14 @@ type Compiler struct {
 	InlineInsts   []*Inst
 
 	EnableOptimizeFlow bool
+	LinkEntryPoints    []*Identifier
 	OptimizeBCode      func(*Compiler, *Inst, []BCode, bool) []BCode
 }
 
 func (cc *Compiler) ErrorAt(values ...Value) *InternalError {
 	return &InternalError{
 		tag: "compile error: ",
-		at:  values,
+		at:  slices.Concat(values, cc.nested),
 		g:   cc.g,
 	}
 }
@@ -444,16 +452,18 @@ func (cc *Compiler) Compile(path string, text []byte) []*Inst {
 	return cc.doLink()
 }
 
-func (cc *Compiler) CompileIncluded(path string, text []byte) Value {
+func (cc *Compiler) CompileIncluded(from *Identifier, path string, text []byte) Value {
 	inPath, module, section := cc.InPath, cc.Module, cc.Section
 	cc.InPath = path
 	cc.Module = cc.Toplevel.Module
 	cc.Section = cc.Module.Sections[KwBSS]
+	cc.nested = append([]Value{from}, cc.nested...)
 	cc.EnterContext(CtModule)
 	cc.EnterCodeBlock()
 	cc.CompileExpr(cc.Toplevel, cc.Parse(path, text))
 	cc.EmitCodeToSection(cc.Section, cc.LeaveCodeBlock()...)
 	cc.LeaveContext()
+	cc.nested = cc.nested[1:]
 	cc.InPath, cc.Module, cc.Section = inPath, module, section
 	return NIL
 }
@@ -960,11 +970,14 @@ func (cc *Compiler) evaluateConstexpr(env *Env, e Value, token *Token) Value {
 			w := cc.Constvals[v]
 			if w == nil {
 				if cc.Phase == PhCompile {
+					cc.Constvals[v] = KwINVALID
 					w = cc.evaluateConstexpr(v.Env, v.Body, v.Token)
 					cc.Constvals[v] = w
 				} else {
 					cc.ErrorAt(e).With("constant %s used before declaration", e)
 				}
+			} else if w == KwINVALID {
+				cc.ErrorAt(e).With("invalid const(circular reference)")
 			}
 			return w
 		default:
@@ -1201,6 +1214,11 @@ func (cc *Compiler) ProcessDefaultOptimizeOption(env *Env, e *Vec, k *Identifier
 			v = CheckAndEvalConstAs(e.At(2), env, IntT, "option", etag, cc)
 		}
 		cc.EnableOptimizeFlow = v != Int(0)
+	case KwLink:
+		for _, i := range (*e)[2:] {
+			id := CheckConst(i, IdentifierT, "entry point", etag, cc)
+			cc.LinkEntryPoints = append(cc.LinkEntryPoints, id)
+		}
 	default:
 		cc.ErrorAt(etag).With("unknown optimizer: %s", k)
 	}

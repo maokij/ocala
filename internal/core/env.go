@@ -665,6 +665,7 @@ type Named struct {
 	AsmName *Keyword
 	Env     *Env
 	Value   Value
+	OnFound func(*Named)
 	Kind    int32
 	Export  bool
 	Special bool
@@ -714,6 +715,12 @@ func (v *Named) Inspect() string {
 
 func (v *Named) Dup() Value {
 	return CopyPtr(v)
+}
+
+func (v *Named) Found() {
+	if v.OnFound != nil {
+		v.OnFound(v)
+	}
 }
 
 // //////////////////////////////////////////////////////////
@@ -887,8 +894,7 @@ func (env *Env) Install(nm *Named) *Named {
 }
 
 func (env *Env) Lookup(k *Keyword) *Named {
-	nm := env.Find(k)
-	if nm != nil {
+	if nm := env.Find(k); nm != nil {
 		return nm
 	}
 	if env.outer != nil {
@@ -898,7 +904,11 @@ func (env *Env) Lookup(k *Keyword) *Named {
 }
 
 func (env *Env) Find(k *Keyword) *Named {
-	return env.names[k]
+	if nm := env.names[k]; nm != nil {
+		nm.Found()
+		return nm
+	}
+	return nil
 }
 
 func (env *Env) Filter(kind int32) []*Named {

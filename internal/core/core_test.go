@@ -5,6 +5,7 @@ import (
 	"ocala/internal/tt/ttarch"
 	"os"
 	"slices"
+	"strings"
 	"testing"
 )
 
@@ -162,7 +163,6 @@ func TestCompileAndGenerate(t *testing.T) {
 			warn "<warn02>"
 			compile-error "<error>"
 		`))
-
 		g.CompileAndGenerate("-")
 		g.FlushMessages()
 		tt.EqText(t, tt.Unindent(`
@@ -182,6 +182,36 @@ func TestCompileAndGenerate(t *testing.T) {
 			   |compile-error "<error>"
 			   |^-- ??
 		`), tt.FlushString(g.ErrWriter))
+	})
+
+	t.Run("error: nested full messages", func(t *testing.T) {
+		g := ttarch.BuildGenerator("ttarch", tt.Unindent(`flat!
+			include "./testdata/include3/inc01.oc"
+		`))
+		g.CompileAndGenerate("-")
+		g.FlushMessages()
+		s := tt.FlushString(g.ErrWriter)
+		s = strings.ReplaceAll(s, "\\", "/")
+		s = strings.ReplaceAll(s, "\r\n", "\n")
+		tt.EqText(t, tt.Unindent(`
+			compile error: !
+			[error #0]
+			  at testdata/include3/inc03.oc:1:0
+			   |compile-error "!"
+			   |^-- ??
+			[error #1]
+			  at testdata/include3/inc02.oc:1:0
+			   |include "./inc03.oc"
+			   |^-- ??
+			[error #2]
+			  at testdata/include3/inc01.oc:1:0
+			   |include "./inc02.oc"
+			   |^-- ??
+			[error #3]
+			  at -:1:0
+			   |include "./testdata/include3/inc01.oc"
+			   |^-- ??
+		`), s)
 	})
 
 	t.Run("error: debug mode", func(t *testing.T) {
@@ -897,6 +927,11 @@ func TestCompileConst(t *testing.T) {
 			"undefined name c001", `flat!
 				db $$(c001)
 				const c001 = 1
+			`,
+			"invalid const(circular reference)", `flat!
+				const c001 = c002
+				const c002 = c001
+				db $$(c001)
 			`,
 			"f001 is not callable", `flat!
 				const f001 = 1
@@ -2342,7 +2377,7 @@ func TestCompileOptimizeFlow(t *testing.T) {
 		}
 	})
 
-	t.Run("ok: jump cycle", func(t *testing.T) {
+	t.Run("warn: jump cycle", func(t *testing.T) {
 		expected := expectCompileOk(t, `flat!
 			NOP
 			L0: JMP L1 ; N0: NOP
@@ -2382,6 +2417,241 @@ func TestCompileOptimizeFlow(t *testing.T) {
 				A <- 0; *patch* a byte
 				L1: PC -return
 			}`,
+		}
+		for x := 0; x < len(es); x += 2 {
+			mes := expectCompileError(t, es[x+1])
+			tt.Eq(t, "compile error: "+es[x], mes, es[x+1])
+		}
+	})
+}
+
+func TestCompileOptimizeLink(t *testing.T) {
+	t.Run("ok", func(t *testing.T) {
+		es := []string{
+			`// noopt
+			  proc f001() { db 1; RET }
+			`, `optimize link f001
+			  proc f001() { db 1; RET }
+			  proc f002() { db 2; RET }
+			`,
+
+			`// noopt
+			  proc f001() { db 1; fallthrough }
+			  proc f002() { db 2; RET }
+			`, `optimize link f001
+			  proc f001() { db 1; fallthrough }
+			  proc f002() { db 2; RET }
+			  proc f003() { db 3; RET }
+			`,
+
+			`// noopt
+			  proc f001() { f002(); RET }
+			  proc f002() { db 2; RET }
+			`, `optimize link f001
+			  proc f001() { f002(); RET }
+			  proc f002() { db 2; RET }
+			  proc f003() { db 3; RET }
+			`,
+
+			`// noopt
+			  proc f001() { db 1; RET }
+			  proc f002() { db 2; RET }
+			  data word [f002]
+			`, `optimize link f001
+			  proc f001() { db 1; RET }
+			  proc f002() { db 2; RET }
+			  proc f003() { db 3; RET }
+			  data word [f002]
+			`,
+
+			`// noopt
+			  proc f001() { db 1; RET }
+			`, `optimize link f001
+			  proc f001() { db 1; RET }
+			  proc f002() { db 2; RET }
+			  proc f003() { db 3; RET }
+			  data d004 = word [f002]
+			`,
+
+			`// noopt
+			  proc f001() { db 1; RET }
+			`, `optimize link f001
+			  proc f001() { db 1; RET }
+			  data d002 = byte [2]
+			  data d003 = byte [3]
+			`,
+
+			`// noopt
+			  proc f001() { db d002; RET }
+			  data d002 = byte [2]
+			`, `optimize link f001
+			  proc f001() { db d002; RET }
+			  data d002 = byte [2]
+			  data d003 = byte [3]
+			`,
+
+			`// noopt
+			  proc f001() { db 1; RET }
+			`, `optimize link f001
+			  proc f001() { db 1; RET }
+			  proc f002() { db 2; RET }
+			  proc f003() { db 3; RET }
+			  const c = f002
+			`,
+
+			`// noopt
+			  proc f001() { db c; RET }
+			  proc f002() { db 2; RET }
+			  const c = f002
+			`, `optimize link f001
+			  proc f001() { db c; RET }
+			  proc f002() { db 2; RET }
+			  proc f003() { db 3; RET }
+			  const c = f002
+			`,
+
+			`// noopt
+			  proc f001() { db 1; RET }
+			`, `optimize link f001
+			  data p001 = byte @ <reserved>
+			  proc f001() { db 1; RET }
+			  proc f002() { *patch* p001; RET }
+			`,
+
+			`// noopt
+			  data p001 = byte @ <reserved>
+			  proc f001() { A <- [p001]; RET }
+			  proc f002() { *patch* p001; RET }
+			`, `optimize link f001
+			  data p001 = byte @ <reserved>
+			  proc f001() { A <- [p001]; RET }
+			  proc f002() { *patch* p001; RET }
+			`,
+
+			`// noopt
+			  proc f001() { db 1; RET }
+			  proc f002() { db 2; RET }
+			`, `optimize link f001
+			  proc f001() { db 1; RET }
+			  proc f002() { db 2; RET }
+			  proc f003() { db 3; RET }
+			  assert f002
+			`,
+
+			`// noopt
+			  proc f001() { db 1; RET }
+			`, `optimize link f001
+			  proc f001() { db 1; RET }
+			  proc f002() { db 2; RET }
+			  proc f003() { db 3; RET }
+			  link/with f002 { assert 0 }
+			`,
+
+			`// noopt
+			  proc f001() { db 1; RET }
+			  proc f002() { db 2; RET }
+			  proc f003() { db 3; RET }
+			`, `optimize link f001
+			  proc f001() { db 1; RET }
+			  proc f002() { db 2; RET }
+			  proc f003() { db 3; RET }
+			  proc f004() { db 4; RET }
+			  link/with f001 { assert f002 }
+			  link/with f002 { assert f003 }
+			`,
+
+			`// noopt
+			  proc f001() { db 1; RET }
+			`, `optimize link f001
+			  proc f001() { db 1; RET }
+			  proc f002() { db 2; RET }
+			  proc f003() { db 3; RET }
+			  proc f004() { db 4; RET }
+			  link/with f002 f003 { assert f004 }
+			`,
+
+			`// noopt
+			  proc f001() { db f003; RET }
+			  proc f003() { db 3; RET }
+			  proc f004() { db 4; RET }
+			`, `optimize link f001
+			  proc f001() { db f003; RET }
+			  proc f002() { db 2; RET }
+			  proc f003() { db 3; RET }
+			  proc f004() { db 4; RET }
+			  link/with f002 f003 { assert f004 }
+			`,
+
+			`// noopt
+			  proc f001() { db 1; RET }
+			  proc f002() { db 2; RET }
+			`, `optimize link f001
+			  proc f001() { db 1; RET }
+			  proc f002() { db 2; RET }
+			  proc f003() { db 3; RET }
+			  link/keep f002
+			`,
+
+			`// noopt
+			  proc f001() { db 1; RET }
+			  proc f003() { db 3; RET }
+			  proc f004() { db 3; RET }
+			`, `optimize link f001
+			  proc f001() { db 1; RET }
+			  proc f002() { db 2; RET }
+			  proc f003() { db 3; RET }
+			  proc f004() { db 3; RET }
+			  link/keep f003 f004
+			`,
+		}
+		for x := 0; x < len(es); x += 2 {
+			expected := expectCompileOk(t, es[x])
+			dat := expectCompileOk(t, es[x+1])
+			tt.EqSlice(t, expected, dat, x/2, es[x+1])
+		}
+	})
+
+	t.Run("warn: dependency", func(t *testing.T) {
+		expected := expectCompileOk(t, `flat!
+			RET
+		`)
+		g := ttarch.BuildGenerator("ttarch", tt.Unindent(`
+			optimize link f001
+			L1: proc f001() { RET }
+			link/with L1 { align 16 }
+		`))
+		dat, _, mes := ttarch.DoCompile(g, "-")
+		warns := slices.Sorted(slices.Values(ttarch.WarningMessages(g)))
+
+		tt.EqSlice(t, expected, dat, mes)
+		tt.EqSlice(t, []string{
+			"warning: the label cannot be used as a dependency",
+		}, warns)
+	})
+
+	t.Run("error", func(t *testing.T) {
+		es := []string{
+			"invalid entry point 'L1'", `flat!
+			  optimize link L1
+			`,
+			"invalid entry point 'L1'", `flat!
+			  optimize link L1
+			  L1: NOP
+			`,
+			"invalid dependency 'L1'", `flat!
+			  optimize link L1
+			  link/with L1 { align 16 }
+			`,
+			"body must be scoped block", `flat!
+			  link/with L1 ={ align 16 }
+			`,
+			"invalid form", `flat!
+			  macro m(a) ={ link/with L1 { %=a } }
+			  m 1
+			`,
+			"unsupported form 'section'", `flat!
+			  link/with L1 { section text }
+			`,
 		}
 		for x := 0; x < len(es); x += 2 {
 			mes := expectCompileError(t, es[x+1])

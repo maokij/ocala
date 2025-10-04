@@ -41,7 +41,7 @@ func (cc *Compiler) sInclude(env *Env, e *Vec) Value {
 		cc.ErrorAt(etag).With("`%s` not found", rpath)
 	}
 
-	return cc.CompileIncluded(rpath, text)
+	return cc.CompileIncluded(etag, rpath, text)
 }
 
 // SYNTAX: (load-file path)

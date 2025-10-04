@@ -553,6 +553,9 @@ func TestCompilePragma(t *testing.T) {
 			"comment must be string", `flat!
 				pragma comment 1
 			`,
+			"comment element must be constexpr", `flat!
+				pragma comment "message" A
+			`,
 		}
 		for x := 0; x < len(es); x += 2 {
 			mes := expectCompileError(t, es[x+1])
@@ -743,7 +746,7 @@ func TestCompileAssert(t *testing.T) {
 
 	t.Run("error", func(t *testing.T) {
 		es := []string{
-			"assertion ([!= [- end beg] 1]) failed", `flat!
+			"assertion failed", `flat!
 				beg: NOP; end:
 				assert (end - beg != 1)
 			`,
@@ -910,5 +913,62 @@ func TestCompileDebugInspect(t *testing.T) {
 		tt.Eq(t, "[DEBUG] \"hello\"\n"+
 			"[DEBUG] EQ?\n"+
 			"[DEBUG] LD\n", tt.FlushString(g.ErrWriter))
+	})
+}
+
+func TestCompileOpcode(t *testing.T) {
+	t.Run("ok", func(t *testing.T) {
+		expected := expectCompileOk(t, `flat!
+			data byte [0]
+			data byte [0]
+			NOP; NOP; NOP
+			LD A B; RET EQ?
+			L1: BRA L1
+			JMP 0
+		`)
+		dat := expectCompileOk(t, `flat!
+			data byte [opcode("LD X 0x8000" 0)]
+			data byte [opcode("BRA 0x8000" 0)]
+			data byte [opcode("NOP") opcode("NOP" 1) opcode("NOP" 2)]
+			data byte [opcode("LD A B") opcode("RET EQ?")]
+			const b = opcode("BRA 0" 2)
+			data byte [hibyte(b) lobyte(b)]
+			const c = opcode("JMP 0" 3)
+			data byte [((c >>> 16) & 0xff) ((c >>> 8) & 0xff) (c & 0xff)]
+		`)
+		tt.EqSlice(t, expected, dat)
+	})
+
+	t.Run("error", func(t *testing.T) {
+		es := []string{
+			"unknown mnemonic", `flat!
+				db opcode("UNKOWN A")
+			`,
+			"unknown mnemonic", `flat!
+				db opcode("x:LD A B")
+			`,
+			"unknown mnemonic", `flat!
+				db opcode("L: BRA L")
+			`,
+			"unknown mnemonic", `flat!
+				db opcode("const a = 1")
+			`,
+			"#.const is not allowed in this context", `flat!
+				db opcode("LD { const a = 1 }")
+			`,
+			"invalid operands for 'LD'", `flat!
+				db opcode("LD A 0x8000")
+			`,
+			"invalid operands for 'JMP'", `flat!
+				db opcode("JMP A")
+			`,
+			"the relative address is out of range", `flat!
+				db opcode("BRA 0x8000" 2)
+			`,
+		}
+		for x := 0; x < len(es); x += 2 {
+			mes := expectCompileError(t, es[x+1])
+			tt.Eq(t, "compile error: "+es[x], mes, es[x+1])
+		}
 	})
 }
