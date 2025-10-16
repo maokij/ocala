@@ -1754,7 +1754,7 @@ func TestCompileAlign(t *testing.T) {
 
 	t.Run("error", func(t *testing.T) {
 		es := []string{
-			"argument must be constexpr", `flat!
+			"size must be constexpr", `flat!
 				align A
 			`,
 			"the alignment size must be power of 2", `flat!
@@ -1771,25 +1771,72 @@ func TestCompileAlign(t *testing.T) {
 	})
 }
 
+func TestCompileFill(t *testing.T) {
+	t.Run("ok", func(t *testing.T) {
+		dat := expectCompileOk(t, `flat!
+			data byte [0xFA]
+			fill 0
+			data byte [0xFB]
+			fill 3
+			data byte [0xFC]
+			fill (8 - __PC__)
+			data b002 = byte [0xFD]
+		`)
+		tt.EqSlice(t, []byte{0xFA, 0xFB, 0, 0, 0, 0xFC, 0, 0, 0xFD}, dat)
+	})
+
+	t.Run("error", func(t *testing.T) {
+		es := []string{
+			"size must be constexpr", `flat!
+				fill A
+			`,
+			"invalid fill size", `flat!
+				fill ""
+			`,
+			"invalid fill size", `flat!
+				fill -1
+			`,
+		}
+		for x := 0; x < len(es); x += 2 {
+			mes := expectCompileError(t, es[x+1])
+			tt.Eq(t, "compile error: "+es[x], mes, es[x+1])
+		}
+	})
+}
+
 func TestCompileSection(t *testing.T) {
 	t.Run("ok", func(t *testing.T) {
 		dat := expectCompileOk(t, `
 			link {
-				org 0 20 1
+				org 0 32 1
 				merge text _
 				merge rodata _
 			}
 			module Mod {
+				section text
 				db 0x00 0x01 0x02 0x03
-				section rodata ={ db 0xf0 0xf1 0xf2 0xf3 }
-				db 0x04 0x05 0x06 0x07
-				section rodata ={ db 0xf4 0xf5 0xf6 0xf7 }
+				section rodata
+				db 0xf0 0xf1 0xf2 0xf3
+				section text ={ db 0x04 0x05 0x06 0x07 }
+				db 0xf4 0xf5 0xf6 0xf7
+				section text
 				db 0x08 0x09 0x0a 0x0b
+				section text ={ db 0x0c 0x0d 0x0e 0x0f }
+				section rodata ={
+					section text ={
+						section rodata
+						db 0xf8 0xf9 0xfa 0xfb
+						section text
+					}
+					db 0xfc 0xfd 0xfe 0xff
+				}
 			}
 		`)
 		tt.EqSlice(t, []byte{
-			0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b,
+			0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
+			0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f,
 			0xf0, 0xf1, 0xf2, 0xf3, 0xf4, 0xf5, 0xf6, 0xf7,
+			0xf8, 0xf9, 0xfa, 0xfb, 0xfc, 0xfd, 0xfe, 0xff,
 		}, dat)
 	})
 

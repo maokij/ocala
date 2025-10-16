@@ -298,7 +298,11 @@ func (g *Generator) resolveInsts(insts []*Inst, pass int) int {
 			i.Size = (g.cc.Pc - pc) * int(i.Args[1].(Int))
 			g.cc.Pc = pc + i.Size
 		case InstDS:
-			i.Size = i.Args[0].(*Datatype).Size * int(i.Args[1].(Int))
+			n, ok := EvalAndCacheIfConst(i.Args[1], g.cc).(Int)
+			if !ok || n < 0 {
+				g.cc.ErrorAt(i).With("invalid fill size")
+			}
+			i.Size = i.Args[0].(*Datatype).Size * int(n)
 			g.cc.Pc += i.Size
 		case InstAlign:
 			n := int(i.Args[0].(Int)) - 1

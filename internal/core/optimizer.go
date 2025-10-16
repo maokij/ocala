@@ -302,7 +302,9 @@ func (cc *Compiler) optimizeLink(insts []*Inst) {
 				}
 			case InstData:
 				traverse(i.Args[4])
-			case InstLabel, InstOrg, InstDS, InstAlign, InstBlob:
+			case InstDS:
+				EvalAndCacheIfConst(i.Args[1], cc)
+			case InstLabel, InstOrg, InstAlign, InstBlob:
 				// OK
 			default:
 				cc.ErrorAt(i).With("[BUG] invalid inst kind %v", i)

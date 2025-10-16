@@ -72,11 +72,18 @@ func (cc *Compiler) sArch(env *Env, e *Vec) Value {
 // SYNTAX: (align a)
 func (cc *Compiler) sAlign(env *Env, e *Vec) Value {
 	etag, _ := CheckExpr(e, 2, 2, CtModule|CtProc, cc)
-	n := CheckAndEvalConstAs(e.At(1), env, IntT, "argument", etag, cc)
+	n := CheckAndEvalConstAs(e.At(1), env, IntT, "size", etag, cc)
 	if n < 1 || (n&(n-1)) != 0 {
 		cc.ErrorAt(etag).With("the alignment size must be power of 2")
 	}
 	return cc.EmitCode(NewInst(e, InstAlign, n))
+}
+
+// SYNTAX: (fill n)
+func (cc *Compiler) sFill(env *Env, e *Vec) Value {
+	etag, _ := CheckExpr(e, 2, 2, CtModule|CtProc, cc)
+	n := CheckValue(e.At(1), ConstexprT, "size", etag, cc)
+	return cc.EmitCode(NewInst(e, InstDS, ByteType, cc.CompileExpr(env, n)))
 }
 
 // SYNTAX: (#.label l)
@@ -387,10 +394,6 @@ func (cc *Compiler) sSection(env *Env, e *Vec) Value {
 	id := CheckConstPlainId(e.At(1), "section name", etag, cc)
 
 	CheckToplevelEnvIfCtProc(env, etag, cc)
-	if cc.Section.Name == id.Name {
-		return NIL
-	}
-
 	section := cc.Section
 	cc.EmitCodeToSection(section, cc.LeaveCodeBlock()...)
 	cc.EnterCodeBlock()
@@ -449,10 +452,12 @@ func (cc *Compiler) sLinkWith(env *Env, e *Vec) Value {
 		if id == nil || !id.IsPlain() {
 			cc.ErrorAt(i, etag).With("invalid form")
 		}
-		if kw := id.Name; kw != KwAssert && kw != KwAlign && kw != KwLinkKeep {
+		switch id.Name {
+		case KwAssert, KwAlign, KwFill, KwLinkKeep:
+			cc.CompileExpr(env, i)
+		default:
 			cc.ErrorAt(id, etag).With("unsupported form '%s'", id)
 		}
-		cc.CompileExpr(env, i)
 	}
 	return cc.EmitCode(NewInst(e, InstMisc, KwEndDep))
 }

@@ -13,6 +13,7 @@ var SyntaxMap = map[*Keyword]SyntaxFn{
 	Intern("load-file"):           SyntaxFn((*Compiler).sLoadFile),
 	Intern("arch"):                SyntaxFn((*Compiler).sArch),
 	Intern("align"):               SyntaxFn((*Compiler).sAlign),
+	Intern("fill"):                SyntaxFn((*Compiler).sFill),
 	Intern("#.label"):             SyntaxFn((*Compiler).sLabel),
 	Intern("#.tpl"):               SyntaxFn((*Compiler).sTpl),
 	Intern("#.prog"):              SyntaxFn((*Compiler).sProg),

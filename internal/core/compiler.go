@@ -97,6 +97,7 @@ var KwLink = Intern("link")
 var KwLinkKeep = Intern("link/keep")
 var KwAssert = Intern("assert")
 var KwAlign = Intern("align")
+var KwFill = Intern("fill")
 
 var IdUNDER = InternalId(KwUNDER)
 
