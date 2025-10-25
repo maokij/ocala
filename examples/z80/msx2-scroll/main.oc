@@ -226,12 +226,12 @@ module main {
     }
 
     proc render-mask(E => !) {
-        // page +0; Y:64 to Y:127(64 lines)
+        // page +0
         @[active-page] >* 4 & 0b010 -> D // 0bXYZ1_1111 -> 0b0000_00Z0
         HL <- ((128 * 64) | BIT-14) . { @E + L -> L }
         B@64 . write(B D HL => ! B HL)
 
-        // page +1; Y:128 to Y:184(56 lines)
+        // page +1
         D ++
         HL <- ((128 *  0) | BIT-14) . { @E + L -> L }
         B@64 . write(B D HL => ! B HL)

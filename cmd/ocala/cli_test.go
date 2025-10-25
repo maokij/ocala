@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"hash/crc32"
 	"ocala/internal/tt"
 	"os"
 	"path/filepath"
@@ -70,20 +71,26 @@ func TestRun(t *testing.T) {
 
 func TestCompileExamples(t *testing.T) {
 	cli := setupTestCLI()
-
-	paths := []string{
-		"../../examples/z80/msx-hello-world/main",
-		"../../examples/z80/msx-hello-world-vdp/main",
-		"../../examples/z80/msx-keytest/main",
-		"../../examples/z80/msx-simple-game/main",
-		"../../examples/z80/msx2-scroll/main",
+	es := []struct {
+		expect uint32
+		name   string
+	}{
+		{0x7638c5b1, "../../examples/z80/msx-hello-world-bsave/main"},
+		{0x5d0d5139, "../../examples/z80/msx-hello-world-com/main"},
+		{0x09541103, "../../examples/z80/msx-hello-world-vdp/main"},
+		{0x6a96ebe2, "../../examples/z80/msx-hello-world/main"},
+		{0x297dd6d6, "../../examples/z80/msx-keytest/main"},
+		{0xd1e86ef0, "../../examples/z80/msx-simple-game/main"},
+		{0x2627af7c, "../../examples/z80/msx-sprite32/main"},
+		{0x42ac396e, "../../examples/z80/msx2-scroll/main"},
 	}
-	for _, i := range paths {
-		actual := cli.Run([]string{"cmd", i + ".oc"})
-		tt.Eq(t, 0, actual, 0, tt.FlushString(cli.errWriter))
+	for _, i := range es {
+		r := cli.Run([]string{"cmd", i.name + ".oc"})
+		tt.Eq(t, 0, r, i.name, tt.FlushString(cli.errWriter))
 
-		a, _ := os.ReadFile(i + ".bin")
-		tt.Eq(t, 1024*32, len(a))
+		dat, _ := os.ReadFile(i.name + ".bin")
+		actual := crc32.ChecksumIEEE(dat)
+		tt.Eq(t, i.expect, actual, i.name)
 	}
 }
 

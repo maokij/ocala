@@ -204,7 +204,9 @@ func (g *Generator) resolveInstData(inst *Inst) {
 			if e == nil {
 				g.cc.ErrorAt(v, etag).With("struct data required")
 			}
-
+			if e.Size()-1 > len(t.Fields) {
+				g.cc.ErrorAt(v, etag).With("too many elements in struct data")
+			}
 			etag := e.At(0).(*Identifier)
 			next := g.cc.Pc + t.Size
 			for x, i := range (*e)[1:] {

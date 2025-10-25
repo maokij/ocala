@@ -831,6 +831,9 @@ func TestCompileSizeof(t *testing.T) {
 			"L1 is not a data label", `flat!
 				L1: db sizeof(L1)
 			`,
+			"unknown name d001", `flat!
+				db sizeof(d001.a)
+			`,
 			"d001 is not a struct type", `flat!
 				data d001 = byte * 10
 				db sizeof(d001.a)
@@ -925,6 +928,7 @@ func TestCompileOpcode(t *testing.T) {
 			LD A B; RET EQ?
 			L1: BRA L1
 			JMP 0
+			LD [0] A
 		`)
 		dat := expectCompileOk(t, `flat!
 			data byte [opcode("LD X 0x8000" 0)]
@@ -935,12 +939,20 @@ func TestCompileOpcode(t *testing.T) {
 			data byte [hibyte(b) lobyte(b)]
 			const c = opcode("JMP 0" 3)
 			data byte [((c >>> 16) & 0xff) ((c >>> 8) & 0xff) (c & 0xff)]
+			const d = opcode("LD [0] A" 3)
+			data byte [((d >>> 16) & 0xff) ((d >>> 8) & 0xff) (d & 0xff)]
 		`)
 		tt.EqSlice(t, expected, dat)
 	})
 
 	t.Run("error", func(t *testing.T) {
 		es := []string{
+			"unknown mnemonic", `flat!
+				db opcode("")
+			`,
+			"unknown mnemonic", `flat!
+				db opcode("//")
+			`,
 			"unknown mnemonic", `flat!
 				db opcode("UNKOWN A")
 			`,
@@ -953,8 +965,14 @@ func TestCompileOpcode(t *testing.T) {
 			"unknown mnemonic", `flat!
 				db opcode("const a = 1")
 			`,
-			"#.const is not allowed in this context", `flat!
-				db opcode("LD { const a = 1 }")
+			"invalid operands for 'LD'", `flat!
+				db opcode("LD A a")
+			`,
+			"invalid operands for 'LD'", `flat!
+				db opcode("LD A { const a = 1 }")
+			`,
+			"invalid operands for 'LD'", `flat!
+				db opcode("LD A [X a]")
 			`,
 			"invalid operands for 'LD'", `flat!
 				db opcode("LD A 0x8000")

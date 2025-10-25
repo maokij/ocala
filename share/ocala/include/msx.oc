@@ -758,6 +758,28 @@ module msx {
         }
     }
 
+    macro bsave-header(first last run: _) {
+        data byte [0xfe]
+        data word [%=first %=last]
+        if use?(%&run) {
+            data word [%=run]
+        } else {
+            data word [%=first]
+        }
+    }
+
+    macro link-as-bsave(first sections ...) [end] ={
+        link {
+            org 0 7 LINK/LOAD
+            merge text { msx:bsave-header %=first (%=end - 1) }
+
+            org %=first -1 LINK/LOAD
+            merge text %*sections
+            merge rodata { align 2 } %*sections ={ %=end: }
+            merge bss %*sections
+        }
+    }
+
     if defined?(FOR_MSX2_OR_LATER) ={
         macro otir-vdp-data() {
             OTIR // 21
@@ -984,5 +1006,6 @@ module msx {
     }
 
     const t32nam(x: 0 y: 0) = T32NAM/INI + (y * 32) + x
+    const txtnam(x: 0 y: 0) = TXTNAM/INI + (y * 40) + x
     const rgb(r g b) = asword(g (r << 4) | b)
 }

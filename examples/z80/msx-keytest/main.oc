@@ -6,7 +6,7 @@ msx:link-as-rom main _
 
 module device {
     proc init(!) {
-        msx:set-vdp-mode 0b0000_0000 0b1110_0000
+        msx:set-vdp-mode 0b0000_0000 0b0110_0000
         clear_namtab(!)
         clear_spratr(!)
         clear_chrtab(!)

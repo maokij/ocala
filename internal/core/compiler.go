@@ -1121,7 +1121,7 @@ func (cc *Compiler) doLink() []*Inst {
 			etag, _ := CheckExpr(e, 2, -1, 0, cc)
 			sec := CheckConst(e.At(1), IdentifierT, "section name", etag, cc)
 			for _, i := range (*e)[2:] {
-				if KwProg.MatchExpr(i) != nil {
+				if i := AsBlockForm(i); i != nil {
 					cc.CompileExpr(env, i)
 					continue
 				}

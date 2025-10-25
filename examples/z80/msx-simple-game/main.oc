@@ -21,7 +21,7 @@ module device {
     data key-states = byte : bss
 
     proc init() {
-        msx:set-vdp-mode 0b0000_0000 0b1110_0000
+        msx:set-vdp-mode 0b0000_0000 0b0110_0000
         clear-namtab()
         clear-spratr()
         msx:update-hook msx:H_TIMI timi

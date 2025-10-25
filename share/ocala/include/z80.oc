@@ -255,15 +255,34 @@ macro *HL->HL() {
     H <- [HL]
     L <- A
 }
+alias HL<-*HL *HL->HL
 
 macro *HL->BC() {
     C <- [HL]; HL ++
     B <- [HL]
 }
+alias BC<-*HL *HL->BC
 
 macro *HL->DE() {
     E <- [HL]; HL ++
     D <- [HL]
+}
+alias DE<-*HL *HL->DE
+
+macro HL->*HL() {
+    A <- H
+    L -> [HL]; HL ++
+    A -> [HL]
+}
+
+macro BC->*HL() {
+    C -> [HL]; HL ++
+    B -> [HL]
+}
+
+macro DE->*HL() {
+    E -> [HL]; HL ++
+    D -> [HL]
 }
 
 macro HL+A() {

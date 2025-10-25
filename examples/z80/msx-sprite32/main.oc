@@ -1,0 +1,279 @@
+arch z80
+include "msx.oc"
+include "msx/romram.oc"
+optimize flow
+
+msx:link-as-rom main _
+
+module device {
+    section bss ={
+        align 256
+        data sprite-attributes = [32][4]byte
+    }
+
+    proc init() {
+        msx:set-vdp-mode 0b0000_0000 0b0110_0010
+        msx:set-vdp-register 7 0xf1
+        init-background()
+        init-sprite()
+        msx:update-hook msx:H_TIMI timi
+        return
+    }
+
+    proc timi() {
+        push/pop AF {
+            // sync sprite attributes
+            msx:set-vdp-write-addr msx:T32ATR/INI
+            msx:write-vdp-data sprite-attributes sizeof(sprite-attributes)
+        }
+        return
+    }
+
+    proc init-background() {
+        msx:set-vdp-write-addr msx:T32COL/INI
+        msx:fill-vdp-data 0xf0 32
+
+        msx:set-vdp-write-addr msx:T32NAM/INI
+        msx:fill-vdp-data/wide ' ' (256 * 3)
+        return
+    }
+
+    proc init-sprite() {
+        msx:set-vdp-write-addr msx:T32PAT/INI
+        msx:write-vdp-data assets:pat sizeof(assets:pat)
+        return
+    }
+
+    proc rand(=> A) {
+        A <- R
+        return
+    }
+}
+
+struct unit {
+    y       byte
+    x       byte
+    pat     byte
+    color   byte
+    _unused byte
+    count   byte
+    next    word
+}
+
+module main {
+    data current = word @ <reserved>
+
+    section bss ={
+        align 256
+        data units = [32]unit
+    }
+
+    proc main() {
+        romram:boot
+        device:init()
+
+        DE <- units
+        BC <- asword(32 2)
+        loop {
+            push/pop BC {
+                @C -> [(template + unit.color)]
+                HL@template . BC@sizeof(template) . {LDIR}
+                data template = unit { 64 128 0 0 0 0 action:move/random } : rodata
+            }
+
+            C ++ -bit? 4; if not-zero? {
+                C <- 2
+            }
+        } while/B-
+
+        fallthrough
+    }
+
+
+    proc main/loop() {
+        msx:wait-vsync
+
+        HL <- units; *patch* current word
+        L <- 0
+        loop {
+            @L -> [current]
+            IX <- [current]
+
+            DE<-*HL; L -set 2  // y, x, ...
+            [HL] --            // count
+            C <- [HL]; L ++
+            HL<-*HL
+            call/HL()
+
+            HL <- [current]
+            DE->*HL; L ++; L -set 2 // y, x, ...
+            BC->*HL; L ++           // next
+        } while not-zero?
+
+        update-sprite-attributes(!)
+        recur
+    }
+
+    proc call/HL() { goto/HL }
+
+    proc update-sprite-attributes(!) {
+        data switch = byte @ <reserved>
+        data next = word @ <reserved>
+
+        DE <- device:sprite-attributes
+        HL <- units; *patch* next word
+
+        A <- opcode("CP 0")
+        BC <- asword(32 (sizeof(unit) * 7  - 4))
+        *patch* switch; once {
+            JR _END
+            A <- opcode("JR 0")
+            C <- (sizeof(unit) * 11 - 4)
+        }
+
+        A -> [switch]
+        loop {
+            push/pop BC { memcpy _ _ 4 }
+            @L + C -> L
+        } while/B-
+        A - C - 4 -> [next]
+        return
+    }
+}
+
+module action {
+    macro suspend=>() {
+        suspend()
+    }
+
+    proc suspend() {
+        BC -pop; return
+    }
+
+    proc set-state(A) {
+        A -> [IX unit.pat]
+        A . device:rand(=> A) & 0b1111 + 17 -> [IX unit.count]
+        return
+    }
+
+    proc move/random() {
+        A . device:rand(=> A) & 0b111 <* 1
+        HL <- tab . {HL+A}
+        HL<-*HL
+        goto/HL
+
+        data tab = word [
+            move/0
+            move/1
+            move/2
+            move/3
+            move/4
+            move/5
+            move/6
+            move/7
+        ]
+    }
+
+    proc move/0() {
+        A - A . set-state(A)
+
+        never-return loop {
+            E -- -reset 7
+            suspend=>
+
+            C -zero?; goto-if zero? move/random
+        }
+    }
+
+    proc move/1() {
+        @8 . set-state(A)
+
+        never-return loop {
+            D ++
+            E -- -reset 7
+            suspend=>
+
+            C -zero?; goto-if zero? move/random
+        }
+    }
+
+    proc move/2() {
+        @8 . set-state(A)
+
+        never-return loop {
+            D ++
+            suspend=>
+
+            C -zero?; goto-if zero? move/random
+        }
+    }
+
+    proc move/3() {
+        @8 . set-state(A)
+
+        never-return loop {
+            D ++
+            E ++ -reset 7
+            suspend=>
+
+            C -zero?; goto-if zero? move/random
+        }
+    }
+
+    proc move/4() {
+        A - A . set-state(A)
+
+        never-return loop {
+            E ++ -reset 7
+            suspend=>
+
+            C -zero?; goto-if zero? move/random
+        }
+    }
+
+    proc move/5() {
+        @4 . set-state(A)
+
+        never-return loop {
+            D --
+            E ++ -reset 7
+            suspend=>
+
+            C -zero?; goto-if zero? move/random
+        }
+    }
+
+    proc move/6() {
+        @4 . set-state(A)
+
+        never-return loop {
+            D --
+            suspend=>
+
+            C -zero?; goto-if zero? move/random
+        }
+    }
+
+    proc move/7() {
+        @4 . set-state(A)
+
+        never-return loop {
+            D --
+            E -- -reset 7
+            suspend=>
+
+            C -zero?; goto-if zero? move/random
+        }
+    }
+}
+
+module assets {
+    data pat = byte [
+        0x01 0x01 0x03 0x03 0x06 0x06 0x0c 0x0c 0x08 0x18 0x18 0x30 0x30 0x7f 0x7f 0x00
+        0x80 0x80 0xc0 0xc0 0x60 0x60 0x30 0x30 0x10 0x18 0x18 0x0c 0x0c 0xfe 0xfe 0x00
+        0x01 0x01 0x03 0x02 0x06 0x04 0x04 0x0c 0x08 0x18 0x18 0x10 0x30 0x27 0x7f 0x78
+        0x80 0x80 0xc0 0x40 0x60 0x20 0x30 0x10 0x18 0x08 0x0c 0x04 0x1e 0xfe 0xe0 0x00
+        0x01 0x01 0x03 0x02 0x06 0x04 0x0c 0x08 0x18 0x10 0x30 0x20 0x78 0x7f 0x07 0x00
+        0x80 0x80 0xc0 0x40 0x60 0x20 0x20 0x30 0x10 0x18 0x18 0x08 0x0c 0xe4 0xfe 0x1e
+    ] : rodata
+}

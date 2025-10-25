@@ -879,6 +879,10 @@ func (cc *Compiler) sFieldOffset(env *Env, e *Vec) Value {
 
 	offset := 0
 	nm := cc.LookupNamed(env, id)
+	if nm == nil {
+		cc.ErrorAt(id, etag).With("unknown name %s", id)
+	}
+
 	var t *Datatype
 	switch nm.Kind {
 	case NmDatatype:
@@ -1157,6 +1161,9 @@ func (cc *Compiler) sFieldSize(env *Env, e *Vec) Value {
 	etag, _ := CheckExpr(e, 3, -1, CtConstexpr, cc)
 	id := CheckValue(e.At(1), IdentifierT, "base", etag, cc)
 	nm := cc.LookupNamed(env, id)
+	if nm == nil {
+		cc.ErrorAt(id, etag).With("unknown name %s", id)
+	}
 
 	var t *Datatype
 	switch nm.Kind {
@@ -1546,6 +1553,28 @@ func (cc *Compiler) fFormtypeof(env *Env, e *Vec) Value {
 	return NewStr("unknown")
 }
 
+func isValidOpcodeOperand(e Value) bool {
+	switch e := e.(type) {
+	case Int, *Identifier:
+		return true
+	case *Constexpr:
+		if _, ok := e.Body.(Int); ok {
+			return true
+		}
+	case *Vec:
+		if e.ExprTagName() != KwMem {
+			return false
+		}
+		for _, i := range (*e)[1:] {
+			if !isValidOpcodeOperand(i) {
+				return false
+			}
+		}
+		return true
+	}
+	return false
+}
+
 // FUN: (opcode asm size)
 func (cc *Compiler) fOpcode(_ *Env, e *Vec) Value {
 	etag, n := CheckExpr(e, 2, 3, CtConstexpr, cc)
@@ -1557,27 +1586,32 @@ func (cc *Compiler) fOpcode(_ *Env, e *Vec) Value {
 
 	cc.nested = append([]Value{etag}, cc.nested...)
 	r := cc.Parse("<opcode>", []byte(*asm)).AtOrUndef(1)
-	v := CheckValue(r, VecT, "mnemonic", etag, cc)
 
-	op := v.ExprTag()
-	if !op.IsPlain() {
-		cc.ErrorAt(etag).With("unknown mnemonic")
+	op, v := AsTaggedVec(r)
+	if op == nil || !op.IsPlain() {
+		cc.ErrorAt().With("unknown mnemonic")
 	}
 
 	found, ok := cc.InstMap[op.Name]
 	if !ok {
-		cc.ErrorAt(etag).With("unknown mnemonic")
+		cc.ErrorAt(op).With("unknown mnemonic")
 	}
 
+	cc.EnterContext(CtProc)
 	env := cc.Builtins.Enter()
 	ab := []*Operand{}
 	tab := found.(InstPat)
 	for _, i := range (*v)[1:] {
+		if !isValidOpcodeOperand(i) {
+			tab = nil
+			break
+		}
+
 		i := cc.ExprToOperand(cc, cc.CompileExpr(env, i))
 		if c, ok := i.A0.(*Constexpr); ok {
-			n := CheckConst(c, IntT, "operand", etag, cc)
+			n := CheckConst(c, IntT, "operand", op, cc)
 			cc.Constvals[c] = n
-			cc.AdjustOperand(cc, i, int(n), etag)
+			cc.AdjustOperand(cc, i, int(n), op)
 		}
 
 		ab = append(ab, i)
@@ -1586,10 +1620,11 @@ func (cc *Compiler) fOpcode(_ *Env, e *Vec) Value {
 			break
 		}
 	}
+	cc.LeaveContext()
 
 	body, ok := tab[nil].(InstDat)
 	if !ok || body[0].Kind == BcTemp {
-		cc.ErrorAt(etag).With("invalid operands for '%s'", op)
+		cc.ErrorAt(op).With("invalid operands for '%s'", op)
 	}
 
 	inst := NewInst(e, InstMisc, KwUNDER)

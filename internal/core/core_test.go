@@ -597,6 +597,16 @@ func TestCompileOrg(t *testing.T) {
 		tt.EqSlice(t, []byte{0x00, 0x40, 0x00, 0x80}, dat)
 	})
 
+	t.Run("ok: continuation address", func(t *testing.T) {
+		dat := expectCompileOk(t, `
+			link {
+				org 0x4000 256 1; merge text { dw eof }
+				org -1 -1 1; merge text ={ eof: }
+			}
+		`)
+		tt.EqSlice(t, []byte{0x02, 0x40}, dat)
+	})
+
 	t.Run("error", func(t *testing.T) {
 		es := []string{
 			"invalid org mode", `
@@ -1337,6 +1347,9 @@ func TestCompileData(t *testing.T) {
 			"struct data required", `flat!
 				data struct { a byte } [1]
 			`,
+			"too many elements in struct data", `flat!
+				data struct { a byte } {1 2}
+			`,
 			"data list required", `flat!
 				data struct { a [2]byte } {1}
 			`,
@@ -1468,6 +1481,9 @@ func TestCompileStruct(t *testing.T) {
 			"s is not a struct type", `flat!
 				struct s {}
 				db s.a
+			`,
+			"unknown name d001", `flat!
+				db d001.a
 			`,
 			"unknown field b", `flat!
 				struct s { a byte }
