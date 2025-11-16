@@ -7,9 +7,9 @@ import (
 
 type Parser struct {
 	Scanner
-	state    int
-	contexts []byte
-	pending  []*Token
+	Recovering bool
+	state      byte
+	contexts   []byte
 }
 
 const (
@@ -20,33 +20,37 @@ const (
 	pstNoNl
 )
 
-func (p *Parser) ErrorUnexpected(token *Token, expected string) {
-	label := tokenLabels[token.Kind]
-	err := &InternalError{
+func (p *Parser) Recovered() {
+	p.Recovering = false
+}
+
+func (p *Parser) ErrorAt(token *Token) *InternalError {
+	return &InternalError{
 		tag: "parse error: ",
 		at:  append([]Value{token}, p.cc.nested...),
-		g:   p.cc.g,
 	}
-	err.With("unexpected %s, expected %s\n", label, expected)
+}
+
+func (p *Parser) ErrorUnexpected(expected string) {
+	token := p.PeekToken()
+	err := p.ErrorAt(token)
+	label := tokenLabels[token.Kind]
+	err.With("unexpected %s, expected %s", label, expected)
 }
 
 func (p *Parser) PeekToken() *Token {
 	if len(p.Tokens) == 0 {
 		p.scanToken()
-
-		if len(p.pending) > 0 {
-			pos := p.Tokens[0].Pos
-			for _, i := range p.pending {
-				i.Pos = pos
-			}
-			p.pending = p.pending[:0]
-		}
 	}
 	return p.Tokens[0]
 }
 
-func (p *Parser) seekToNextToken(nl bool) (int32, bool, bool) {
-	pos, line, bline, comma, comment := p.Pos, p.Line, int32(-1), false, 0
+func (p *Parser) SetContext(a byte) {
+	p.contexts = append(p.contexts, a)
+}
+
+func (p *Parser) seekToNextToken(nl bool) (Pt, bool, bool) {
+	pt, bline, comma, comment := p.Pt, int32(-1), false, 0
 
 loop:
 	for ; !p.IsEOF(); p.ForwardChar() {
@@ -54,13 +58,12 @@ loop:
 		switch {
 		case c == ' ', c == '\t', c == '\r':
 			// NOP
-		case c == ',' && comment <= 0:
-			if comma || p.Line != line {
-				p.ErrorWith("invalid comma")
+		case c == ',' && comment == 0:
+			if comma || p.Line != pt.Line {
+				p.scanError("invalid comma")
 			}
 			comma = true
 		case c == '\n':
-			p.Line++
 			if comment != 2 {
 				comment = 0
 				bline = -1
@@ -93,17 +96,17 @@ loop:
 	}
 
 	if comment == 2 {
-		p.ErrorWith("the block comment is not terminated")
+		p.scanError("the block comment is not terminated")
 	} else if nl {
-		nl = !comma && line != p.Line
-		if comma && p.Line-line > 1 {
-			p.ErrorWith("the comma followed by blank lines is not allowed")
+		nl = !comma && pt.Line != p.Line
+		if comma && p.Line-pt.Line > 1 {
+			p.scanError("the comma followed by blank lines is not allowed")
 		} else if bline > -1 {
-			p.ErrorWith("the block comment must be followed by new line")
+			p.scanError("the block comment must be followed by new line")
 		}
 	}
 
-	return p.Pos, pos != p.Pos, nl
+	return p.Pt, pt.Pos != p.Pos, nl
 }
 
 var rePlaceholder = regexp.MustCompile(`^%+(=|#|&|>*[<>*])`)
@@ -115,17 +118,15 @@ var wsChars = " \t\r\n"
 var headChars = " \t\r\n,;([{"
 var tailChars = " \t\r\n,;)]}"
 
-func (p *Parser) errorUnlessPlainId(id *Identifier) {
+func (p *Parser) errorUnlessPlainId(id *Identifier, pt Pt) {
 	if id.Namespace != nil {
-		p.Pos--
-		p.ErrorWith("the name cannot belong to any namespace")
+		p.scanErrorAt(pt, "the name cannot belong to any namespace")
 	} else if id.PlaceHolder != "" {
-		p.Pos--
-		p.ErrorWith("the name cannot be use as placeholders")
+		p.scanErrorAt(pt, "the name cannot be use as placeholders")
 	}
 }
 
-func (p *Parser) newIdLikeToken(s, t string, ws, nl bool, context byte, pos int32, ph string) *Token {
+func (p *Parser) newIdLikeToken(s, t string, ws, nl bool, context byte, pt Pt, ph string) *Token {
 	if u, ok := p.cc.TokenAliases[t]; ok {
 		t = u
 	}
@@ -133,44 +134,49 @@ func (p *Parser) newIdLikeToken(s, t string, ws, nl bool, context byte, pos int3
 
 	if s != "" {
 		if ph != "" {
-			p.ErrorWith("placeholders cannot contain namespaces")
+			p.scanError("placeholders cannot contain namespaces")
 		}
 		v.Namespace = Intern(s[:len(s)-1])
 	}
 
 	if tk, ok := tokenKinds[t]; ok {
-		p.errorUnlessPlainId(v)
-		return p.NewIdToken(tk, v, pos)
+		p.errorUnlessPlainId(v, pt)
+		return p.NewIdToken(tk, v, pt)
 	} else if n := p.cc.Operators[t]; n != 0 {
-		p.errorUnlessPlainId(v)
+		p.errorUnlessPlainId(v, pt)
 		if n&1 != 0 && ws && p.MatchChar(tailChars) {
 			p.CancelLastTokenIf(nl)
-			return p.NewIdToken(tkUOP, v, pos)
+			return p.NewIdToken(tkPOSTFIX_OPERATOR, v, pt)
 		} else if n&2 != 0 && ws && p.MatchChar(wsChars) {
 			p.CancelLastTokenIf(nl)
-			return p.NewIdToken(tkBOP, v, pos)
+			return p.NewIdToken(tkBINARY_OPERATOR, v, pt)
 		}
 	} else if tk, ok := p.cc.ReservedWords[t]; ok {
-		p.errorUnlessPlainId(v)
-		if tk == tkCOND && p.ScanChar(".") {
+		p.errorUnlessPlainId(v, pt)
+		if tk == tkCONDITION && p.ScanChar(".") {
 			tk = tkCONDDOT
 			p.state = pstWs
 		}
-		return p.NewIdToken(tk, v, pos)
+		return p.NewIdToken(tk, v, pt)
 	}
 
 	if p.MatchChar("(") {
-		return p.NewIdToken(tkIDENTIFIERP, v, pos)
-	} else if p.MatchChar(":") && s == "" {
-		return p.NewIdToken(tkLABEL, v, pos)
+		return p.NewIdToken(tkIDENTIFIERP, v, pt)
+	} else if s == "" && p.ScanChar(":") {
+		if context == '{' {
+			p.state = pstNl
+			p.PushToken(p.NewToken(tkLABEL, NIL, pt))
+		}
+		return p.NewIdToken(tkLABEL_NAME, v, pt)
 	}
-	return p.NewIdToken(tkIDENTIFIER, v, pos)
+	return p.NewIdToken(tkIDENTIFIER, v, pt)
 }
 
 func (p *Parser) findTokenKind(s string) int32 {
 	tk, ok := tokenKinds[s]
 	if !ok {
-		p.ErrorWith("invalid token %s", s)
+		p.scanError("invalid token '%s'", s)
+		return tkSCANERROR
 	}
 	return tk
 }
@@ -208,150 +214,168 @@ func invertEscapeChars() map[byte]byte {
 	return m
 }
 
-func (p *Parser) scanEscapedChar() byte {
-	c := p.GetCharOrError()
-	if c, ok := escapeChars[c]; ok {
-		return c
+func (p *Parser) scanEscapedChar() (byte, bool) {
+	if p.IsEOF() {
+		return 0, false
 	}
-	if c == 'x' {
-		s := []byte{p.GetCharOrError(), p.GetCharOrError()}
+
+	c := p.GetChar()
+	if c, ok := escapeChars[c]; ok {
+		return c, true
+	}
+	if c == 'x' && p.IsValidPos(p.Pos+1) {
+		s := []byte{p.GetChar(), p.GetChar()}
 		if n, err := strconv.ParseUint(string(s), 16, 8); err == nil {
-			return byte(n)
+			return byte(n), true
 		}
 	}
-	p.ErrorWith("invalid character escape")
-	return 0
+	return 0, false
+}
+
+func (p *Parser) scanQuotedLiteral(close byte, kind string) []byte {
+	v := []byte{}
+	for !p.IsEOF() {
+		c := p.GetChar()
+		if c == close {
+			return v
+		}
+		if c == '\n' {
+			p.scanError("new line in %s literal", kind)
+			continue // skip
+		}
+		if c == '\\' {
+			d, ok := p.scanEscapedChar()
+			if !ok {
+				p.scanError("invalid character escape")
+			}
+			c = d
+		}
+		v = append(v, c)
+	}
+	p.scanError("%s literal not terminated", kind)
+	return nil
 }
 
 func (p *Parser) scanToken() {
 	context := p.contexts[len(p.contexts)-1]
-	pos, ws, nl := p.seekToNextToken(context == '{')
+	pt, ws, nl := p.seekToNextToken(p.Recovering || context == '{')
 	state := p.state
-	if state > 0 {
-		p.state = 0
-	}
+	p.state = 0
 	ws = (state != pstNoWs) && (ws || state == pstWs)
 	nl = (state != pstNoNl) && (nl || state == pstNl)
 
 	if p.IsEOF() {
-		p.PushToken(p.NewToken(tkEOF, NIL, p.Pos))
+		p.PushToken(p.NewToken(tkEOF, NIL, pt))
 		return
 	}
 
 	if nl {
-		p.PushToken(p.NewToken(tkSC, NIL, pos-1))
+		nlpt := pt
+		if state != pstNl { // always pt.Line > 0
+			nlpt = Pt{Pos: p.Lines[pt.Line] - 1, Line: pt.Line - 1}
+		}
+		p.PushToken(p.NewToken(tkSC, NIL, nlpt))
 	}
 
 	// !"#$%&'()*+,-./:;<=>?@[\]^_`{|}~ // -^!$%&*+/<=>?@|~
-	var token *Token
+	token := ScanErrorToken
 	switch {
 	case p.Scan(rePlaceholder):
 		ph := p.Matched[0]
 		if !p.Scan(reIdentifier) {
-			p.ErrorWith("invalid placeholder")
+			p.scanError("invalid placeholder")
+			break
 		}
-		token = p.newIdLikeToken(p.Matched[1], p.Matched[2], false, false, context, pos, ph)
+		token = p.newIdLikeToken(p.Matched[1], p.Matched[2], false, false, context, pt, ph)
 	case p.ScanSeq("..."):
-		token = p.NewIdToken(tkREST, &Identifier{Name: KwRest}, pos)
+		token = p.NewIdToken(tkREST, &Identifier{Name: KwRest}, pt)
 	case p.ScanSeq(".."):
-		token = p.NewIdToken(tkBOP, &Identifier{Name: KwDotDot}, pos)
+		token = p.NewIdToken(tkBINARY_OPERATOR, &Identifier{Name: KwDotDot}, pt)
 	case p.ScanChar("."):
 		p.CancelLastTokenIf(nl)
 		tk := int32(tkDTMI)
 		if p.MatchChar(wsChars) {
 			if !ws {
-				p.ErrorWith("leading whitespaces are required before the operator `.`")
+				p.scanError("leading whitespaces are required before the operator `.`")
 			}
-			tk = tkDOP
+			tk = tkDOT_OPERATOR
 		}
-		token = p.NewIdToken(tk, &Identifier{Name: KwDot}, pos)
+		token = p.NewIdToken(tk, &Identifier{Name: KwDot}, pt)
 	case p.ScanChar("@"):
-		s := p.SubStringFrom(pos) + stringIf(!p.MatchChar(wsChars), "-")
-		if !ws && p.Pos >= 2 {
-			p.Pos -= 2
-			if !p.MatchChar(headChars) {
-				s = "-@"
-			}
-			p.Pos += 2
+		s := p.SubStringFrom(pt.Pos) + stringIf(!p.MatchChar(wsChars), "-")
+		if !ws && p.Pos >= 2 && !p.MatchCharAt(headChars, p.Pos-2) {
+			s = "-@"
 		}
 		tk := p.findTokenKind(s)
-		token = p.NewToken(tk, NIL, pos)
-	case p.ScanSeq("$"):
-		p.ScanSeq("$")
+		token = p.NewToken(tk, NIL, pt)
+	case p.ScanChar("$"):
+		p.ScanChar("$")
 		if p.MatchChar("(") {
-			s := p.SubStringFrom(pos) + "@"
+			s := p.SubStringFrom(pt.Pos) + "@"
 			tk := p.findTokenKind(s)
-			token = p.NewToken(tk, NIL, pos)
+			token = p.NewToken(tk, NIL, pt)
 			break
 		}
-		p.Pos = pos
+		p.Pos = pt.Pos
 		p.Scan(reIdentifier)
-		token = p.newIdLikeToken(p.Matched[1], p.Matched[2], ws, nl, context, pos, "")
+		token = p.newIdLikeToken(p.Matched[1], p.Matched[2], ws, nl, context, pt, "")
 	case p.ScanChar("!"):
-		here := p.Pos
 		if p.ScanChar("=") {
 			p.ScanChar("?")
-			if !p.MatchChar(nameChars) { // `!=` `!=?`
-				s := p.SubStringFrom(pos)
-				token = p.newIdLikeToken("", s, ws, nl, context, pos, "")
-				break
+			if p.MatchChar(nameChars) {
+				p.scanError("whitespaces required after '!='/'!=?'")
 			}
-			p.Pos = here
-		}
-		if p.MatchChar(tailChars) {
-			token = p.NewToken(tkEX, NIL, pos)
+			s := p.SubStringFrom(pt.Pos)
+			token = p.newIdLikeToken("", s, ws, nl, context, pt, "")
 			break
 		}
-		token = p.NewIdToken(tkAOP, &Identifier{Name: KwLogicalNotOp}, pos) // `!`...
-	case p.ScanChar("~"):
-		if p.MatchChar(wsChars) {
-			p.ErrorWith("no whitespace is allowed after the prefix operator")
+		if p.MatchChar(tailChars) {
+			token = p.NewToken(tkEX, NIL, pt)
+			break
 		}
-		token = p.NewIdToken(tkAOP, &Identifier{Name: KwNotOp}, pos)
+		token = p.NewIdToken(tkPREFIX_OPERATOR, &Identifier{Name: KwLogicalNotOp}, pt) // `!`...
+	case p.ScanChar("~"):
+		if p.ScanChar(wsChars) {
+			p.scanError("no whitespace is allowed after the prefix operator")
+			break
+		}
+		token = p.NewIdToken(tkPREFIX_OPERATOR, &Identifier{Name: KwNotOp}, pt)
 	case p.ScanChar(";`"):
-		tk := p.findTokenKind(p.SubStringFrom(pos))
-		token = p.NewToken(tk, NIL, pos)
+		tk := p.findTokenKind(p.SubStringFrom(pt.Pos))
+		token = p.NewToken(tk, NIL, pt)
 	case p.ScanSeq("={"):
-		token = p.NewToken(tkEQLC, NIL, pos)
+		token = p.NewToken(tkEQLC, NIL, pt)
 		p.contexts = append(p.contexts, '{')
 	case p.ScanSeq("%{"):
-		token = p.NewToken(tkPELC, NIL, pos)
+		token = p.NewToken(tkPELC, NIL, pt)
 		p.contexts = append(p.contexts, '{')
 	case p.ScanChar("([{"):
-		s := p.SubStringFrom(pos)
+		s := p.SubStringFrom(pt.Pos)
 		tk := p.findTokenKind(s)
-		token = p.NewToken(tk, NIL, pos)
+		token = p.NewToken(tk, NIL, pt)
 		p.contexts = append(p.contexts, s[0])
 	case p.ScanChar(")]}"):
-		tk := p.findTokenKind(p.SubStringFrom(pos))
-		token = p.NewToken(tk, NIL, pos)
+		tk := p.findTokenKind(p.SubStringFrom(pt.Pos))
+		token = p.NewToken(tk, NIL, pt)
 		if context == '#' {
 			p.contexts = p.contexts[:len(p.contexts)-1]
 		}
 		p.contexts = p.contexts[:len(p.contexts)-1]
+		if len(p.contexts) == 0 {
+			p.contexts = append(p.contexts, '{')
+		}
 	case p.ScanChar(`'`):
-		c := p.GetCharOrError()
-		if c == '\'' {
-			p.ErrorWith("blank character literal is invalid")
-		} else if c == '\\' {
-			c = p.scanEscapedChar()
+		v := p.scanQuotedLiteral('\'', "character")
+		c := Int(0)
+		if len(v) != 1 {
+			p.scanError("invalid character literal")
+		} else {
+			c = Int(v[0])
 		}
-		if p.GetCharOrError() != '\'' {
-			p.ErrorWith("invalid character literal")
-		}
-		token = p.NewToken(tkINTEGER, Int(c), pos)
+		token = p.NewToken(tkINTEGER, c, pt)
 	case p.ScanChar(`"`):
-		v := []byte{}
-		for {
-			c := p.GetCharOrError()
-			if c == '"' {
-				break
-			} else if c == '\\' {
-				c = p.scanEscapedChar()
-			}
-			v = append(v, c)
-		}
-		token = p.NewToken(tkSTRING, NewStr(string(v)), pos)
+		v := p.scanQuotedLiteral('"', "string")
+		token = p.NewToken(tkSTRING, NewStr(string(v)), pt)
 	case p.Scan(reInteger):
 		v := int64(0)
 		if p.Matched[3] != "" {
@@ -364,18 +388,19 @@ func (p *Parser) scanToken() {
 		if p.Matched[1] == "-" {
 			v = -v
 		}
-		token = p.NewToken(tkINTEGER, Int(v), pos)
+		token = p.NewToken(tkINTEGER, Int(v), pt)
 	case p.Scan(reIdentifier):
-		token = p.newIdLikeToken(p.Matched[1], p.Matched[2], ws, nl, context, pos, "")
+		token = p.newIdLikeToken(p.Matched[1], p.Matched[2], ws, nl, context, pt, "")
 	case p.ScanChar(":"):
-		token = p.NewToken(tkCL, NIL, pos)
+		if !ws {
+			p.scanError("leading whitespaces are required before the operator `:`")
+		}
+		token = p.NewToken(tkCL, NIL, pt)
 	default:
-		p.ErrorWith("invalid character '%c'", p.PeekChar())
+		p.scanError("invalid character '%c'", p.PeekChar())
+		p.ForwardChar()
 	}
 
-	// for _, i := range p.Tokens {
-	// 	fmt.Printf("%s, ", tokenLabels[i.Kind])
-	// }
-	// fmt.Println(tokenLabels[token.Kind])
 	p.PushToken(token)
+	// fmt.Println("INPUT:", p.Tokens)
 }

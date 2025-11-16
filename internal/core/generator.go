@@ -6,20 +6,33 @@ import (
 	"runtime"
 )
 
+type DebugFlags struct {
+	Enabled bool
+}
+
+var Debug DebugFlags
+
 type InternalError struct {
 	message string
 	tag     string
 	at      []Value
-	g       *Generator
 }
 
 func (err *InternalError) Error() string {
 	return err.tag + err.message
 }
 
-func (err *InternalError) With(message string, args ...any) {
+func (err *InternalError) FullMessage() []byte {
+	return FullErrorMessage("error", err.Error(), err.at)
+}
+
+func (err *InternalError) SetMessage(message string, args ...any) {
 	err.message = fmt.Sprintf(message, args...)
-	if err.g.DebugMode {
+}
+
+func (err *InternalError) With(message string, args ...any) {
+	err.SetMessage(message, args...)
+	if Debug.Enabled {
 		for i := 1; ; i++ {
 			if _, file, line, ok := runtime.Caller(i); ok {
 				err.message += fmt.Sprintf("\n-- %s:%d", file, line)
@@ -69,6 +82,9 @@ func FullErrorMessage(kind string, message string, at []Value) []byte {
 	x := 0
 	for _, i := range at {
 		if token := FindToken(i); token != nil {
+			if x == 0 {
+				message = token.PtPrefix() + message
+			}
 			message += fmt.Sprintf("[%s #%d]\n", kind, x)
 			message += token.FormatAsErrorLine("at")
 			if id, ok := token.Value.(*Identifier); ok {
@@ -83,7 +99,6 @@ func FullErrorMessage(kind string, message string, at []Value) []byte {
 }
 
 type Generator struct {
-	DebugMode bool
 	GenList   bool
 	IsSub     bool
 	InReader  io.Reader
@@ -110,7 +125,6 @@ func (g *Generator) ErrorAt(values ...Value) *InternalError {
 	return &InternalError{
 		tag: "generate error: ",
 		at:  values,
-		g:   g,
 	}
 }
 
@@ -151,6 +165,10 @@ func (g *Generator) HandlePanic() {
 			panic(err)
 		}
 	}
+}
+
+func (g *Generator) Compiler() *Compiler {
+	return g.cc
 }
 
 func (g *Generator) SetCompiler(cc *Compiler) {

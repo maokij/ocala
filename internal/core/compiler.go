@@ -215,7 +215,6 @@ func (cc *Compiler) ErrorAt(values ...Value) *InternalError {
 	return &InternalError{
 		tag: "compile error: ",
 		at:  slices.Concat(values, cc.nested),
-		g:   cc.g,
 	}
 }
 
@@ -394,11 +393,11 @@ func (cc *Compiler) initReservedWords(env *Env) {
 	cc.ReservedWords = map[string]int32{}
 	maps.Copy(cc.ReservedWords, reservedWords)
 	for _, i := range cc.TokenWords[0] {
-		cc.ReservedWords[i] = tkREG
+		cc.ReservedWords[i] = tkREGISTER
 		env.Install(&Named{Name: Intern(i), Kind: NmSpecial, Value: SyntaxFn(sCannotEval)})
 	}
 	for _, i := range cc.TokenWords[1] {
-		cc.ReservedWords[i] = tkCOND
+		cc.ReservedWords[i] = tkCONDITION
 		env.Install(&Named{Name: Intern(i), Kind: NmSpecial, Value: SyntaxFn(sCannotEval)})
 	}
 
@@ -439,12 +438,16 @@ func (cc *Compiler) buildSetupCode() *Vec {
 	return r
 }
 
-func (cc *Compiler) Compile(path string, text []byte) []*Inst {
+func (cc *Compiler) Init(path string) {
 	cc.initHooks()
 	cc.initMainPath(path)
 	cc.initTopLevelEnv()
 	cc.initReservedWords(cc.Builtins)
 	cc.initConstvals(PhCompile)
+}
+
+func (cc *Compiler) Compile(path string, text []byte) []*Inst {
+	cc.Init(path)
 	cc.EnterContext(CtModule)
 	cc.EnterCodeBlock() // Constants
 	cc.EnterCodeBlock() // Toplevel
@@ -469,10 +472,15 @@ func (cc *Compiler) CompileIncluded(from *Identifier, path string, text []byte) 
 	return NIL
 }
 
+func (cc *Compiler) NewParser(path string, text []byte) *Parser {
+	p := &Parser{Scanner: Scanner{Path: path, Text: text, cc: cc}, contexts: []byte{'{'}}
+	p.Scanner.Init()
+	return p
+}
+
 func (cc *Compiler) Parse(path string, text []byte) *Vec {
 	cc.InPath = path
-	p := &Parser{Scanner: Scanner{Path: path, Text: text, cc: cc}, contexts: []byte{'{'}}
-	res, _ := p._parse()
+	res, _ := cc.NewParser(path, text)._parse()
 	return res.(*Vec)
 }
 
@@ -1045,11 +1053,11 @@ func (cc *Compiler) newSig(vec *Vec) *Sig {
 }
 
 func (cc *Compiler) IsCond(a *Keyword) bool {
-	return cc.ReservedWords[a.String()] == tkCOND
+	return cc.ReservedWords[a.String()] == tkCONDITION
 }
 
 func (cc *Compiler) IsReg(a *Keyword) bool {
-	return cc.ReservedWords[a.String()] == tkREG
+	return cc.ReservedWords[a.String()] == tkREGISTER
 }
 
 func (cc *Compiler) emitCodeFromModule(m *Module, s *Keyword) {
@@ -1152,7 +1160,7 @@ func (cc *Compiler) doLink() []*Inst {
 		}
 	}
 	cc.EmitCode(cc.LeaveCodeBlock()...)
-	cc.EmitCode(NewInst(&Vec{IdUNDER}, InstOrg, Int(0), Int(0), Int(0), Int(0)))
+	cc.EmitCode(NewInst(cc.link, InstOrg, Int(0), Int(0), Int(0), Int(0)))
 
 	flatten := []*Inst{}
 	flattenInsts(&flatten, cc.LeaveCodeBlock())

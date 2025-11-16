@@ -311,21 +311,3 @@ func TestTypeLabelOf(t *testing.T) {
 	tt.Eq(t, "label", TypeLabelOf(&Label{}))
 	tt.Eq(t, "(internal type)", TypeLabelOf(&Inst{}))
 }
-
-func TestFindToken(t *testing.T) {
-	token := &Token{From: InternalParser}
-	e := &Vec{&Identifier{Token: token}}
-	tt.Eq(t, token, FindToken(token))
-	tt.Eq(t, token, FindToken(e.At(0)))
-	tt.Eq(t, token, FindToken(e))
-	tt.Eq(t, token, FindToken(NewInst(e, InstDS)))
-	tt.Eq(t, token, FindToken(&Operand{From: e}))
-	tt.Eq(t, token, FindToken(&Constexpr{Token: token}))
-	tt.Eq(t, token, FindToken(&Named{Token: token}))
-
-	tt.Eq(t, nil, FindToken(&Identifier{}))
-	tt.Eq(t, nil, FindToken(&Vec{}))
-	tt.Eq(t, nil, FindToken(&Constexpr{}))
-	tt.Eq(t, nil, FindToken(Int(0)))
-	tt.Eq(t, nil, FindToken(NewStr("")))
-}

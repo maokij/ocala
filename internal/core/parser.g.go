@@ -8,7 +8,6 @@ const (
     tkEOF = iota
     tkSCANERROR
     tkSC
-    tkCL
     tkREST
     tkEQ
     tkLS
@@ -21,23 +20,25 @@ const (
     tkCONST
     tkDATA
     tkMODULE
+    tkLABEL
     tkSTRUCT
     tkLC
     tkRC
-    tkBOP
+    tkBINARY_OPERATOR
+    tkCL
     tkPELC
     tkIDENTIFIER
     tkSTRING
     tkMIAS
     tkEQGT
     tkEX
-    tkREG
+    tkREGISTER
     tkEQLC
     tkCONDDOT
     tkATMI
-    tkUOP
-    tkDOP
-    tkCOND
+    tkPOSTFIX_OPERATOR
+    tkDOT_OPERATOR
+    tkCONDITION
     tkMIAT
     tkDLAT
     tkDLDLAT
@@ -45,13 +46,12 @@ const (
     tkINTEGER
     tkRESERVED
     tkIDENTIFIERP
-    tkAOP
-    tkLABEL
+    tkPREFIX_OPERATOR
+    tkLABEL_NAME
 )
 
 var tokenKinds = map[string]int32{
     ";": tkSC,
-    ":": tkCL,
     "=": tkEQ,
     "[": tkLS,
     "]": tkRS,
@@ -60,6 +60,7 @@ var tokenKinds = map[string]int32{
     ")": tkRP,
     "{": tkLC,
     "}": tkRC,
+    ":": tkCL,
     "%{": tkPELC,
     "-*": tkMIAS,
     "=>": tkEQGT,
@@ -76,7 +77,6 @@ var tokenLabels = [...]string{
     "EOF", // tkEOF
     "SCANERROR", // tkSCANERROR
     "';'", // tkSC
-    "':'", // tkCL
     "REST", // tkREST
     "'='", // tkEQ
     "'['", // tkLS
@@ -89,23 +89,25 @@ var tokenLabels = [...]string{
     "CONST", // tkCONST
     "DATA", // tkDATA
     "MODULE", // tkMODULE
+    "LABEL", // tkLABEL
     "STRUCT", // tkSTRUCT
     "'{'", // tkLC
     "'}'", // tkRC
-    "BOP", // tkBOP
+    "BINARY_OPERATOR", // tkBINARY_OPERATOR
+    "':'", // tkCL
     "'%{'", // tkPELC
     "IDENTIFIER", // tkIDENTIFIER
     "STRING", // tkSTRING
     "'-*'", // tkMIAS
     "'=>'", // tkEQGT
     "'!'", // tkEX
-    "REG", // tkREG
+    "REGISTER", // tkREGISTER
     "'={'", // tkEQLC
     "CONDDOT", // tkCONDDOT
     "'@-'", // tkATMI
-    "UOP", // tkUOP
-    "DOP", // tkDOP
-    "COND", // tkCOND
+    "POSTFIX_OPERATOR", // tkPOSTFIX_OPERATOR
+    "DOT_OPERATOR", // tkDOT_OPERATOR
+    "CONDITION", // tkCONDITION
     "'-@'", // tkMIAT
     "'$@'", // tkDLAT
     "'$$@'", // tkDLDLAT
@@ -113,8 +115,8 @@ var tokenLabels = [...]string{
     "INTEGER", // tkINTEGER
     "RESERVED", // tkRESERVED
     "IDENTIFIERP", // tkIDENTIFIERP
-    "AOP", // tkAOP
-    "LABEL", // tkLABEL
+    "PREFIX_OPERATOR", // tkPREFIX_OPERATOR
+    "LABEL_NAME", // tkLABEL_NAME
 }
 
 var reservedWords = map[string]int32{
@@ -133,7 +135,7 @@ var reservedWords = map[string]int32{
 func (p *Parser) _parse() (res Value, ok bool) {
     res = p._parseProgram()
     if (p.PeekToken().Kind != tkEOF) {
-         p.ErrorUnexpected(p.PeekToken(), "EOF")
+         p.ErrorUnexpected("EOF")
     }
     ok = true
     return
@@ -141,1102 +143,1215 @@ func (p *Parser) _parse() (res Value, ok bool) {
 
 /** ** **
   program ->
-      stmt? (
-        ';' stmt?
+      statement? (
+        ';' statement?
       )*
  ** ** **/
-func (p *Parser) _parseProgram() (res Value) {
+func (p *Parser) _parseProgram() (ret Value) {
+    res := &ret; _ = res
     // RULE: program -> _program_1o _program_4r
-    v := &Vec{_markerid(p, KwBlock)}
+    v := &Vec{KwBlock.ToId(p.PeekToken())}
     switch p.PeekToken().Kind {
-    case tkMACRO, tkPROC, tkCONST, tkDATA, tkMODULE, tkLABEL, tkSTRUCT, tkIDENTIFIER, tkCONDDOT, tkATMI, tkIDENTIFIERP, tkREG, tkLS, tkDLAT, tkDLDLAT, tkSC, tkEOF, tkRC:
-            // @ _program_1o _program_4r
-            var _1 Value; _ = _1
-            for {
-                res := &_1; _ = res
-                // RULE: _program_1o -> stmt
-                // RULE: _program_1o -> 
-                switch p.PeekToken().Kind {
-                case tkMACRO, tkPROC, tkCONST, tkDATA, tkMODULE, tkLABEL, tkSTRUCT, tkIDENTIFIER, tkCONDDOT, tkATMI, tkIDENTIFIERP, tkREG, tkLS, tkDLAT, tkDLDLAT:
-                        // @ stmt
-                        _1 := p._parseStmt(); _ = _1
+    case tkMACRO, tkPROC, tkCONST, tkDATA, tkMODULE, tkLABEL, tkSTRUCT, tkIDENTIFIER, tkCONDDOT, tkATMI, tkIDENTIFIERP, tkREGISTER, tkLS, tkDLAT, tkDLDLAT, tkSC, tkEOF, tkRC:
+        // @ _program_1o _program_4r
+        var _1 Value; _ = _1
+        for {
+            res := &_1; _ = res
+            // RULE: _program_1o -> statement
+            // RULE: _program_1o -> 
+            switch p.PeekToken().Kind {
+            case tkMACRO, tkPROC, tkCONST, tkDATA, tkMODULE, tkLABEL, tkSTRUCT, tkIDENTIFIER, tkCONDDOT, tkATMI, tkIDENTIFIERP, tkREGISTER, tkLS, tkDLAT, tkDLDLAT:
+                // @ statement
+                _1 := p._parseStatement(); _ = _1
+                *res = _1 // DEFAULT OPT ACTION
+            case tkSC, tkEOF, tkRC:
+                // NOP
+            default:
+                p.ErrorUnexpected("statement, ';', etc.")
+            }
+            break
+        }
+        if _1 != nil { v.Push(_1) }
+
+        // _program_1o @ _program_4r
+        var _2 Value; _ = _2
+        for {
+            res := &_2; _ = res
+            // RULE: _program_4r -> _program_3g*
+            // RULE: _program_3g -> ';' _program_2o
+            switch p.PeekToken().Kind {
+            case tkSC:
+                // @ ';' _program_2o
+                _1 := p.ConsumeToken(); _ = _1
+
+                // ';' @ _program_2o
+                var _2 Value; _ = _2
+                for {
+                    res := &_2; _ = res
+                    // RULE: _program_2o -> statement
+                    // RULE: _program_2o -> 
+                    switch p.PeekToken().Kind {
+                    case tkMACRO, tkPROC, tkCONST, tkDATA, tkMODULE, tkLABEL, tkSTRUCT, tkIDENTIFIER, tkCONDDOT, tkATMI, tkIDENTIFIERP, tkREGISTER, tkLS, tkDLAT, tkDLDLAT:
+                        // @ statement
+                        _1 := p._parseStatement(); _ = _1
                         *res = _1 // DEFAULT OPT ACTION
-                case tkSC, tkEOF, tkRC:
+                    case tkSC, tkEOF, tkRC:
                         // NOP
-                default:
-                    p.ErrorUnexpected(p.PeekToken(), "MACRO, PROC, CONST, DATA, MODULE, LABEL, STRUCT, IDENTIFIER, CONDDOT, '@-', IDENTIFIERP, REG, '[', '$@', '$$@', ';', EOF, '}'")
+                    default:
+                        p.ErrorUnexpected("statement, etc.")
+                    }
+                    break
                 }
-                break
+                if _2 != nil { v.Push(_2) }
+
+                continue
+            case tkEOF, tkRC:
+                // NOP
+            default:
+                p.ErrorUnexpected("';', etc.")
             }
-            if _1 != nil { v.Push(_1) }
-    
-            // _program_1o @ _program_4r
-            var _2 Value; _ = _2
-            for {
-                res := &_2; _ = res
-                // RULE: _program_4r -> _program_3g*
-                // RULE: _program_3g -> ';' _program_2o
-                switch p.PeekToken().Kind {
-                case tkSC:
-                        // @ ';' _program_2o
-                        _1 := p.ConsumeToken(); _ = _1
-                
-                        // ';' @ _program_2o
-                        var _2 Value; _ = _2
-                        for {
-                            res := &_2; _ = res
-                            // RULE: _program_2o -> stmt
-                            // RULE: _program_2o -> 
-                            switch p.PeekToken().Kind {
-                            case tkMACRO, tkPROC, tkCONST, tkDATA, tkMODULE, tkLABEL, tkSTRUCT, tkIDENTIFIER, tkCONDDOT, tkATMI, tkIDENTIFIERP, tkREG, tkLS, tkDLAT, tkDLDLAT:
-                                    // @ stmt
-                                    _1 := p._parseStmt(); _ = _1
-                                    *res = _1 // DEFAULT OPT ACTION
-                            case tkSC, tkEOF, tkRC:
-                                    // NOP
-                            default:
-                                p.ErrorUnexpected(p.PeekToken(), "MACRO, PROC, CONST, DATA, MODULE, LABEL, STRUCT, IDENTIFIER, CONDDOT, '@-', IDENTIFIERP, REG, '[', '$@', '$$@', ';', EOF, '}'")
-                            }
-                            break
-                        }
-                        if _2 != nil { v.Push(_2) }
-                
-                        continue
-                case tkEOF, tkRC:
-                    // NOP
-                default:
-                    p.ErrorUnexpected(p.PeekToken(), "';', EOF, '}'")
-                }
-                break
-            }
-            res = v
+            break
+        }
+        *res = v
     default:
-        p.ErrorUnexpected(p.PeekToken(), "MACRO, PROC, CONST, DATA, MODULE, LABEL, STRUCT, IDENTIFIER, CONDDOT, '@-', IDENTIFIERP, REG, '[', '$@', '$$@', ';', EOF, '}'")
+        p.ErrorUnexpected("program, etc.")
     }
     return
 }
 
 /** ** **
-  stmt ->
+  statement ->
       MACRO identifierp '(' (
         identifier
-      | label ':' dataexpr
+      | label_name data_expression
       )* REST? ')' (
         '[' (
           identifier (
-            '=' symexpr
+            '=' symbol_expression
           )?
         )* ']'
       )? block
-    | PROC identifierp '(' sig ')' (
+    | PROC identifierp '(' signature ')' (
         block
-      | '@' dataexpr
+      | '@' data_expression
       )
     | CONST (
         identifier
       | identifierp '(' (
           identifier
-        | label ':' dataexpr
+        | label_name data_expression
         )* ')'
-      ) '=' dataexpr
-    | DATA datatype (
-        '=' datatype
-      )? databody
+      ) '=' data_expression
+    | DATA data_type (
+        '=' data_type
+      )? data_body
     | MODULE identifier block
-    | label ':'
+    | LABEL label_name
     | struct
-    | expr
+    | identifier (
+        operand
+      )*
+    | proc_call
+    | context_expression
  ** ** **/
-func (p *Parser) _parseStmt() (res Value) {
-    // RULE: stmt -> MACRO identifierp '(' _stmt_6r _stmt_7o ')' _stmt_13o block
-    // RULE: stmt -> PROC identifierp '(' sig ')' _stmt_14g
-    // RULE: stmt -> CONST _stmt_17g '=' dataexpr
-    // RULE: stmt -> DATA datatype _stmt_19o databody
-    // RULE: stmt -> MODULE identifier block
-    // RULE: stmt -> label ':'
-    // RULE: stmt -> struct
-    // RULE: stmt -> expr
+func (p *Parser) _parseStatement() (ret Value) {
+    res := &ret; _ = res
+    // RULE: statement -> MACRO identifierp '(' _statement_6r _statement_7o ')' _statement_13o block
+    // RULE: statement -> PROC identifierp '(' signature ')' _statement_14g
+    // RULE: statement -> CONST _statement_17g '=' data_expression
+    // RULE: statement -> DATA data_type _statement_19o data_body
+    // RULE: statement -> MODULE identifier block
+    // RULE: statement -> LABEL label_name
+    // RULE: statement -> struct
+    // RULE: statement -> identifier _statement_21r
+    // RULE: statement -> proc_call
+    // RULE: statement -> context_expression
     switch p.PeekToken().Kind {
     case tkMACRO:
-            // @ MACRO identifierp '(' _stmt_6r _stmt_7o ')' _stmt_13o block
-            _1 := p.ConsumeToken(); _ = _1
-    
-            // MACRO @ identifierp '(' _stmt_6r _stmt_7o ')' _stmt_13o block
-            _2 := p._parseIdentifierp(); _ = _2
-            v := &Vec{}; w := &Vec{}
-    
-            // MACRO identifierp @ '(' _stmt_6r _stmt_7o ')' _stmt_13o block
-            if p.PeekToken().Kind != tkLP {
-                p.ErrorUnexpected(p.PeekToken(), "'('")
+        // @ MACRO identifierp '(' _statement_6r _statement_7o ')' _statement_13o block
+        _1 := p.ConsumeToken(); _ = _1
+
+        // MACRO @ identifierp '(' _statement_6r _statement_7o ')' _statement_13o block
+        _2 := p._parseIdentifierp(); _ = _2
+        v := &Vec{}; w := &Vec{}
+
+        // MACRO identifierp @ '(' _statement_6r _statement_7o ')' _statement_13o block
+        _3 := p.PeekToken(); _ = _3
+        if _3.Kind == tkLP {
+            p.ConsumeToken()
+        } else {
+            p.ErrorUnexpected("'('")
+        }
+
+        // MACRO identifierp '(' @ _statement_6r _statement_7o ')' _statement_13o block
+        var _4 Value; _ = _4
+        for {
+            res := &_4; _ = res
+            // RULE: _statement_6r -> _statement_5g*
+            // RULE: _statement_5g -> identifier
+            // RULE: _statement_5g -> label_name data_expression
+            switch p.PeekToken().Kind {
+            case tkIDENTIFIER:
+                // @ identifier
+                _1 := p._parseIdentifier(); _ = _1
+                v.Push(&Vec{_1, NIL})
+
+                continue
+            case tkLABEL_NAME:
+                // @ label_name data_expression
+                _1 := p._parseLabelName(); _ = _1
+
+                // label_name @ data_expression
+                _2 := p._parseDataExpression(); _ = _2
+                v.Push(&Vec{_1, _2})
+
+                continue
+            case tkREST, tkRP:
+                // NOP
+            default:
+                p.ErrorUnexpected("identifier, label-name, REST, ')'")
             }
-            _3 := p.ConsumeToken(); _ = _3
-    
-            // MACRO identifierp '(' @ _stmt_6r _stmt_7o ')' _stmt_13o block
-            var _4 Value; _ = _4
-            for {
-                res := &_4; _ = res
-                // RULE: _stmt_6r -> _stmt_5g*
-                // RULE: _stmt_5g -> identifier
-                // RULE: _stmt_5g -> label ':' dataexpr
-                switch p.PeekToken().Kind {
-                case tkIDENTIFIER:
-                        // @ identifier
+            break
+        }
+
+        // MACRO identifierp '(' _statement_6r @ _statement_7o ')' _statement_13o block
+        var _5 *Token; _ = _5
+        for {
+            res := &_5; _ = res
+            // RULE: _statement_7o -> REST
+            // RULE: _statement_7o -> 
+            switch p.PeekToken().Kind {
+            case tkREST:
+                // @ REST
+                _1 := p.ConsumeToken(); _ = _1
+                *res = _1 // DEFAULT OPT ACTION
+            case tkRP:
+                *res = NILTK
+            default:
+                p.ErrorUnexpected("REST, ')'")
+            }
+            break
+        }
+
+        // MACRO identifierp '(' _statement_6r _statement_7o @ ')' _statement_13o block
+        _6 := p.PeekToken(); _ = _6
+        if _6.Kind == tkRP {
+            p.ConsumeToken()
+        } else {
+            p.ErrorUnexpected("')'")
+        }
+
+        // MACRO identifierp '(' _statement_6r _statement_7o ')' @ _statement_13o block
+        var _7 Value; _ = _7
+        for {
+            res := &_7; _ = res
+            // RULE: _statement_13o -> _statement_12g?
+            // RULE: _statement_12g -> '[' _statement_11r ']'
+            switch p.PeekToken().Kind {
+            case tkLS:
+                // @ '[' _statement_11r ']'
+                _1 := p.ConsumeToken(); _ = _1
+
+                // '[' @ _statement_11r ']'
+                var _2 Value; _ = _2
+                for {
+                    res := &_2; _ = res
+                    // RULE: _statement_11r -> _statement_10g*
+                    // RULE: _statement_10g -> identifier _statement_9o
+                    switch p.PeekToken().Kind {
+                    case tkIDENTIFIER:
+                        // @ identifier _statement_9o
                         _1 := p._parseIdentifier(); _ = _1
-                        v.Push(&Vec{_1, NIL})
-                
-                        continue
-                case tkLABEL:
-                        // @ label ':' dataexpr
-                        _1 := p._parseLabel(); _ = _1
-                
-                        // label @ ':' dataexpr
-                        if p.PeekToken().Kind != tkCL {
-                            p.ErrorUnexpected(p.PeekToken(), "':'")
-                        }
-                        _2 := p.ConsumeToken(); _ = _2
-                
-                        // label ':' @ dataexpr
-                        _3 := p._parseDataexpr(); _ = _3
-                        v.Push(&Vec{_1, _3})
-                
-                        continue
-                case tkREST, tkRP:
-                    // NOP
-                default:
-                    p.ErrorUnexpected(p.PeekToken(), "IDENTIFIER, LABEL, REST, ')'")
-                }
-                break
-            }
-    
-            // MACRO identifierp '(' _stmt_6r @ _stmt_7o ')' _stmt_13o block
-            var _5 *Token; _ = _5
-            for {
-                res := &_5; _ = res
-                // RULE: _stmt_7o -> REST
-                // RULE: _stmt_7o -> 
-                switch p.PeekToken().Kind {
-                case tkREST:
-                        // @ REST
-                        _1 := p.ConsumeToken(); _ = _1
-                        *res = _1 // DEFAULT OPT ACTION
-                case tkRP:
-                        *res = NILTK
-                default:
-                    p.ErrorUnexpected(p.PeekToken(), "REST, ')'")
-                }
-                break
-            }
-    
-            // MACRO identifierp '(' _stmt_6r _stmt_7o @ ')' _stmt_13o block
-            if p.PeekToken().Kind != tkRP {
-                p.ErrorUnexpected(p.PeekToken(), "')'")
-            }
-            _6 := p.ConsumeToken(); _ = _6
-    
-            // MACRO identifierp '(' _stmt_6r _stmt_7o ')' @ _stmt_13o block
-            var _7 Value; _ = _7
-            for {
-                res := &_7; _ = res
-                // RULE: _stmt_13o -> _stmt_12g?
-                // RULE: _stmt_12g -> '[' _stmt_11r ']'
-                switch p.PeekToken().Kind {
-                case tkLS:
-                        // @ '[' _stmt_11r ']'
-                        _1 := p.ConsumeToken(); _ = _1
-                
-                        // '[' @ _stmt_11r ']'
+                        l := _1; r := Value(NIL)
+
+                        // identifier @ _statement_9o
                         var _2 Value; _ = _2
                         for {
                             res := &_2; _ = res
-                            // RULE: _stmt_11r -> _stmt_10g*
-                            // RULE: _stmt_10g -> identifier _stmt_9o
+                            // RULE: _statement_9o -> _statement_8g?
+                            // RULE: _statement_8g -> '=' symbol_expression
                             switch p.PeekToken().Kind {
-                            case tkIDENTIFIER:
-                                    // @ identifier _stmt_9o
-                                    _1 := p._parseIdentifier(); _ = _1
-                                    l := _1; r := Value(NIL)
-                            
-                                    // identifier @ _stmt_9o
-                                    var _2 Value; _ = _2
-                                    for {
-                                        res := &_2; _ = res
-                                        // RULE: _stmt_9o -> _stmt_8g?
-                                        // RULE: _stmt_8g -> '=' symexpr
-                                        switch p.PeekToken().Kind {
-                                        case tkEQ:
-                                                // @ '=' symexpr
-                                                _1 := p.ConsumeToken(); _ = _1
-                                        
-                                                // '=' @ symexpr
-                                                _2 := p._parseSymexpr(); _ = _2
-                                                r = _2
-                                        case tkIDENTIFIER, tkRS:
-                                            // NOP
-                                        default:
-                                            p.ErrorUnexpected(p.PeekToken(), "'=', IDENTIFIER, ']'")
-                                        }
-                                        break
-                                    }
-                                    w.Push(l, r)
-                            
-                                    continue
-                            case tkRS:
+                            case tkEQ:
+                                // @ '=' symbol_expression
+                                _1 := p.ConsumeToken(); _ = _1
+
+                                // '=' @ symbol_expression
+                                _2 := p._parseSymbolExpression(); _ = _2
+                                r = _2
+                            case tkIDENTIFIER, tkRS:
                                 // NOP
                             default:
-                                p.ErrorUnexpected(p.PeekToken(), "IDENTIFIER, ']'")
+                                p.ErrorUnexpected("'=', etc.")
                             }
                             break
                         }
-                
-                        // '[' _stmt_11r @ ']'
-                        if p.PeekToken().Kind != tkRS {
-                            p.ErrorUnexpected(p.PeekToken(), "']'")
-                        }
-                        _3 := p.ConsumeToken(); _ = _3
-                case tkLC, tkEQLC:
-                    // NOP
-                default:
-                    p.ErrorUnexpected(p.PeekToken(), "'[', '{', '={'")
+                        w.Push(l, r)
+
+                        continue
+                    case tkRS:
+                        // NOP
+                    default:
+                        p.ErrorUnexpected("identifier, ']'")
+                    }
+                    break
                 }
-                break
+
+                // '[' _statement_11r @ ']'
+                _3 := p.PeekToken(); _ = _3
+                if _3.Kind == tkRS {
+                    p.ConsumeToken()
+                } else {
+                    p.ErrorUnexpected("']'")
+                }
+            case tkLC, tkEQLC:
+                // NOP
+            default:
+                p.ErrorUnexpected("'[', block")
             }
-    
-            // MACRO identifierp '(' _stmt_6r _stmt_7o ')' _stmt_13o @ block
-            _8 := p._parseBlock(); _ = _8
-            res = &Vec{KwMacro.ToId(_1), _2, v, w, _5.Value, _8}
+            break
+        }
+
+        // MACRO identifierp '(' _statement_6r _statement_7o ')' _statement_13o @ block
+        _8 := p._parseBlock(); _ = _8
+        *res = &Vec{KwMacro.ToId(_1), _2, v, w, _5.Value, _8}
     case tkPROC:
-            // @ PROC identifierp '(' sig ')' _stmt_14g
-            _1 := p.ConsumeToken(); _ = _1
-    
-            // PROC @ identifierp '(' sig ')' _stmt_14g
-            _2 := p._parseIdentifierp(); _ = _2
-    
-            // PROC identifierp @ '(' sig ')' _stmt_14g
-            if p.PeekToken().Kind != tkLP {
-                p.ErrorUnexpected(p.PeekToken(), "'('")
+        // @ PROC identifierp '(' signature ')' _statement_14g
+        _1 := p.ConsumeToken(); _ = _1
+
+        // PROC @ identifierp '(' signature ')' _statement_14g
+        _2 := p._parseIdentifierp(); _ = _2
+
+        // PROC identifierp @ '(' signature ')' _statement_14g
+        _3 := p.PeekToken(); _ = _3
+        if _3.Kind == tkLP {
+            p.ConsumeToken()
+        } else {
+            p.ErrorUnexpected("'('")
+        }
+
+        // PROC identifierp '(' @ signature ')' _statement_14g
+        _4 := p._parseSignature(); _ = _4
+
+        // PROC identifierp '(' signature @ ')' _statement_14g
+        _5 := p.PeekToken(); _ = _5
+        if _5.Kind == tkRP {
+            p.ConsumeToken()
+        } else {
+            p.ErrorUnexpected("')'")
+        }
+        v := &Vec{KwProc.ToId(_1), _2, _4}
+
+        // PROC identifierp '(' signature ')' @ _statement_14g
+        var _6 Value; _ = _6
+        for {
+            res := &_6; _ = res
+            // RULE: _statement_14g -> block
+            // RULE: _statement_14g -> '@' data_expression
+            switch p.PeekToken().Kind {
+            case tkLC, tkEQLC:
+                // @ block
+                _1 := p._parseBlock(); _ = _1
+                v.Push(_1)
+            case tkAT:
+                // @ '@' data_expression
+                _1 := p.ConsumeToken(); _ = _1
+
+                // '@' @ data_expression
+                _2 := p._parseDataExpression(); _ = _2
+                v.Push(_2)
+            default:
+                p.ErrorUnexpected("block, '@'")
             }
-            _3 := p.ConsumeToken(); _ = _3
-    
-            // PROC identifierp '(' @ sig ')' _stmt_14g
-            _4 := p._parseSig(); _ = _4
-    
-            // PROC identifierp '(' sig @ ')' _stmt_14g
-            if p.PeekToken().Kind != tkRP {
-                p.ErrorUnexpected(p.PeekToken(), "')'")
-            }
-            _5 := p.ConsumeToken(); _ = _5
-            v := &Vec{KwProc.ToId(_1), _2, _4}
-    
-            // PROC identifierp '(' sig ')' @ _stmt_14g
-            var _6 Value; _ = _6
-            for {
-                res := &_6; _ = res
-                // RULE: _stmt_14g -> block
-                // RULE: _stmt_14g -> '@' dataexpr
-                switch p.PeekToken().Kind {
-                case tkLC, tkEQLC:
-                        // @ block
-                        _1 := p._parseBlock(); _ = _1
-                        v.Push(_1)
-                case tkAT:
-                        // @ '@' dataexpr
-                        _1 := p.ConsumeToken(); _ = _1
-                
-                        // '@' @ dataexpr
-                        _2 := p._parseDataexpr(); _ = _2
-                        v.Push(_2)
-                default:
-                    p.ErrorUnexpected(p.PeekToken(), "'{', '={', '@'")
-                }
-                break
-            }
-            res = v
+            break
+        }
+        *res = v
     case tkCONST:
-            // @ CONST _stmt_17g '=' dataexpr
-            _1 := p.ConsumeToken(); _ = _1
-            v := &Vec{}
-    
-            // CONST @ _stmt_17g '=' dataexpr
-            var _2 Value; _ = _2
-            for {
-                res := &_2; _ = res
-                // RULE: _stmt_17g -> identifier
-                // RULE: _stmt_17g -> identifierp '(' _stmt_16r ')'
-                switch p.PeekToken().Kind {
-                case tkIDENTIFIER:
+        // @ CONST _statement_17g '=' data_expression
+        _1 := p.ConsumeToken(); _ = _1
+        v := &Vec{}
+
+        // CONST @ _statement_17g '=' data_expression
+        var _2 Value; _ = _2
+        for {
+            res := &_2; _ = res
+            // RULE: _statement_17g -> identifier
+            // RULE: _statement_17g -> identifierp '(' _statement_16r ')'
+            switch p.PeekToken().Kind {
+            case tkIDENTIFIER:
+                // @ identifier
+                _1 := p._parseIdentifier(); _ = _1
+                *res = _1
+            case tkIDENTIFIERP:
+                // @ identifierp '(' _statement_16r ')'
+                _1 := p._parseIdentifierp(); _ = _1
+
+                // identifierp @ '(' _statement_16r ')'
+                _2 := p.PeekToken(); _ = _2
+                if _2.Kind == tkLP {
+                    p.ConsumeToken()
+                } else {
+                    p.ErrorUnexpected("'('")
+                }
+
+                // identifierp '(' @ _statement_16r ')'
+                var _3 Value; _ = _3
+                for {
+                    res := &_3; _ = res
+                    // RULE: _statement_16r -> _statement_15g*
+                    // RULE: _statement_15g -> identifier
+                    // RULE: _statement_15g -> label_name data_expression
+                    switch p.PeekToken().Kind {
+                    case tkIDENTIFIER:
                         // @ identifier
                         _1 := p._parseIdentifier(); _ = _1
-                        *res = _1
-                case tkIDENTIFIERP:
-                        // @ identifierp '(' _stmt_16r ')'
-                        _1 := p._parseIdentifierp(); _ = _1
-                
-                        // identifierp @ '(' _stmt_16r ')'
-                        if p.PeekToken().Kind != tkLP {
-                            p.ErrorUnexpected(p.PeekToken(), "'('")
-                        }
-                        _2 := p.ConsumeToken(); _ = _2
-                
-                        // identifierp '(' @ _stmt_16r ')'
-                        var _3 Value; _ = _3
-                        for {
-                            res := &_3; _ = res
-                            // RULE: _stmt_16r -> _stmt_15g*
-                            // RULE: _stmt_15g -> identifier
-                            // RULE: _stmt_15g -> label ':' dataexpr
-                            switch p.PeekToken().Kind {
-                            case tkIDENTIFIER:
-                                    // @ identifier
-                                    _1 := p._parseIdentifier(); _ = _1
-                                    v.Push(&Vec{_1, NIL})
-                            
-                                    continue
-                            case tkLABEL:
-                                    // @ label ':' dataexpr
-                                    _1 := p._parseLabel(); _ = _1
-                            
-                                    // label @ ':' dataexpr
-                                    if p.PeekToken().Kind != tkCL {
-                                        p.ErrorUnexpected(p.PeekToken(), "':'")
-                                    }
-                                    _2 := p.ConsumeToken(); _ = _2
-                            
-                                    // label ':' @ dataexpr
-                                    _3 := p._parseDataexpr(); _ = _3
-                                    v.Push(&Vec{_1, _3})
-                            
-                                    continue
-                            case tkRP:
-                                // NOP
-                            default:
-                                p.ErrorUnexpected(p.PeekToken(), "IDENTIFIER, LABEL, ')'")
-                            }
-                            break
-                        }
-                
-                        // identifierp '(' _stmt_16r @ ')'
-                        if p.PeekToken().Kind != tkRP {
-                            p.ErrorUnexpected(p.PeekToken(), "')'")
-                        }
-                        _4 := p.ConsumeToken(); _ = _4
-                        *res = _1
-                default:
-                    p.ErrorUnexpected(p.PeekToken(), "IDENTIFIER, IDENTIFIERP")
+                        v.Push(&Vec{_1, NIL})
+
+                        continue
+                    case tkLABEL_NAME:
+                        // @ label_name data_expression
+                        _1 := p._parseLabelName(); _ = _1
+
+                        // label_name @ data_expression
+                        _2 := p._parseDataExpression(); _ = _2
+                        v.Push(&Vec{_1, _2})
+
+                        continue
+                    case tkRP:
+                        // NOP
+                    default:
+                        p.ErrorUnexpected("identifier, label-name, ')'")
+                    }
+                    break
                 }
-                break
+
+                // identifierp '(' _statement_16r @ ')'
+                _4 := p.PeekToken(); _ = _4
+                if _4.Kind == tkRP {
+                    p.ConsumeToken()
+                } else {
+                    p.ErrorUnexpected("')'")
+                }
+                *res = _1
+            default:
+                p.ErrorUnexpected("identifier")
             }
-    
-            // CONST _stmt_17g @ '=' dataexpr
-            if p.PeekToken().Kind != tkEQ {
-                p.ErrorUnexpected(p.PeekToken(), "'='")
-            }
-            _3 := p.ConsumeToken(); _ = _3
-    
-            // CONST _stmt_17g '=' @ dataexpr
-            _4 := p._parseDataexpr(); _ = _4
-            res = &Vec{KwConst.ToId(_1), _2, v, _4}
+            break
+        }
+
+        // CONST _statement_17g @ '=' data_expression
+        _3 := p.PeekToken(); _ = _3
+        if _3.Kind == tkEQ {
+            p.ConsumeToken()
+        } else {
+            p.ErrorUnexpected("'='")
+        }
+
+        // CONST _statement_17g '=' @ data_expression
+        _4 := p._parseDataExpression(); _ = _4
+        *res = &Vec{KwConst.ToId(_1), _2, v, _4}
     case tkDATA:
-            // @ DATA datatype _stmt_19o databody
-            _1 := p.ConsumeToken(); _ = _1
-    
-            // DATA @ datatype _stmt_19o databody
-            _2 := p._parseDatatype(); _ = _2
-            v := Value(NIL); w := _2
-    
-            // DATA datatype @ _stmt_19o databody
-            var _3 Value; _ = _3
-            for {
-                res := &_3; _ = res
-                // RULE: _stmt_19o -> _stmt_18g?
-                // RULE: _stmt_18g -> '=' datatype
-                switch p.PeekToken().Kind {
-                case tkEQ:
-                        // @ '=' datatype
-                        _1 := p.ConsumeToken(); _ = _1
-                
-                        // '=' @ datatype
-                        _2 := p._parseDatatype(); _ = _2
-                        v = w; w = _2
-                case tkBOP, tkCL, tkAT, tkLS, tkLC, tkINTEGER, tkSTRING, tkRESERVED, tkIDENTIFIER, tkIDENTIFIERP, tkLP, tkAOP, tkSC, tkEOF, tkRC:
-                    // NOP
-                default:
-                    p.ErrorUnexpected(p.PeekToken(), "'=', BOP, ':', '@', '[', '{', INTEGER, STRING, RESERVED, IDENTIFIER, IDENTIFIERP, '(', AOP, ';', EOF, '}'")
-                }
-                break
+        // @ DATA data_type _statement_19o data_body
+        _1 := p.ConsumeToken(); _ = _1
+
+        // DATA @ data_type _statement_19o data_body
+        _2 := p._parseDataType(); _ = _2
+        v := Value(NIL); w := _2
+
+        // DATA data_type @ _statement_19o data_body
+        var _3 Value; _ = _3
+        for {
+            res := &_3; _ = res
+            // RULE: _statement_19o -> _statement_18g?
+            // RULE: _statement_18g -> '=' data_type
+            switch p.PeekToken().Kind {
+            case tkEQ:
+                // @ '=' data_type
+                _1 := p.ConsumeToken(); _ = _1
+
+                // '=' @ data_type
+                _2 := p._parseDataType(); _ = _2
+                v = w; w = _2
+            case tkBINARY_OPERATOR, tkCL, tkAT, tkLS, tkLC, tkINTEGER, tkSTRING, tkRESERVED, tkIDENTIFIER, tkIDENTIFIERP, tkLP, tkPREFIX_OPERATOR, tkSC, tkEOF, tkRC:
+                // NOP
+            default:
+                p.ErrorUnexpected("'=', data-body, etc.")
             }
-    
-            // DATA datatype _stmt_19o @ databody
-            _4 := p._parseDatabody(); _ = _4
-            res = &Vec{KwData.ToId(_1), v, w, _4}
+            break
+        }
+
+        // DATA data_type _statement_19o @ data_body
+        _4 := p._parseDataBody(); _ = _4
+        *res = &Vec{KwData.ToId(_1), v, w, _4}
     case tkMODULE:
-            // @ MODULE identifier block
-            _1 := p.ConsumeToken(); _ = _1
-    
-            // MODULE @ identifier block
-            _2 := p._parseIdentifier(); _ = _2
-    
-            // MODULE identifier @ block
-            _3 := p._parseBlock(); _ = _3
-            res = &Vec{KwModule.ToId(_1), _2, _3}
+        // @ MODULE identifier block
+        _1 := p.ConsumeToken(); _ = _1
+
+        // MODULE @ identifier block
+        _2 := p._parseIdentifier(); _ = _2
+
+        // MODULE identifier @ block
+        _3 := p._parseBlock(); _ = _3
+        *res = &Vec{KwModule.ToId(_1), _2, _3}
     case tkLABEL:
-            // @ label ':'
-            _1 := p._parseLabel(); _ = _1
-    
-            // label @ ':'
-            if p.PeekToken().Kind != tkCL {
-                p.ErrorUnexpected(p.PeekToken(), "':'")
-            }
-            _2 := p.ConsumeToken(); _ = _2
-            res = &Vec{KwLabel.ToId(_2), _1}; p.state = pstNl
+        // @ LABEL label_name
+        _1 := p.ConsumeToken(); _ = _1
+
+        // LABEL @ label_name
+        _2 := p._parseLabelName(); _ = _2
+        *res = &Vec{KwLabel.ToId(_1), _2}
     case tkSTRUCT:
-            // @ struct
-            _1 := p._parseStruct(); _ = _1
-            v := _1.(*Vec); v.SetAt(1, NIL); res = v
-    case tkIDENTIFIER, tkCONDDOT, tkATMI, tkIDENTIFIERP, tkREG, tkLS, tkDLAT, tkDLDLAT:
-            // @ expr
-            _1 := p._parseExpr(); _ = _1
-            res = _1
+        // @ struct
+        _1 := p._parseStruct(); _ = _1
+        v := _1.(*Vec); v.SetAt(1, NIL); *res = v
+    case tkIDENTIFIER:
+        // @ identifier _statement_21r
+        _1 := p._parseIdentifier(); _ = _1
+        v := &Vec{_idfrom(_1)}
+
+        // identifier @ _statement_21r
+        var _2 Value; _ = _2
+        for {
+            res := &_2; _ = res
+            // RULE: _statement_21r -> _statement_20g*
+            // RULE: _statement_20g -> operand
+            switch p.PeekToken().Kind {
+            case tkCONDITION, tkLC, tkEQLC, tkREGISTER, tkLS, tkDLAT, tkDLDLAT, tkINTEGER, tkSTRING, tkRESERVED, tkIDENTIFIER, tkIDENTIFIERP, tkLP, tkPREFIX_OPERATOR:
+                // @ operand
+                _1 := p._parseOperand(); _ = _1
+                v.Push(_1)
+
+                continue
+            case tkSC, tkEOF, tkRC:
+                // NOP
+            default:
+                p.ErrorUnexpected("operand, etc.")
+            }
+            break
+        }
+        *res = v
+    case tkCONDDOT, tkIDENTIFIERP:
+        // @ proc_call
+        _1 := p._parseProcCall(); _ = _1
+        *res = _1
+    case tkATMI, tkREGISTER, tkLS, tkDLAT, tkDLDLAT:
+        // @ context_expression
+        _1 := p._parseContextExpression(); _ = _1
+        *res = _1
     default:
-        p.ErrorUnexpected(p.PeekToken(), "MACRO, PROC, CONST, DATA, MODULE, LABEL, STRUCT, IDENTIFIER, CONDDOT, '@-', IDENTIFIERP, REG, '[', '$@', '$$@'")
+        p.ErrorUnexpected("statement")
     }
     return
 }
 
 /** ** **
   struct ->
-      STRUCT identifier? '{' structfield? (
-        ';' structfield?
+      STRUCT identifier? '{' struct_field? (
+        ';' struct_field?
       )* '}'
  ** ** **/
-func (p *Parser) _parseStruct() (res Value) {
-    // RULE: struct -> STRUCT _struct_20o '{' _struct_21o _struct_24r '}'
+func (p *Parser) _parseStruct() (ret Value) {
+    res := &ret; _ = res
+    // RULE: struct -> STRUCT _struct_22o '{' _struct_23o _struct_26r '}'
     switch p.PeekToken().Kind {
     case tkSTRUCT:
-            // @ STRUCT _struct_20o '{' _struct_21o _struct_24r '}'
-            _1 := p.ConsumeToken(); _ = _1
-            v := &Vec{KwStruct.ToId(_1), Int(1), NIL}
-    
-            // STRUCT @ _struct_20o '{' _struct_21o _struct_24r '}'
-            var _2 Value; _ = _2
-            for {
-                res := &_2; _ = res
-                // RULE: _struct_20o -> identifier
-                // RULE: _struct_20o -> 
-                switch p.PeekToken().Kind {
-                case tkIDENTIFIER:
-                        // @ identifier
-                        _1 := p._parseIdentifier(); _ = _1
+        // @ STRUCT _struct_22o '{' _struct_23o _struct_26r '}'
+        _1 := p.ConsumeToken(); _ = _1
+        v := &Vec{KwStruct.ToId(_1), Int(1), NIL}
+
+        // STRUCT @ _struct_22o '{' _struct_23o _struct_26r '}'
+        var _2 Value; _ = _2
+        for {
+            res := &_2; _ = res
+            // RULE: _struct_22o -> identifier
+            // RULE: _struct_22o -> 
+            switch p.PeekToken().Kind {
+            case tkIDENTIFIER:
+                // @ identifier
+                _1 := p._parseIdentifier(); _ = _1
+                *res = _1 // DEFAULT OPT ACTION
+            case tkLC:
+                // NOP
+            default:
+                p.ErrorUnexpected("identifier, '{'")
+            }
+            break
+        }
+        if _2 != nil { v.SetAt(2, _2) }
+
+        // STRUCT _struct_22o @ '{' _struct_23o _struct_26r '}'
+        _3 := p.PeekToken(); _ = _3
+        if _3.Kind == tkLC {
+            p.ConsumeToken()
+        } else {
+            p.ErrorUnexpected("'{'")
+        }
+
+        // STRUCT _struct_22o '{' @ _struct_23o _struct_26r '}'
+        var _4 Value; _ = _4
+        for {
+            res := &_4; _ = res
+            // RULE: _struct_23o -> struct_field
+            // RULE: _struct_23o -> 
+            switch p.PeekToken().Kind {
+            case tkIDENTIFIER:
+                // @ struct_field
+                _1 := p._parseStructField(); _ = _1
+                *res = _1 // DEFAULT OPT ACTION
+            case tkSC, tkRC:
+                // NOP
+            default:
+                p.ErrorUnexpected("struct-field, ';', '}'")
+            }
+            break
+        }
+        if _4 != nil { v.Push(_4) }
+
+        // STRUCT _struct_22o '{' _struct_23o @ _struct_26r '}'
+        var _5 Value; _ = _5
+        for {
+            res := &_5; _ = res
+            // RULE: _struct_26r -> _struct_25g*
+            // RULE: _struct_25g -> ';' _struct_24o
+            switch p.PeekToken().Kind {
+            case tkSC:
+                // @ ';' _struct_24o
+                _1 := p.ConsumeToken(); _ = _1
+
+                // ';' @ _struct_24o
+                var _2 Value; _ = _2
+                for {
+                    res := &_2; _ = res
+                    // RULE: _struct_24o -> struct_field
+                    // RULE: _struct_24o -> 
+                    switch p.PeekToken().Kind {
+                    case tkIDENTIFIER:
+                        // @ struct_field
+                        _1 := p._parseStructField(); _ = _1
                         *res = _1 // DEFAULT OPT ACTION
-                case tkLC:
+                    case tkSC, tkRC:
                         // NOP
-                default:
-                    p.ErrorUnexpected(p.PeekToken(), "IDENTIFIER, '{'")
+                    default:
+                        p.ErrorUnexpected("struct-field, etc.")
+                    }
+                    break
                 }
-                break
+                if _2 != nil { v.Push(_2) }
+
+                continue
+            case tkRC:
+                // NOP
+            default:
+                p.ErrorUnexpected("';', '}'")
             }
-            if _2 != nil { v.SetAt(2, _2) }
-    
-            // STRUCT _struct_20o @ '{' _struct_21o _struct_24r '}'
-            if p.PeekToken().Kind != tkLC {
-                p.ErrorUnexpected(p.PeekToken(), "'{'")
-            }
-            _3 := p.ConsumeToken(); _ = _3
-    
-            // STRUCT _struct_20o '{' @ _struct_21o _struct_24r '}'
-            var _4 Value; _ = _4
-            for {
-                res := &_4; _ = res
-                // RULE: _struct_21o -> structfield
-                // RULE: _struct_21o -> 
-                switch p.PeekToken().Kind {
-                case tkIDENTIFIER:
-                        // @ structfield
-                        _1 := p._parseStructfield(); _ = _1
-                        *res = _1 // DEFAULT OPT ACTION
-                case tkSC, tkRC:
-                        // NOP
-                default:
-                    p.ErrorUnexpected(p.PeekToken(), "IDENTIFIER, ';', '}'")
-                }
-                break
-            }
-            if _4 != nil { v.Push(_4) }
-    
-            // STRUCT _struct_20o '{' _struct_21o @ _struct_24r '}'
-            var _5 Value; _ = _5
-            for {
-                res := &_5; _ = res
-                // RULE: _struct_24r -> _struct_23g*
-                // RULE: _struct_23g -> ';' _struct_22o
-                switch p.PeekToken().Kind {
-                case tkSC:
-                        // @ ';' _struct_22o
-                        _1 := p.ConsumeToken(); _ = _1
-                
-                        // ';' @ _struct_22o
-                        var _2 Value; _ = _2
-                        for {
-                            res := &_2; _ = res
-                            // RULE: _struct_22o -> structfield
-                            // RULE: _struct_22o -> 
-                            switch p.PeekToken().Kind {
-                            case tkIDENTIFIER:
-                                    // @ structfield
-                                    _1 := p._parseStructfield(); _ = _1
-                                    *res = _1 // DEFAULT OPT ACTION
-                            case tkSC, tkRC:
-                                    // NOP
-                            default:
-                                p.ErrorUnexpected(p.PeekToken(), "IDENTIFIER, ';', '}'")
-                            }
-                            break
-                        }
-                        if _2 != nil { v.Push(_2) }
-                
-                        continue
-                case tkRC:
-                    // NOP
-                default:
-                    p.ErrorUnexpected(p.PeekToken(), "';', '}'")
-                }
-                break
-            }
-    
-            // STRUCT _struct_20o '{' _struct_21o _struct_24r @ '}'
-            if p.PeekToken().Kind != tkRC {
-                p.ErrorUnexpected(p.PeekToken(), "'}'")
-            }
-            _6 := p.ConsumeToken(); _ = _6
-            res = v
+            break
+        }
+
+        // STRUCT _struct_22o '{' _struct_23o _struct_26r @ '}'
+        _6 := p.PeekToken(); _ = _6
+        if _6.Kind == tkRC {
+            p.ConsumeToken()
+        } else {
+            p.ErrorUnexpected("'}'")
+        }
+        *res = v
     default:
-        p.ErrorUnexpected(p.PeekToken(), "STRUCT")
+        p.ErrorUnexpected("struct")
     }
     return
 }
 
 /** ** **
-  structfield ->
-      identifier datatype
+  struct_field ->
+      identifier data_type
  ** ** **/
-func (p *Parser) _parseStructfield() (res Value) {
-    // RULE: structfield -> identifier datatype
+func (p *Parser) _parseStructField() (ret Value) {
+    res := &ret; _ = res
+    // RULE: struct_field -> identifier data_type
     switch p.PeekToken().Kind {
     case tkIDENTIFIER:
-            // @ identifier datatype
-            _1 := p._parseIdentifier(); _ = _1
-    
-            // identifier @ datatype
-            _2 := p._parseDatatype(); _ = _2
-            res = &Vec{_1, _2}
+        // @ identifier data_type
+        _1 := p._parseIdentifier(); _ = _1
+
+        // identifier @ data_type
+        _2 := p._parseDataType(); _ = _2
+        *res = &Vec{_1, _2}
     default:
-        p.ErrorUnexpected(p.PeekToken(), "IDENTIFIER")
+        p.ErrorUnexpected("struct-field")
     }
     return
 }
 
 /** ** **
-  datatype ->
+  data_type ->
       '[' (
         constexpr
-      )? ']' datatype
+      )? ']' data_type
     | identifier
     | struct
  ** ** **/
-func (p *Parser) _parseDatatype() (res Value) {
-    // RULE: datatype -> '[' _datatype_26o ']' datatype
-    // RULE: datatype -> identifier
-    // RULE: datatype -> struct
+func (p *Parser) _parseDataType() (ret Value) {
+    res := &ret; _ = res
+    // RULE: data_type -> '[' _data_type_28o ']' data_type
+    // RULE: data_type -> identifier
+    // RULE: data_type -> struct
     switch p.PeekToken().Kind {
     case tkLS:
-            // @ '[' _datatype_26o ']' datatype
-            _1 := p.ConsumeToken(); _ = _1
-            v := Value(NIL)
-    
-            // '[' @ _datatype_26o ']' datatype
-            var _2 Value; _ = _2
-            for {
-                res := &_2; _ = res
-                // RULE: _datatype_26o -> _datatype_25g?
-                // RULE: _datatype_25g -> constexpr
-                switch p.PeekToken().Kind {
-                case tkINTEGER, tkSTRING, tkRESERVED, tkIDENTIFIER, tkIDENTIFIERP, tkLP, tkAOP:
-                        // @ constexpr
-                        _1 := p._parseConstexpr(); _ = _1
-                        v = _1
-                case tkRS:
-                    // NOP
-                default:
-                    p.ErrorUnexpected(p.PeekToken(), "INTEGER, STRING, RESERVED, IDENTIFIER, IDENTIFIERP, '(', AOP, ']'")
-                }
-                break
+        // @ '[' _data_type_28o ']' data_type
+        _1 := p.ConsumeToken(); _ = _1
+        v := Value(NIL)
+
+        // '[' @ _data_type_28o ']' data_type
+        var _2 Value; _ = _2
+        for {
+            res := &_2; _ = res
+            // RULE: _data_type_28o -> _data_type_27g?
+            // RULE: _data_type_27g -> constexpr
+            switch p.PeekToken().Kind {
+            case tkINTEGER, tkSTRING, tkRESERVED, tkIDENTIFIER, tkIDENTIFIERP, tkLP, tkPREFIX_OPERATOR:
+                // @ constexpr
+                _1 := p._parseConstexpr(); _ = _1
+                v = _1
+            case tkRS:
+                // NOP
+            default:
+                p.ErrorUnexpected("constexpr, ']'")
             }
-    
-            // '[' _datatype_26o @ ']' datatype
-            if p.PeekToken().Kind != tkRS {
-                p.ErrorUnexpected(p.PeekToken(), "']'")
-            }
-            _3 := p.ConsumeToken(); _ = _3
-    
-            // '[' _datatype_26o ']' @ datatype
-            _4 := p._parseDatatype(); _ = _4
-            res = &Vec{KwArray.ToId(_1), _4, v}
+            break
+        }
+
+        // '[' _data_type_28o @ ']' data_type
+        _3 := p.PeekToken(); _ = _3
+        if _3.Kind == tkRS {
+            p.ConsumeToken()
+        } else {
+            p.ErrorUnexpected("']'")
+        }
+
+        // '[' _data_type_28o ']' @ data_type
+        _4 := p._parseDataType(); _ = _4
+        *res = &Vec{KwArray.ToId(_1), _4, v}
     case tkIDENTIFIER:
-            // @ identifier
-            _1 := p._parseIdentifier(); _ = _1
-            res = _1
+        // @ identifier
+        _1 := p._parseIdentifier(); _ = _1
+        *res = _1
     case tkSTRUCT:
-            // @ struct
-            _1 := p._parseStruct(); _ = _1
-            res = _1
+        // @ struct
+        _1 := p._parseStruct(); _ = _1
+        *res = _1
     default:
-        p.ErrorUnexpected(p.PeekToken(), "'[', IDENTIFIER, STRUCT")
+        p.ErrorUnexpected("data-type")
     }
     return
 }
 
 /** ** **
-  databody ->
+  data_body ->
       (
-        datalist
+        data_list
       | constval
       )? (
-        BOP dataval
+        BINARY_OPERATOR data_value
       )? (
         ':' identifier
-      | '@' dataexpr
+      | '@' data_expression
       )?
  ** ** **/
-func (p *Parser) _parseDatabody() (res Value) {
-    // RULE: databody -> _databody_28o _databody_30o _databody_32o
-    values := Value(NIL);
+func (p *Parser) _parseDataBody() (ret Value) {
+    res := &ret; _ = res
+    // RULE: data_body -> _data_body_30o _data_body_32o _data_body_34o
+    values := Value(NIL)
     switch p.PeekToken().Kind {
-    case tkLS, tkLC, tkINTEGER, tkSTRING, tkRESERVED, tkIDENTIFIER, tkIDENTIFIERP, tkLP, tkAOP, tkBOP, tkCL, tkAT, tkSC, tkEOF, tkRC:
-            // @ _databody_28o _databody_30o _databody_32o
-            var _1 Value; _ = _1
-            for {
-                res := &_1; _ = res
-                // RULE: _databody_28o -> _databody_27g?
-                // RULE: _databody_27g -> datalist
-                // RULE: _databody_27g -> constval
-                switch p.PeekToken().Kind {
-                case tkLS, tkLC:
-                        // @ datalist
-                        _1 := p._parseDatalist(); _ = _1
-                        values = _1
-                case tkINTEGER, tkSTRING, tkRESERVED, tkIDENTIFIER, tkIDENTIFIERP, tkLP, tkAOP:
-                        // @ constval
-                        _1 := p._parseConstval(); _ = _1
-                        values = _1
-                case tkBOP, tkCL, tkAT, tkSC, tkEOF, tkRC:
-                    // NOP
-                default:
-                    p.ErrorUnexpected(p.PeekToken(), "'[', '{', INTEGER, STRING, RESERVED, IDENTIFIER, IDENTIFIERP, '(', AOP, BOP, ':', '@', ';', EOF, '}'")
-                }
-                break
+    case tkLS, tkLC, tkINTEGER, tkSTRING, tkRESERVED, tkIDENTIFIER, tkIDENTIFIERP, tkLP, tkPREFIX_OPERATOR, tkBINARY_OPERATOR, tkCL, tkAT, tkSC, tkEOF, tkRC:
+        // @ _data_body_30o _data_body_32o _data_body_34o
+        var _1 Value; _ = _1
+        for {
+            res := &_1; _ = res
+            // RULE: _data_body_30o -> _data_body_29g?
+            // RULE: _data_body_29g -> data_list
+            // RULE: _data_body_29g -> constval
+            switch p.PeekToken().Kind {
+            case tkLS, tkLC:
+                // @ data_list
+                _1 := p._parseDataList(); _ = _1
+                values = _1
+            case tkINTEGER, tkSTRING, tkRESERVED, tkIDENTIFIER, tkIDENTIFIERP, tkLP, tkPREFIX_OPERATOR:
+                // @ constval
+                _1 := p._parseConstval(); _ = _1
+                values = _1
+            case tkBINARY_OPERATOR, tkCL, tkAT, tkSC, tkEOF, tkRC:
+                // NOP
+            default:
+                p.ErrorUnexpected("data-list, constval, BINARY-OPERATOR, ':', '@', etc.")
             }
-            alloc := Value(idMulOp);
-                                                     size := Value(InternalConstexpr(Int(1)))
-    
-            // _databody_28o @ _databody_30o _databody_32o
-            var _2 Value; _ = _2
-            for {
-                res := &_2; _ = res
-                // RULE: _databody_30o -> _databody_29g?
-                // RULE: _databody_29g -> BOP dataval
-                switch p.PeekToken().Kind {
-                case tkBOP:
-                        // @ BOP dataval
-                        _1 := p.ConsumeToken(); _ = _1
-                
-                        // BOP @ dataval
-                        _2 := p._parseDataval(); _ = _2
-                        alloc = _1.Value; size = _2
-                case tkCL, tkAT, tkSC, tkEOF, tkRC:
-                    // NOP
-                default:
-                    p.ErrorUnexpected(p.PeekToken(), "BOP, ':', '@', ';', EOF, '}'")
-                }
-                break
+            break
+        }
+        alloc := Value(idMulOp);
+                                            size := Value(InternalConstexpr(Int(1)))
+
+        // _data_body_30o @ _data_body_32o _data_body_34o
+        var _2 Value; _ = _2
+        for {
+            res := &_2; _ = res
+            // RULE: _data_body_32o -> _data_body_31g?
+            // RULE: _data_body_31g -> BINARY_OPERATOR data_value
+            switch p.PeekToken().Kind {
+            case tkBINARY_OPERATOR:
+                // @ BINARY_OPERATOR data_value
+                _1 := p.ConsumeToken(); _ = _1
+
+                // BINARY_OPERATOR @ data_value
+                _2 := p._parseDataValue(); _ = _2
+                alloc = _1.Value; size = _2
+            case tkCL, tkAT, tkSC, tkEOF, tkRC:
+                // NOP
+            default:
+                p.ErrorUnexpected("BINARY-OPERATOR, ':', '@', etc.")
             }
-            section := Value(NIL); addr := Value(NIL)
-    
-            // _databody_28o _databody_30o @ _databody_32o
-            var _3 Value; _ = _3
-            for {
-                res := &_3; _ = res
-                // RULE: _databody_32o -> _databody_31g?
-                // RULE: _databody_31g -> ':' identifier
-                // RULE: _databody_31g -> '@' dataexpr
-                switch p.PeekToken().Kind {
-                case tkCL:
-                        // @ ':' identifier
-                        _1 := p.ConsumeToken(); _ = _1
-                
-                        // ':' @ identifier
-                        _2 := p._parseIdentifier(); _ = _2
-                        section = _2
-                case tkAT:
-                        // @ '@' dataexpr
-                        _1 := p.ConsumeToken(); _ = _1
-                
-                        // '@' @ dataexpr
-                        _2 := p._parseDataexpr(); _ = _2
-                        addr = _2
-                case tkSC, tkEOF, tkRC:
-                    // NOP
-                default:
-                    p.ErrorUnexpected(p.PeekToken(), "':', '@', ';', EOF, '}'")
-                }
-                break
+            break
+        }
+        section := Value(NIL); addr := Value(NIL)
+
+        // _data_body_30o _data_body_32o @ _data_body_34o
+        var _3 Value; _ = _3
+        for {
+            res := &_3; _ = res
+            // RULE: _data_body_34o -> _data_body_33g?
+            // RULE: _data_body_33g -> ':' identifier
+            // RULE: _data_body_33g -> '@' data_expression
+            switch p.PeekToken().Kind {
+            case tkCL:
+                // @ ':' identifier
+                _1 := p.ConsumeToken(); _ = _1
+
+                // ':' @ identifier
+                _2 := p._parseIdentifier(); _ = _2
+                section = _2
+            case tkAT:
+                // @ '@' data_expression
+                _1 := p.ConsumeToken(); _ = _1
+
+                // '@' @ data_expression
+                _2 := p._parseDataExpression(); _ = _2
+                addr = _2
+            case tkSC, tkEOF, tkRC:
+                // NOP
+            default:
+                p.ErrorUnexpected("':', '@', etc.")
             }
-            res = &Vec{values, alloc, size, section, addr }
+            break
+        }
+        *res = &Vec{values, alloc, size, section, addr }
     default:
-        p.ErrorUnexpected(p.PeekToken(), "'[', '{', INTEGER, STRING, RESERVED, IDENTIFIER, IDENTIFIERP, '(', AOP, BOP, ':', '@', ';', EOF, '}'")
+        p.ErrorUnexpected("data-body, etc.")
     }
     return
 }
 
 /** ** **
-  datalist ->
+  data_list ->
       '[' (
-        dataexpr
-      | datalist
+        data_expression
+      | data_list
       )* ']'
     | '{' (
-        dataexpr
-      | datalist
+        data_expression
+      | data_list
       )* '}'
  ** ** **/
-func (p *Parser) _parseDatalist() (res Value) {
-    // RULE: datalist -> '[' _datalist_34r ']'
-    // RULE: datalist -> '{' _datalist_36r '}'
+func (p *Parser) _parseDataList() (ret Value) {
+    res := &ret; _ = res
+    // RULE: data_list -> '[' _data_list_36r ']'
+    // RULE: data_list -> '{' _data_list_38r '}'
     switch p.PeekToken().Kind {
     case tkLS:
-            // @ '[' _datalist_34r ']'
-            _1 := p.ConsumeToken(); _ = _1
-            v := &Vec{KwDataList.ToId(_1)}
-    
-            // '[' @ _datalist_34r ']'
-            var _2 Value; _ = _2
-            for {
-                res := &_2; _ = res
-                // RULE: _datalist_34r -> _datalist_33g*
-                // RULE: _datalist_33g -> dataexpr
-                // RULE: _datalist_33g -> datalist
-                switch p.PeekToken().Kind {
-                case tkDLAT, tkDLDLAT, tkINTEGER, tkSTRING, tkRESERVED, tkIDENTIFIER, tkIDENTIFIERP, tkLP, tkAOP:
-                        // @ dataexpr
-                        _1 := p._parseDataexpr(); _ = _1
-                        v.Push(_1)
-                
-                        continue
-                case tkLS, tkLC:
-                        // @ datalist
-                        _1 := p._parseDatalist(); _ = _1
-                        v.Push(_1)
-                
-                        continue
-                case tkRS:
-                    // NOP
-                default:
-                    p.ErrorUnexpected(p.PeekToken(), "'$@', '$$@', INTEGER, STRING, RESERVED, IDENTIFIER, IDENTIFIERP, '(', AOP, '[', '{', ']'")
-                }
-                break
+        // @ '[' _data_list_36r ']'
+        _1 := p.ConsumeToken(); _ = _1
+        v := &Vec{KwDataList.ToId(_1)}
+
+        // '[' @ _data_list_36r ']'
+        var _2 Value; _ = _2
+        for {
+            res := &_2; _ = res
+            // RULE: _data_list_36r -> _data_list_35g*
+            // RULE: _data_list_35g -> data_expression
+            // RULE: _data_list_35g -> data_list
+            switch p.PeekToken().Kind {
+            case tkDLAT, tkDLDLAT, tkINTEGER, tkSTRING, tkRESERVED, tkIDENTIFIER, tkIDENTIFIERP, tkLP, tkPREFIX_OPERATOR:
+                // @ data_expression
+                _1 := p._parseDataExpression(); _ = _1
+                v.Push(_1)
+
+                continue
+            case tkLS, tkLC:
+                // @ data_list
+                _1 := p._parseDataList(); _ = _1
+                v.Push(_1)
+
+                continue
+            case tkRS:
+                // NOP
+            default:
+                p.ErrorUnexpected("data-expression, data-list, ']'")
             }
-    
-            // '[' _datalist_34r @ ']'
-            if p.PeekToken().Kind != tkRS {
-                p.ErrorUnexpected(p.PeekToken(), "']'")
-            }
-            _3 := p.ConsumeToken(); _ = _3
-            res = v
+            break
+        }
+
+        // '[' _data_list_36r @ ']'
+        _3 := p.PeekToken(); _ = _3
+        if _3.Kind == tkRS {
+            p.ConsumeToken()
+        } else {
+            p.ErrorUnexpected("']'")
+        }
+        *res = v
     case tkLC:
-            // @ '{' _datalist_36r '}'
-            _1 := p.ConsumeToken(); _ = _1
-            v := &Vec{KwStructData.ToId(_1)}
-                                                     p.contexts = append(p.contexts, '#')
-    
-            // '{' @ _datalist_36r '}'
-            var _2 Value; _ = _2
-            for {
-                res := &_2; _ = res
-                // RULE: _datalist_36r -> _datalist_35g*
-                // RULE: _datalist_35g -> dataexpr
-                // RULE: _datalist_35g -> datalist
-                switch p.PeekToken().Kind {
-                case tkDLAT, tkDLDLAT, tkINTEGER, tkSTRING, tkRESERVED, tkIDENTIFIER, tkIDENTIFIERP, tkLP, tkAOP:
-                        // @ dataexpr
-                        _1 := p._parseDataexpr(); _ = _1
-                        v.Push(_1)
-                
-                        continue
-                case tkLS, tkLC:
-                        // @ datalist
-                        _1 := p._parseDatalist(); _ = _1
-                        v.Push(_1)
-                
-                        continue
-                case tkRC:
-                    // NOP
-                default:
-                    p.ErrorUnexpected(p.PeekToken(), "'$@', '$$@', INTEGER, STRING, RESERVED, IDENTIFIER, IDENTIFIERP, '(', AOP, '[', '{', '}'")
-                }
-                break
+        // @ '{' _data_list_38r '}'
+        _1 := p.ConsumeToken(); _ = _1
+        v := &Vec{KwStructData.ToId(_1)}; p.SetContext('#')
+
+        // '{' @ _data_list_38r '}'
+        var _2 Value; _ = _2
+        for {
+            res := &_2; _ = res
+            // RULE: _data_list_38r -> _data_list_37g*
+            // RULE: _data_list_37g -> data_expression
+            // RULE: _data_list_37g -> data_list
+            switch p.PeekToken().Kind {
+            case tkDLAT, tkDLDLAT, tkINTEGER, tkSTRING, tkRESERVED, tkIDENTIFIER, tkIDENTIFIERP, tkLP, tkPREFIX_OPERATOR:
+                // @ data_expression
+                _1 := p._parseDataExpression(); _ = _1
+                v.Push(_1)
+
+                continue
+            case tkLS, tkLC:
+                // @ data_list
+                _1 := p._parseDataList(); _ = _1
+                v.Push(_1)
+
+                continue
+            case tkRC:
+                // NOP
+            default:
+                p.ErrorUnexpected("data-expression, data-list, '}'")
             }
-    
-            // '{' _datalist_36r @ '}'
-            if p.PeekToken().Kind != tkRC {
-                p.ErrorUnexpected(p.PeekToken(), "'}'")
-            }
-            _3 := p.ConsumeToken(); _ = _3
-            res = v
+            break
+        }
+
+        // '{' _data_list_38r @ '}'
+        _3 := p.PeekToken(); _ = _3
+        if _3.Kind == tkRC {
+            p.ConsumeToken()
+        } else {
+            p.ErrorUnexpected("'}'")
+        }
+        *res = v
     default:
-        p.ErrorUnexpected(p.PeekToken(), "'[', '{'")
+        p.ErrorUnexpected("data-list")
     }
     return
 }
 
 /** ** **
-  dataexpr ->
+  data_expression ->
       constexpr
-    | explicitval
+    | explicit_value
  ** ** **/
-func (p *Parser) _parseDataexpr() (res Value) {
-    // RULE: dataexpr -> constexpr
-    // RULE: dataexpr -> explicitval
+func (p *Parser) _parseDataExpression() (ret Value) {
+    res := &ret; _ = res
+    // RULE: data_expression -> constexpr
+    // RULE: data_expression -> explicit_value
     switch p.PeekToken().Kind {
-    case tkINTEGER, tkSTRING, tkRESERVED, tkIDENTIFIER, tkIDENTIFIERP, tkLP, tkAOP:
-            // @ constexpr
-            _1 := p._parseConstexpr(); _ = _1
-            res = _1
+    case tkINTEGER, tkSTRING, tkRESERVED, tkIDENTIFIER, tkIDENTIFIERP, tkLP, tkPREFIX_OPERATOR:
+        // @ constexpr
+        _1 := p._parseConstexpr(); _ = _1
+        *res = _1
     case tkDLAT, tkDLDLAT:
-            // @ explicitval
-            _1 := p._parseExplicitval(); _ = _1
-            res = _1
+        // @ explicit_value
+        _1 := p._parseExplicitValue(); _ = _1
+        *res = _1
     default:
-        p.ErrorUnexpected(p.PeekToken(), "INTEGER, STRING, RESERVED, IDENTIFIER, IDENTIFIERP, '(', AOP, '$@', '$$@'")
+        p.ErrorUnexpected("data-expression")
     }
     return
 }
 
 /** ** **
-  dataval ->
+  data_value ->
       constval
-    | explicitval
+    | explicit_value
  ** ** **/
-func (p *Parser) _parseDataval() (res Value) {
-    // RULE: dataval -> constval
-    // RULE: dataval -> explicitval
+func (p *Parser) _parseDataValue() (ret Value) {
+    res := &ret; _ = res
+    // RULE: data_value -> constval
+    // RULE: data_value -> explicit_value
     switch p.PeekToken().Kind {
-    case tkINTEGER, tkSTRING, tkRESERVED, tkIDENTIFIER, tkIDENTIFIERP, tkLP, tkAOP:
-            // @ constval
-            _1 := p._parseConstval(); _ = _1
-            res = _1
+    case tkINTEGER, tkSTRING, tkRESERVED, tkIDENTIFIER, tkIDENTIFIERP, tkLP, tkPREFIX_OPERATOR:
+        // @ constval
+        _1 := p._parseConstval(); _ = _1
+        *res = _1
     case tkDLAT, tkDLDLAT:
-            // @ explicitval
-            _1 := p._parseExplicitval(); _ = _1
-            res = _1
+        // @ explicit_value
+        _1 := p._parseExplicitValue(); _ = _1
+        *res = _1
     default:
-        p.ErrorUnexpected(p.PeekToken(), "INTEGER, STRING, RESERVED, IDENTIFIER, IDENTIFIERP, '(', AOP, '$@', '$$@'")
+        p.ErrorUnexpected("data-value")
     }
     return
 }
 
 /** ** **
-  symexpr ->
-      '%{' symval (
-        symval
+  symbol_expression ->
+      '%{' symbol_expression_value (
+        symbol_expression_value
       )* '}'
  ** ** **/
-func (p *Parser) _parseSymexpr() (res Value) {
-    // RULE: symexpr -> '%{' symval _symexpr_38r '}'
+func (p *Parser) _parseSymbolExpression() (ret Value) {
+    res := &ret; _ = res
+    // RULE: symbol_expression -> '%{' symbol_expression_value _symbol_expression_40r '}'
     switch p.PeekToken().Kind {
     case tkPELC:
-            // @ '%{' symval _symexpr_38r '}'
-            _1 := p.ConsumeToken(); _ = _1
-    
-            // '%{' @ symval _symexpr_38r '}'
-            _2 := p._parseSymval(); _ = _2
-            v := &Vec{KwMakeId.ToId(_1), _2}
-    
-            // '%{' symval @ _symexpr_38r '}'
-            var _3 Value; _ = _3
-            for {
-                res := &_3; _ = res
-                // RULE: _symexpr_38r -> _symexpr_37g*
-                // RULE: _symexpr_37g -> symval
-                switch p.PeekToken().Kind {
-                case tkIDENTIFIER, tkSTRING:
-                        // @ symval
-                        _1 := p._parseSymval(); _ = _1
-                        v.Push(_1)
-                
-                        continue
-                case tkRC:
-                    // NOP
-                default:
-                    p.ErrorUnexpected(p.PeekToken(), "IDENTIFIER, STRING, '}'")
-                }
-                break
+        // @ '%{' symbol_expression_value _symbol_expression_40r '}'
+        _1 := p.ConsumeToken(); _ = _1
+
+        // '%{' @ symbol_expression_value _symbol_expression_40r '}'
+        _2 := p._parseSymbolExpressionValue(); _ = _2
+        v := &Vec{KwMakeId.ToId(_1), _2}
+
+        // '%{' symbol_expression_value @ _symbol_expression_40r '}'
+        var _3 Value; _ = _3
+        for {
+            res := &_3; _ = res
+            // RULE: _symbol_expression_40r -> _symbol_expression_39g*
+            // RULE: _symbol_expression_39g -> symbol_expression_value
+            switch p.PeekToken().Kind {
+            case tkIDENTIFIER, tkSTRING:
+                // @ symbol_expression_value
+                _1 := p._parseSymbolExpressionValue(); _ = _1
+                v.Push(_1)
+
+                continue
+            case tkRC:
+                // NOP
+            default:
+                p.ErrorUnexpected("symbol-expression-value, '}'")
             }
-    
-            // '%{' symval _symexpr_38r @ '}'
-            if p.PeekToken().Kind != tkRC {
-                p.ErrorUnexpected(p.PeekToken(), "'}'")
-            }
-            _4 := p.ConsumeToken(); _ = _4
-            res = _constexpr(v, _1)
+            break
+        }
+
+        // '%{' symbol_expression_value _symbol_expression_40r @ '}'
+        _4 := p.PeekToken(); _ = _4
+        if _4.Kind == tkRC {
+            p.ConsumeToken()
+        } else {
+            p.ErrorUnexpected("'}'")
+        }
+        *res = _constexpr(v, _1)
     default:
-        p.ErrorUnexpected(p.PeekToken(), "'%{'")
+        p.ErrorUnexpected("symbol-expression")
     }
     return
 }
 
 /** ** **
-  symval ->
+  symbol_expression_value ->
       IDENTIFIER
     | STRING
  ** ** **/
-func (p *Parser) _parseSymval() (res Value) {
-    // RULE: symval -> IDENTIFIER
-    // RULE: symval -> STRING
+func (p *Parser) _parseSymbolExpressionValue() (ret Value) {
+    res := &ret; _ = res
+    // RULE: symbol_expression_value -> IDENTIFIER
+    // RULE: symbol_expression_value -> STRING
     switch p.PeekToken().Kind {
     case tkIDENTIFIER:
-            // @ IDENTIFIER
-            _1 := p.ConsumeToken(); _ = _1
-            res = _1.Value
+        // @ IDENTIFIER
+        _1 := p.ConsumeToken(); _ = _1
+        *res = _1.Value
     case tkSTRING:
-            // @ STRING
-            _1 := p.ConsumeToken(); _ = _1
-            res = _1.Value
+        // @ STRING
+        _1 := p.ConsumeToken(); _ = _1
+        *res = _1.Value
     default:
-        p.ErrorUnexpected(p.PeekToken(), "IDENTIFIER, STRING")
+        p.ErrorUnexpected("symbol-expression-value")
     }
     return
 }
 
 /** ** **
-  sig ->
+  signature ->
       (
         '-*'
-      )? regs (
-        '=>' regs
+      )? registers? (
+        '=>' registers?
       )? (
-        '!' regs
+        '!' registers?
       )?
  ** ** **/
-func (p *Parser) _parseSig() (res Value) {
-    // RULE: sig -> _sig_40o regs _sig_42o _sig_44o
+func (p *Parser) _parseSignature() (ret Value) {
+    res := &ret; _ = res
+    // RULE: signature -> _signature_42o _signature_43o _signature_46o _signature_49o
     v := &Vec{NIL, NIL, NIL, NIL}
     switch p.PeekToken().Kind {
-    case tkMIAS, tkREG, tkEQGT, tkEX, tkRP:
-            // @ _sig_40o regs _sig_42o _sig_44o
-            var _1 Value; _ = _1
-            for {
-                res := &_1; _ = res
-                // RULE: _sig_40o -> _sig_39g?
-                // RULE: _sig_39g -> '-*'
-                switch p.PeekToken().Kind {
-                case tkMIAS:
-                        // @ '-*'
-                        _1 := p.ConsumeToken(); _ = _1
-                        v.SetAt(3, Int(1))
-                case tkREG, tkEQGT, tkEX, tkRP:
-                    // NOP
-                default:
-                    p.ErrorUnexpected(p.PeekToken(), "'-*', REG, '=>', '!', ')'")
-                }
-                break
+    case tkMIAS, tkREGISTER, tkEQGT, tkEX, tkRP:
+        // @ _signature_42o _signature_43o _signature_46o _signature_49o
+        var _1 Value; _ = _1
+        for {
+            res := &_1; _ = res
+            // RULE: _signature_42o -> _signature_41g?
+            // RULE: _signature_41g -> '-*'
+            switch p.PeekToken().Kind {
+            case tkMIAS:
+                // @ '-*'
+                _1 := p.ConsumeToken(); _ = _1
+                v.SetAt(3, Int(1))
+            case tkREGISTER, tkEQGT, tkEX, tkRP:
+                // NOP
+            default:
+                p.ErrorUnexpected("'-*', registers, '=>', '!', etc.")
             }
-    
-            // _sig_40o @ regs _sig_42o _sig_44o
-            _2 := p._parseRegs(); _ = _2
-            v.SetAt(0, _2)
-    
-            // _sig_40o regs @ _sig_42o _sig_44o
-            var _3 Value; _ = _3
-            for {
-                res := &_3; _ = res
-                // RULE: _sig_42o -> _sig_41g?
-                // RULE: _sig_41g -> '=>' regs
-                switch p.PeekToken().Kind {
-                case tkEQGT:
-                        // @ '=>' regs
-                        _1 := p.ConsumeToken(); _ = _1
-                
-                        // '=>' @ regs
-                        _2 := p._parseRegs(); _ = _2
-                        v.SetAt(1, _2)
-                case tkEX, tkRP:
-                    // NOP
-                default:
-                    p.ErrorUnexpected(p.PeekToken(), "'=>', '!', ')'")
-                }
-                break
+            break
+        }
+
+        // _signature_42o @ _signature_43o _signature_46o _signature_49o
+        var _2 Value; _ = _2
+        for {
+            res := &_2; _ = res
+            // RULE: _signature_43o -> registers
+            // RULE: _signature_43o -> 
+            switch p.PeekToken().Kind {
+            case tkREGISTER:
+                // @ registers
+                _1 := p._parseRegisters(); _ = _1
+                *res = _1 // DEFAULT OPT ACTION
+            case tkEQGT, tkEX, tkRP:
+                // NOP
+            default:
+                p.ErrorUnexpected("registers, '=>', '!', etc.")
             }
-    
-            // _sig_40o regs _sig_42o @ _sig_44o
-            var _4 Value; _ = _4
-            for {
-                res := &_4; _ = res
-                // RULE: _sig_44o -> _sig_43g?
-                // RULE: _sig_43g -> '!' regs
-                switch p.PeekToken().Kind {
-                case tkEX:
-                        // @ '!' regs
-                        _1 := p.ConsumeToken(); _ = _1
-                
-                        // '!' @ regs
-                        _2 := p._parseRegs(); _ = _2
-                        v.SetAt(2, _2)
-                case tkRP:
-                    // NOP
-                default:
-                    p.ErrorUnexpected(p.PeekToken(), "'!', ')'")
+            break
+        }
+        if _2 != nil { v.SetAt(0, _2) }
+
+        // _signature_42o _signature_43o @ _signature_46o _signature_49o
+        var _3 Value; _ = _3
+        for {
+            res := &_3; _ = res
+            // RULE: _signature_46o -> _signature_45g?
+            // RULE: _signature_45g -> '=>' _signature_44o
+            switch p.PeekToken().Kind {
+            case tkEQGT:
+                // @ '=>' _signature_44o
+                _1 := p.ConsumeToken(); _ = _1
+
+                // '=>' @ _signature_44o
+                var _2 Value; _ = _2
+                for {
+                    res := &_2; _ = res
+                    // RULE: _signature_44o -> registers
+                    // RULE: _signature_44o -> 
+                    switch p.PeekToken().Kind {
+                    case tkREGISTER:
+                        // @ registers
+                        _1 := p._parseRegisters(); _ = _1
+                        *res = _1 // DEFAULT OPT ACTION
+                    case tkEX, tkRP:
+                        // NOP
+                    default:
+                        p.ErrorUnexpected("registers, etc.")
+                    }
+                    break
                 }
-                break
+                if _2 != nil { v.SetAt(1, _2) }
+            case tkEX, tkRP:
+                // NOP
+            default:
+                p.ErrorUnexpected("'=>', '!', etc.")
             }
-            res = v
+            break
+        }
+
+        // _signature_42o _signature_43o _signature_46o @ _signature_49o
+        var _4 Value; _ = _4
+        for {
+            res := &_4; _ = res
+            // RULE: _signature_49o -> _signature_48g?
+            // RULE: _signature_48g -> '!' _signature_47o
+            switch p.PeekToken().Kind {
+            case tkEX:
+                // @ '!' _signature_47o
+                _1 := p.ConsumeToken(); _ = _1
+
+                // '!' @ _signature_47o
+                var _2 Value; _ = _2
+                for {
+                    res := &_2; _ = res
+                    // RULE: _signature_47o -> registers
+                    // RULE: _signature_47o -> 
+                    switch p.PeekToken().Kind {
+                    case tkREGISTER:
+                        // @ registers
+                        _1 := p._parseRegisters(); _ = _1
+                        *res = _1 // DEFAULT OPT ACTION
+                    case tkRP:
+                        // NOP
+                    default:
+                        p.ErrorUnexpected("registers, etc.")
+                    }
+                    break
+                }
+                if _2 != nil { v.SetAt(2, _2)
+                                         } else { v.SetAt(2, &Vec{}) }
+            case tkRP:
+                // NOP
+            default:
+                p.ErrorUnexpected("'!', etc.")
+            }
+            break
+        }
+        *res = v
     default:
-        p.ErrorUnexpected(p.PeekToken(), "'-*', REG, '=>', '!', ')'")
+        p.ErrorUnexpected("signature, etc.")
     }
     return
 }
 
 /** ** **
-  regs ->
-      (
-        REG
+  registers ->
+      REGISTER (
+        REGISTER
       )*
  ** ** **/
-func (p *Parser) _parseRegs() (res Value) {
-    // RULE: regs -> _regs_46r
-    v := &Vec{}
+func (p *Parser) _parseRegisters() (ret Value) {
+    res := &ret; _ = res
+    // RULE: registers -> REGISTER _registers_51r
     switch p.PeekToken().Kind {
-    case tkREG, tkEQGT, tkEX, tkRP:
-            // @ _regs_46r
-            var _1 Value; _ = _1
-            for {
-                res := &_1; _ = res
-                // RULE: _regs_46r -> _regs_45g*
-                // RULE: _regs_45g -> REG
-                switch p.PeekToken().Kind {
-                case tkREG:
-                        // @ REG
-                        _1 := p.ConsumeToken(); _ = _1
-                        v.Push(_1.Value)
-                
-                        continue
-                case tkEQGT, tkEX, tkRP:
-                    // NOP
-                default:
-                    p.ErrorUnexpected(p.PeekToken(), "REG, '=>', '!', ')'")
-                }
-                break
+    case tkREGISTER:
+        // @ REGISTER _registers_51r
+        _1 := p.ConsumeToken(); _ = _1
+        v := &Vec{_1.Value}
+
+        // REGISTER @ _registers_51r
+        var _2 Value; _ = _2
+        for {
+            res := &_2; _ = res
+            // RULE: _registers_51r -> _registers_50g*
+            // RULE: _registers_50g -> REGISTER
+            switch p.PeekToken().Kind {
+            case tkREGISTER:
+                // @ REGISTER
+                _1 := p.ConsumeToken(); _ = _1
+                v.Push(_1.Value)
+
+                continue
+            case tkEQGT, tkEX, tkRP:
+                // NOP
+            default:
+                p.ErrorUnexpected("register, etc.")
             }
-            res = v
+            break
+        }
+        *res = v
     default:
-        p.ErrorUnexpected(p.PeekToken(), "REG, '=>', '!', ')'")
+        p.ErrorUnexpected("registers")
     }
     return
 }
@@ -1246,479 +1361,445 @@ func (p *Parser) _parseRegs() (res Value) {
       '{' program '}'
     | '={' program '}'
  ** ** **/
-func (p *Parser) _parseBlock() (res Value) {
+func (p *Parser) _parseBlock() (ret Value) {
+    res := &ret; _ = res
     // RULE: block -> '{' program '}'
     // RULE: block -> '={' program '}'
     switch p.PeekToken().Kind {
     case tkLC:
-            // @ '{' program '}'
-            _1 := p.ConsumeToken(); _ = _1
-    
-            // '{' @ program '}'
-            _2 := p._parseProgram(); _ = _2
-    
-            // '{' program @ '}'
-            if p.PeekToken().Kind != tkRC {
-                p.ErrorUnexpected(p.PeekToken(), "'}'")
-            }
-            _3 := p.ConsumeToken(); _ = _3
-            v := _2.(*Vec); v.SetAt(0, KwProg.ToId(_1)); res = v
+        // @ '{' program '}'
+        _1 := p.ConsumeToken(); _ = _1
+
+        // '{' @ program '}'
+        _2 := p._parseProgram(); _ = _2
+
+        // '{' program @ '}'
+        _3 := p.PeekToken(); _ = _3
+        if _3.Kind == tkRC {
+            p.ConsumeToken()
+        } else {
+            p.ErrorUnexpected("'}'")
+        }
+        v := _2.(*Vec); v.SetAt(0, KwProg.ToId(_1)); *res = v
     case tkEQLC:
-            // @ '={' program '}'
-            _1 := p.ConsumeToken(); _ = _1
-    
-            // '={' @ program '}'
-            _2 := p._parseProgram(); _ = _2
-    
-            // '={' program @ '}'
-            if p.PeekToken().Kind != tkRC {
-                p.ErrorUnexpected(p.PeekToken(), "'}'")
-            }
-            _3 := p.ConsumeToken(); _ = _3
-            res = _2
+        // @ '={' program '}'
+        _1 := p.ConsumeToken(); _ = _1
+
+        // '={' @ program '}'
+        _2 := p._parseProgram(); _ = _2
+
+        // '={' program @ '}'
+        _3 := p.PeekToken(); _ = _3
+        if _3.Kind == tkRC {
+            p.ConsumeToken()
+        } else {
+            p.ErrorUnexpected("'}'")
+        }
+        *res = _2
     default:
-        p.ErrorUnexpected(p.PeekToken(), "'{', '={'")
+        p.ErrorUnexpected("block")
     }
     return
 }
 
 /** ** **
-  expr ->
-      identifier (
-        oper
-      )*
-    | callproc
-    | contextexpr
+  proc_call ->
+      CONDDOT? identifierp '(' signature ')'
  ** ** **/
-func (p *Parser) _parseExpr() (res Value) {
-    // RULE: expr -> identifier _expr_48r
-    // RULE: expr -> callproc
-    // RULE: expr -> contextexpr
-    switch p.PeekToken().Kind {
-    case tkIDENTIFIER:
-            // @ identifier _expr_48r
-            _1 := p._parseIdentifier(); _ = _1
-            v := &Vec{_idfrom(_1)}
-    
-            // identifier @ _expr_48r
-            var _2 Value; _ = _2
-            for {
-                res := &_2; _ = res
-                // RULE: _expr_48r -> _expr_47g*
-                // RULE: _expr_47g -> oper
-                switch p.PeekToken().Kind {
-                case tkCOND, tkLC, tkEQLC, tkREG, tkLS, tkDLAT, tkDLDLAT, tkINTEGER, tkSTRING, tkRESERVED, tkIDENTIFIER, tkIDENTIFIERP, tkLP, tkAOP:
-                        // @ oper
-                        _1 := p._parseOper(); _ = _1
-                        v.Push(_1)
-                
-                        continue
-                case tkSC, tkEOF, tkRC:
-                    // NOP
-                default:
-                    p.ErrorUnexpected(p.PeekToken(), "COND, '{', '={', REG, '[', '$@', '$$@', INTEGER, STRING, RESERVED, IDENTIFIER, IDENTIFIERP, '(', AOP, ';', EOF, '}'")
-                }
-                break
-            }
-            res = v
-    case tkCONDDOT, tkIDENTIFIERP:
-            // @ callproc
-            _1 := p._parseCallproc(); _ = _1
-            res = _1
-    case tkATMI, tkREG, tkLS, tkDLAT, tkDLDLAT:
-            // @ contextexpr
-            _1 := p._parseContextexpr(); _ = _1
-            res = _1
-    default:
-        p.ErrorUnexpected(p.PeekToken(), "IDENTIFIER, CONDDOT, IDENTIFIERP, '@-', REG, '[', '$@', '$$@'")
-    }
-    return
-}
-
-/** ** **
-  callproc ->
-      CONDDOT? identifierp '(' sig ')'
- ** ** **/
-func (p *Parser) _parseCallproc() (res Value) {
-    // RULE: callproc -> _callproc_49o identifierp '(' sig ')'
+func (p *Parser) _parseProcCall() (ret Value) {
+    res := &ret; _ = res
+    // RULE: proc_call -> _proc_call_52o identifierp '(' signature ')'
     switch p.PeekToken().Kind {
     case tkCONDDOT, tkIDENTIFIERP:
-            // @ _callproc_49o identifierp '(' sig ')'
-            var _1 *Token; _ = _1
-            for {
-                res := &_1; _ = res
-                // RULE: _callproc_49o -> CONDDOT
-                // RULE: _callproc_49o -> 
-                switch p.PeekToken().Kind {
-                case tkCONDDOT:
-                        // @ CONDDOT
-                        _1 := p.ConsumeToken(); _ = _1
-                        *res = _1 // DEFAULT OPT ACTION
-                case tkIDENTIFIERP:
-                        *res = NILTK
-                default:
-                    p.ErrorUnexpected(p.PeekToken(), "CONDDOT, IDENTIFIERP")
-                }
-                break
+        // @ _proc_call_52o identifierp '(' signature ')'
+        var _1 *Token; _ = _1
+        for {
+            res := &_1; _ = res
+            // RULE: _proc_call_52o -> CONDDOT
+            // RULE: _proc_call_52o -> 
+            switch p.PeekToken().Kind {
+            case tkCONDDOT:
+                // @ CONDDOT
+                _1 := p.ConsumeToken(); _ = _1
+                *res = _1 // DEFAULT OPT ACTION
+            case tkIDENTIFIERP:
+                *res = NILTK
+            default:
+                p.ErrorUnexpected("CONDDOT, identifier")
             }
-    
-            // _callproc_49o @ identifierp '(' sig ')'
-            _2 := p._parseIdentifierp(); _ = _2
-    
-            // _callproc_49o identifierp @ '(' sig ')'
-            if p.PeekToken().Kind != tkLP {
-                p.ErrorUnexpected(p.PeekToken(), "'('")
-            }
-            _3 := p.ConsumeToken(); _ = _3
-    
-            // _callproc_49o identifierp '(' @ sig ')'
-            _4 := p._parseSig(); _ = _4
-    
-            // _callproc_49o identifierp '(' sig @ ')'
-            if p.PeekToken().Kind != tkRP {
-                p.ErrorUnexpected(p.PeekToken(), "')'")
-            }
-            _5 := p.ConsumeToken(); _ = _5
-            res = &Vec{KwCallproc.ToId(_3), _2, _1.Value, _4, KwCall}
+            break
+        }
+
+        // _proc_call_52o @ identifierp '(' signature ')'
+        _2 := p._parseIdentifierp(); _ = _2
+
+        // _proc_call_52o identifierp @ '(' signature ')'
+        _3 := p.PeekToken(); _ = _3
+        if _3.Kind == tkLP {
+            p.ConsumeToken()
+        } else {
+            p.ErrorUnexpected("'('")
+        }
+
+        // _proc_call_52o identifierp '(' @ signature ')'
+        _4 := p._parseSignature(); _ = _4
+
+        // _proc_call_52o identifierp '(' signature @ ')'
+        _5 := p.PeekToken(); _ = _5
+        if _5.Kind == tkRP {
+            p.ConsumeToken()
+        } else {
+            p.ErrorUnexpected("')'")
+        }
+        *res = &Vec{KwCallproc.ToId(_3), _2, _1.Value, _4, KwCall}
     default:
-        p.ErrorUnexpected(p.PeekToken(), "CONDDOT, IDENTIFIERP")
+        p.ErrorUnexpected("proc-call")
     }
     return
 }
 
 /** ** **
-  contextexpr ->
+  context_expression ->
       (
-        regld
-      | mem
-      | explicitval
-      | '@-' prim
+        decorated_register
+      | memory_access
+      | explicit_value
+      | '@-' primitive
       ) (
-        UOP
-      | BOP oper
-      | DOP dotarg
+        POSTFIX_OPERATOR
+      | BINARY_OPERATOR operand
+      | DOT_OPERATOR dot_operand
       )*
  ** ** **/
-func (p *Parser) _parseContextexpr() (res Value) {
-    // RULE: contextexpr -> _contextexpr_50g _contextexpr_52r
-    v := &Vec{_markerid(p, KwWith)}
+func (p *Parser) _parseContextExpression() (ret Value) {
+    res := &ret; _ = res
+    // RULE: context_expression -> _context_expression_53g _context_expression_55r
+    v := &Vec{KwWith.ToId(p.PeekToken())}
     switch p.PeekToken().Kind {
-    case tkATMI, tkREG, tkLS, tkDLAT, tkDLDLAT:
-            // @ _contextexpr_50g _contextexpr_52r
-            var _1 Value; _ = _1
-            for {
-                res := &_1; _ = res
-                // RULE: _contextexpr_50g -> regld
-                // RULE: _contextexpr_50g -> mem
-                // RULE: _contextexpr_50g -> explicitval
-                // RULE: _contextexpr_50g -> '@-' prim
-                switch p.PeekToken().Kind {
-                case tkREG:
-                        // @ regld
-                        _1 := p._parseRegld(); _ = _1
-                        v = _1.(*Vec)
-                case tkLS:
-                        // @ mem
-                        _1 := p._parseMem(); _ = _1
-                        v.Push(_1)
-                case tkDLAT, tkDLDLAT:
-                        // @ explicitval
-                        _1 := p._parseExplicitval(); _ = _1
-                        v.Push(_1)
-                case tkATMI:
-                        // @ '@-' prim
-                        _1 := p.ConsumeToken(); _ = _1
-                
-                        // '@-' @ prim
-                        _2 := p._parsePrim(); _ = _2
-                        v.Push(p.cc.KwRegA.ToId(_1), &Vec{_atopid(_2, _1), _2})
-                default:
-                    p.ErrorUnexpected(p.PeekToken(), "REG, '[', '$@', '$$@', '@-'")
-                }
-                break
+    case tkATMI, tkREGISTER, tkLS, tkDLAT, tkDLDLAT:
+        // @ _context_expression_53g _context_expression_55r
+        var _1 Value; _ = _1
+        for {
+            res := &_1; _ = res
+            // RULE: _context_expression_53g -> decorated_register
+            // RULE: _context_expression_53g -> memory_access
+            // RULE: _context_expression_53g -> explicit_value
+            // RULE: _context_expression_53g -> '@-' primitive
+            switch p.PeekToken().Kind {
+            case tkREGISTER:
+                // @ decorated_register
+                _1 := p._parseDecoratedRegister(); _ = _1
+                v = _1.(*Vec)
+            case tkLS:
+                // @ memory_access
+                _1 := p._parseMemoryAccess(); _ = _1
+                v.Push(_1)
+            case tkDLAT, tkDLDLAT:
+                // @ explicit_value
+                _1 := p._parseExplicitValue(); _ = _1
+                v.Push(_1)
+            case tkATMI:
+                // @ '@-' primitive
+                _1 := p.ConsumeToken(); _ = _1
+
+                // '@-' @ primitive
+                _2 := p._parsePrimitive(); _ = _2
+                v.Push(p.cc.KwRegA.ToId(_1), &Vec{_atopid(_2, _1), _2})
+            default:
+                p.ErrorUnexpected("register, memory-access, explicit-value, '@-'")
             }
-    
-            // _contextexpr_50g @ _contextexpr_52r
-            var _2 Value; _ = _2
-            for {
-                res := &_2; _ = res
-                // RULE: _contextexpr_52r -> _contextexpr_51g*
-                // RULE: _contextexpr_51g -> UOP
-                // RULE: _contextexpr_51g -> BOP oper
-                // RULE: _contextexpr_51g -> DOP dotarg
-                switch p.PeekToken().Kind {
-                case tkUOP:
-                        // @ UOP
-                        _1 := p.ConsumeToken(); _ = _1
-                        v.Push(&Vec{_1.Value, NIL})
-                
-                        continue
-                case tkBOP:
-                        // @ BOP oper
-                        _1 := p.ConsumeToken(); _ = _1
-                
-                        // BOP @ oper
-                        _2 := p._parseOper(); _ = _2
-                        v.Push(&Vec{_1.Value, _2})
-                
-                        continue
-                case tkDOP:
-                        // @ DOP dotarg
-                        _1 := p.ConsumeToken(); _ = _1
-                
-                        // DOP @ dotarg
-                        _2 := p._parseDotarg(); _ = _2
-                        v.Push(&Vec{_1.Value, _2})
-                
-                        continue
-                case tkSC, tkEOF, tkATMI, tkREG, tkLS, tkDLAT, tkDLDLAT, tkINTEGER, tkSTRING, tkRESERVED, tkIDENTIFIER, tkIDENTIFIERP, tkLP, tkAOP, tkRC, tkRS:
-                    // NOP
-                default:
-                    p.ErrorUnexpected(p.PeekToken(), "UOP, BOP, DOP, ';', EOF, '@-', REG, '[', '$@', '$$@', INTEGER, STRING, RESERVED, IDENTIFIER, IDENTIFIERP, '(', AOP, '}', ']'")
-                }
-                break
+            break
+        }
+
+        // _context_expression_53g @ _context_expression_55r
+        var _2 Value; _ = _2
+        for {
+            res := &_2; _ = res
+            // RULE: _context_expression_55r -> _context_expression_54g*
+            // RULE: _context_expression_54g -> POSTFIX_OPERATOR
+            // RULE: _context_expression_54g -> BINARY_OPERATOR operand
+            // RULE: _context_expression_54g -> DOT_OPERATOR dot_operand
+            switch p.PeekToken().Kind {
+            case tkPOSTFIX_OPERATOR:
+                // @ POSTFIX_OPERATOR
+                _1 := p.ConsumeToken(); _ = _1
+                v.Push(&Vec{_1.Value, NIL})
+
+                continue
+            case tkBINARY_OPERATOR:
+                // @ BINARY_OPERATOR operand
+                _1 := p.ConsumeToken(); _ = _1
+
+                // BINARY_OPERATOR @ operand
+                _2 := p._parseOperand(); _ = _2
+                v.Push(&Vec{_1.Value, _2})
+
+                continue
+            case tkDOT_OPERATOR:
+                // @ DOT_OPERATOR dot_operand
+                _1 := p.ConsumeToken(); _ = _1
+
+                // DOT_OPERATOR @ dot_operand
+                _2 := p._parseDotOperand(); _ = _2
+                v.Push(&Vec{_1.Value, _2})
+
+                continue
+            case tkSC, tkEOF, tkATMI, tkREGISTER, tkLS, tkDLAT, tkDLDLAT, tkINTEGER, tkSTRING, tkRESERVED, tkIDENTIFIER, tkIDENTIFIERP, tkLP, tkPREFIX_OPERATOR, tkRC, tkRS:
+                // NOP
+            default:
+                p.ErrorUnexpected("POSTFIX-OPERATOR, BINARY-OPERATOR, '.', etc.")
             }
-            res = v
+            break
+        }
+        *res = v
     default:
-        p.ErrorUnexpected(p.PeekToken(), "'@-', REG, '[', '$@', '$$@'")
+        p.ErrorUnexpected("context-expression")
     }
     return
 }
 
 /** ** **
-  oper ->
-      prim (
-        ':' prim
+  operand ->
+      primitive (
+        ':' primitive
       )?
  ** ** **/
-func (p *Parser) _parseOper() (res Value) {
-    // RULE: oper -> prim _oper_54o
+func (p *Parser) _parseOperand() (ret Value) {
+    res := &ret; _ = res
+    // RULE: operand -> primitive _operand_57o
     switch p.PeekToken().Kind {
-    case tkCOND, tkLC, tkEQLC, tkREG, tkLS, tkDLAT, tkDLDLAT, tkINTEGER, tkSTRING, tkRESERVED, tkIDENTIFIER, tkIDENTIFIERP, tkLP, tkAOP:
-            // @ prim _oper_54o
-            _1 := p._parsePrim(); _ = _1
-            v := _1
-    
-            // prim @ _oper_54o
-            var _2 Value; _ = _2
-            for {
-                res := &_2; _ = res
-                // RULE: _oper_54o -> _oper_53g?
-                // RULE: _oper_53g -> ':' prim
-                switch p.PeekToken().Kind {
-                case tkCL:
-                        // @ ':' prim
-                        _1 := p.ConsumeToken(); _ = _1
-                
-                        // ':' @ prim
-                        _2 := p._parsePrim(); _ = _2
-                        v = &Vec{KwTpl.ToId(_1), v, _2}
-                case tkCOND, tkLC, tkEQLC, tkREG, tkLS, tkDLAT, tkDLDLAT, tkINTEGER, tkSTRING, tkRESERVED, tkIDENTIFIER, tkIDENTIFIERP, tkLP, tkAOP, tkUOP, tkBOP, tkDOP, tkSC, tkEOF, tkRC, tkATMI, tkRS:
-                    // NOP
-                default:
-                    p.ErrorUnexpected(p.PeekToken(), "':', COND, '{', '={', REG, '[', '$@', '$$@', INTEGER, STRING, RESERVED, IDENTIFIER, IDENTIFIERP, '(', AOP, UOP, BOP, DOP, ';', EOF, '}', '@-', ']'")
-                }
-                break
+    case tkCONDITION, tkLC, tkEQLC, tkREGISTER, tkLS, tkDLAT, tkDLDLAT, tkINTEGER, tkSTRING, tkRESERVED, tkIDENTIFIER, tkIDENTIFIERP, tkLP, tkPREFIX_OPERATOR:
+        // @ primitive _operand_57o
+        _1 := p._parsePrimitive(); _ = _1
+        v := _1
+
+        // primitive @ _operand_57o
+        var _2 Value; _ = _2
+        for {
+            res := &_2; _ = res
+            // RULE: _operand_57o -> _operand_56g?
+            // RULE: _operand_56g -> ':' primitive
+            switch p.PeekToken().Kind {
+            case tkCL:
+                // @ ':' primitive
+                _1 := p.ConsumeToken(); _ = _1
+
+                // ':' @ primitive
+                _2 := p._parsePrimitive(); _ = _2
+                v = &Vec{KwTpl.ToId(_1), v, _2}
+            case tkCONDITION, tkLC, tkEQLC, tkREGISTER, tkLS, tkDLAT, tkDLDLAT, tkINTEGER, tkSTRING, tkRESERVED, tkIDENTIFIER, tkIDENTIFIERP, tkLP, tkPREFIX_OPERATOR, tkPOSTFIX_OPERATOR, tkBINARY_OPERATOR, tkDOT_OPERATOR, tkSC, tkEOF, tkRC, tkATMI, tkRS:
+                // NOP
+            default:
+                p.ErrorUnexpected("':', etc.")
             }
-            res = v
+            break
+        }
+        *res = v
     default:
-        p.ErrorUnexpected(p.PeekToken(), "COND, '{', '={', REG, '[', '$@', '$$@', INTEGER, STRING, RESERVED, IDENTIFIER, IDENTIFIERP, '(', AOP")
+        p.ErrorUnexpected("operand")
     }
     return
 }
 
 /** ** **
-  prim ->
-      COND
-    | regld
-    | mem
-    | dataval
+  primitive ->
+      CONDITION
+    | decorated_register
+    | memory_access
+    | data_value
     | block
  ** ** **/
-func (p *Parser) _parsePrim() (res Value) {
-    // RULE: prim -> COND
-    // RULE: prim -> regld
-    // RULE: prim -> mem
-    // RULE: prim -> dataval
-    // RULE: prim -> block
+func (p *Parser) _parsePrimitive() (ret Value) {
+    res := &ret; _ = res
+    // RULE: primitive -> CONDITION
+    // RULE: primitive -> decorated_register
+    // RULE: primitive -> memory_access
+    // RULE: primitive -> data_value
+    // RULE: primitive -> block
     switch p.PeekToken().Kind {
-    case tkCOND:
-            // @ COND
-            _1 := p.ConsumeToken(); _ = _1
-            res = _1.Value
-    case tkREG:
-            // @ regld
-            _1 := p._parseRegld(); _ = _1
-            res = _maybeunwrapwith(_1)
+    case tkCONDITION:
+        // @ CONDITION
+        _1 := p.ConsumeToken(); _ = _1
+        *res = _1.Value
+    case tkREGISTER:
+        // @ decorated_register
+        _1 := p._parseDecoratedRegister(); _ = _1
+        *res = _maybeunwrapwith(_1)
     case tkLS:
-            // @ mem
-            _1 := p._parseMem(); _ = _1
-            res = _1
-    case tkDLAT, tkDLDLAT, tkINTEGER, tkSTRING, tkRESERVED, tkIDENTIFIER, tkIDENTIFIERP, tkLP, tkAOP:
-            // @ dataval
-            _1 := p._parseDataval(); _ = _1
-            res = _1
+        // @ memory_access
+        _1 := p._parseMemoryAccess(); _ = _1
+        *res = _1
+    case tkDLAT, tkDLDLAT, tkINTEGER, tkSTRING, tkRESERVED, tkIDENTIFIER, tkIDENTIFIERP, tkLP, tkPREFIX_OPERATOR:
+        // @ data_value
+        _1 := p._parseDataValue(); _ = _1
+        *res = _1
     case tkLC, tkEQLC:
-            // @ block
-            _1 := p._parseBlock(); _ = _1
-            res = _1
+        // @ block
+        _1 := p._parseBlock(); _ = _1
+        *res = _1
     default:
-        p.ErrorUnexpected(p.PeekToken(), "COND, REG, '[', '$@', '$$@', INTEGER, STRING, RESERVED, IDENTIFIER, IDENTIFIERP, '(', AOP, '{', '={'")
+        p.ErrorUnexpected("primitive")
     }
     return
 }
 
 /** ** **
-  regld ->
-      REG (
-        '-@' prim
+  decorated_register ->
+      REGISTER (
+        '-@' primitive
       )?
  ** ** **/
-func (p *Parser) _parseRegld() (res Value) {
-    // RULE: regld -> REG _regld_56o
+func (p *Parser) _parseDecoratedRegister() (ret Value) {
+    res := &ret; _ = res
+    // RULE: decorated_register -> REGISTER _decorated_register_59o
     switch p.PeekToken().Kind {
-    case tkREG:
-            // @ REG _regld_56o
-            _1 := p.ConsumeToken(); _ = _1
-            v := &Vec{KwWith.ToId(_1), _1.Value}
-    
-            // REG @ _regld_56o
-            var _2 Value; _ = _2
-            for {
-                res := &_2; _ = res
-                // RULE: _regld_56o -> _regld_55g?
-                // RULE: _regld_55g -> '-@' prim
-                switch p.PeekToken().Kind {
-                case tkMIAT:
-                        // @ '-@' prim
-                        _1 := p.ConsumeToken(); _ = _1
-                
-                        // '-@' @ prim
-                        _2 := p._parsePrim(); _ = _2
-                        v.Push(&Vec{_atopid(_2, _1), _2})
-                case tkCL, tkUOP, tkBOP, tkDOP, tkCOND, tkLC, tkEQLC, tkREG, tkLS, tkDLAT, tkDLDLAT, tkINTEGER, tkSTRING, tkRESERVED, tkIDENTIFIER, tkIDENTIFIERP, tkLP, tkAOP, tkSC, tkEOF, tkATMI, tkRC, tkRS:
-                    // NOP
-                default:
-                    p.ErrorUnexpected(p.PeekToken(), "'-@', ':', UOP, BOP, DOP, COND, '{', '={', REG, '[', '$@', '$$@', INTEGER, STRING, RESERVED, IDENTIFIER, IDENTIFIERP, '(', AOP, ';', EOF, '@-', '}', ']'")
-                }
-                break
+    case tkREGISTER:
+        // @ REGISTER _decorated_register_59o
+        _1 := p.ConsumeToken(); _ = _1
+        v := &Vec{KwWith.ToId(_1), _1.Value}
+
+        // REGISTER @ _decorated_register_59o
+        var _2 Value; _ = _2
+        for {
+            res := &_2; _ = res
+            // RULE: _decorated_register_59o -> _decorated_register_58g?
+            // RULE: _decorated_register_58g -> '-@' primitive
+            switch p.PeekToken().Kind {
+            case tkMIAT:
+                // @ '-@' primitive
+                _1 := p.ConsumeToken(); _ = _1
+
+                // '-@' @ primitive
+                _2 := p._parsePrimitive(); _ = _2
+                v.Push(&Vec{_atopid(_2, _1), _2})
+            case tkCL, tkPOSTFIX_OPERATOR, tkBINARY_OPERATOR, tkDOT_OPERATOR, tkCONDITION, tkLC, tkEQLC, tkREGISTER, tkLS, tkDLAT, tkDLDLAT, tkINTEGER, tkSTRING, tkRESERVED, tkIDENTIFIER, tkIDENTIFIERP, tkLP, tkPREFIX_OPERATOR, tkSC, tkEOF, tkATMI, tkRC, tkRS:
+                // NOP
+            default:
+                p.ErrorUnexpected("'-@', etc.")
             }
-            res = v
+            break
+        }
+        *res = v
     default:
-        p.ErrorUnexpected(p.PeekToken(), "REG")
+        p.ErrorUnexpected("register")
     }
     return
 }
 
 /** ** **
-  mem ->
+  memory_access ->
       '[' (
-        contextexpr
+        context_expression
       | constexpr
       )* ']'
  ** ** **/
-func (p *Parser) _parseMem() (res Value) {
-    // RULE: mem -> '[' _mem_58r ']'
+func (p *Parser) _parseMemoryAccess() (ret Value) {
+    res := &ret; _ = res
+    // RULE: memory_access -> '[' _memory_access_61r ']'
     switch p.PeekToken().Kind {
     case tkLS:
-            // @ '[' _mem_58r ']'
-            _1 := p.ConsumeToken(); _ = _1
-            v := &Vec{KwMem.ToId(_1)}
-    
-            // '[' @ _mem_58r ']'
-            var _2 Value; _ = _2
-            for {
-                res := &_2; _ = res
-                // RULE: _mem_58r -> _mem_57g*
-                // RULE: _mem_57g -> contextexpr
-                // RULE: _mem_57g -> constexpr
-                switch p.PeekToken().Kind {
-                case tkATMI, tkREG, tkLS, tkDLAT, tkDLDLAT:
-                        // @ contextexpr
-                        _1 := p._parseContextexpr(); _ = _1
-                        v.Push(_maybeunwrapwith(_1))
-                
-                        continue
-                case tkINTEGER, tkSTRING, tkRESERVED, tkIDENTIFIER, tkIDENTIFIERP, tkLP, tkAOP:
-                        // @ constexpr
-                        _1 := p._parseConstexpr(); _ = _1
-                        v.Push(_1)
-                
-                        continue
-                case tkRS:
-                    // NOP
-                default:
-                    p.ErrorUnexpected(p.PeekToken(), "'@-', REG, '[', '$@', '$$@', INTEGER, STRING, RESERVED, IDENTIFIER, IDENTIFIERP, '(', AOP, ']'")
-                }
-                break
+        // @ '[' _memory_access_61r ']'
+        _1 := p.ConsumeToken(); _ = _1
+        v := &Vec{KwMem.ToId(_1)}
+
+        // '[' @ _memory_access_61r ']'
+        var _2 Value; _ = _2
+        for {
+            res := &_2; _ = res
+            // RULE: _memory_access_61r -> _memory_access_60g*
+            // RULE: _memory_access_60g -> context_expression
+            // RULE: _memory_access_60g -> constexpr
+            switch p.PeekToken().Kind {
+            case tkATMI, tkREGISTER, tkLS, tkDLAT, tkDLDLAT:
+                // @ context_expression
+                _1 := p._parseContextExpression(); _ = _1
+                v.Push(_maybeunwrapwith(_1))
+
+                continue
+            case tkINTEGER, tkSTRING, tkRESERVED, tkIDENTIFIER, tkIDENTIFIERP, tkLP, tkPREFIX_OPERATOR:
+                // @ constexpr
+                _1 := p._parseConstexpr(); _ = _1
+                v.Push(_1)
+
+                continue
+            case tkRS:
+                // NOP
+            default:
+                p.ErrorUnexpected("context-expression, constexpr, ']'")
             }
-    
-            // '[' _mem_58r @ ']'
-            if p.PeekToken().Kind != tkRS {
-                p.ErrorUnexpected(p.PeekToken(), "']'")
-            }
-            _3 := p.ConsumeToken(); _ = _3
-            res = v
+            break
+        }
+
+        // '[' _memory_access_61r @ ']'
+        _3 := p.PeekToken(); _ = _3
+        if _3.Kind == tkRS {
+            p.ConsumeToken()
+        } else {
+            p.ErrorUnexpected("']'")
+        }
+        *res = v
     default:
-        p.ErrorUnexpected(p.PeekToken(), "'['")
+        p.ErrorUnexpected("memory-access")
     }
     return
 }
 
 /** ** **
-  dotarg ->
-      callproc
-    | regld
+  dot_operand ->
+      proc_call
+    | decorated_register
     | block
  ** ** **/
-func (p *Parser) _parseDotarg() (res Value) {
-    // RULE: dotarg -> callproc
-    // RULE: dotarg -> regld
-    // RULE: dotarg -> block
+func (p *Parser) _parseDotOperand() (ret Value) {
+    res := &ret; _ = res
+    // RULE: dot_operand -> proc_call
+    // RULE: dot_operand -> decorated_register
+    // RULE: dot_operand -> block
     switch p.PeekToken().Kind {
     case tkCONDDOT, tkIDENTIFIERP:
-            // @ callproc
-            _1 := p._parseCallproc(); _ = _1
-            res = _1
-    case tkREG:
-            // @ regld
-            _1 := p._parseRegld(); _ = _1
-            res = _1
+        // @ proc_call
+        _1 := p._parseProcCall(); _ = _1
+        *res = _1
+    case tkREGISTER:
+        // @ decorated_register
+        _1 := p._parseDecoratedRegister(); _ = _1
+        *res = _1
     case tkLC, tkEQLC:
-            // @ block
-            _1 := p._parseBlock(); _ = _1
-            res = _1
+        // @ block
+        _1 := p._parseBlock(); _ = _1
+        *res = _1
     default:
-        p.ErrorUnexpected(p.PeekToken(), "CONDDOT, IDENTIFIERP, REG, '{', '={'")
+        p.ErrorUnexpected("operand")
     }
     return
 }
 
 /** ** **
-  explicitval ->
+  explicit_value ->
       '$@' constval
     | '$$@' constval
  ** ** **/
-func (p *Parser) _parseExplicitval() (res Value) {
-    // RULE: explicitval -> '$@' constval
-    // RULE: explicitval -> '$$@' constval
+func (p *Parser) _parseExplicitValue() (ret Value) {
+    res := &ret; _ = res
+    // RULE: explicit_value -> '$@' constval
+    // RULE: explicit_value -> '$$@' constval
     switch p.PeekToken().Kind {
     case tkDLAT:
-            // @ '$@' constval
-            _1 := p.ConsumeToken(); _ = _1
-    
-            // '$@' @ constval
-            _2 := p._parseConstval(); _ = _2
-            res = _2
+        // @ '$@' constval
+        _1 := p.ConsumeToken(); _ = _1
+
+        // '$@' @ constval
+        _2 := p._parseConstval(); _ = _2
+        *res = _2
     case tkDLDLAT:
-            // @ '$$@' constval
-            _1 := p.ConsumeToken(); _ = _1
-    
-            // '$$@' @ constval
-            _2 := p._parseConstval(); _ = _2
-            res = &Vec{KwValueOf.ToId(_1), _2}
+        // @ '$$@' constval
+        _1 := p.ConsumeToken(); _ = _1
+
+        // '$$@' @ constval
+        _2 := p._parseConstval(); _ = _2
+        *res = &Vec{KwValueOf.ToId(_1), _2}
     default:
-        p.ErrorUnexpected(p.PeekToken(), "'$@', '$$@'")
+        p.ErrorUnexpected("explicit-value")
     }
     return
 }
@@ -1727,16 +1808,17 @@ func (p *Parser) _parseExplicitval() (res Value) {
   constexpr ->
       iexpr
  ** ** **/
-func (p *Parser) _parseConstexpr() (res Value) {
+func (p *Parser) _parseConstexpr() (ret Value) {
+    res := &ret; _ = res
     // RULE: constexpr -> iexpr
-    here := _marker(p)
+    here := p.PeekToken()
     switch p.PeekToken().Kind {
-    case tkINTEGER, tkSTRING, tkRESERVED, tkIDENTIFIER, tkIDENTIFIERP, tkLP, tkAOP:
-            // @ iexpr
-            _1 := p._parseIexpr(); _ = _1
-            res = _constexpr(_1, here)
+    case tkINTEGER, tkSTRING, tkRESERVED, tkIDENTIFIER, tkIDENTIFIERP, tkLP, tkPREFIX_OPERATOR:
+        // @ iexpr
+        _1 := p._parseIexpr(); _ = _1
+        *res = _constexpr(_1, here)
     default:
-        p.ErrorUnexpected(p.PeekToken(), "INTEGER, STRING, RESERVED, IDENTIFIER, IDENTIFIERP, '(', AOP")
+        p.ErrorUnexpected("constexpr")
     }
     return
 }
@@ -1745,16 +1827,17 @@ func (p *Parser) _parseConstexpr() (res Value) {
   constval ->
       ival
  ** ** **/
-func (p *Parser) _parseConstval() (res Value) {
+func (p *Parser) _parseConstval() (ret Value) {
+    res := &ret; _ = res
     // RULE: constval -> ival
-    here := _marker(p)
+    here := p.PeekToken()
     switch p.PeekToken().Kind {
-    case tkINTEGER, tkSTRING, tkRESERVED, tkIDENTIFIER, tkIDENTIFIERP, tkLP, tkAOP:
-            // @ ival
-            _1 := p._parseIval(); _ = _1
-            res = _constexpr(_1, here)
+    case tkINTEGER, tkSTRING, tkRESERVED, tkIDENTIFIER, tkIDENTIFIERP, tkLP, tkPREFIX_OPERATOR:
+        // @ ival
+        _1 := p._parseIval(); _ = _1
+        *res = _constexpr(_1, here)
     default:
-        p.ErrorUnexpected(p.PeekToken(), "INTEGER, STRING, RESERVED, IDENTIFIER, IDENTIFIERP, '(', AOP")
+        p.ErrorUnexpected("constval")
     }
     return
 }
@@ -1762,43 +1845,44 @@ func (p *Parser) _parseConstval() (res Value) {
 /** ** **
   iexpr ->
       ival (
-        BOP ival
+        BINARY_OPERATOR ival
       )*
  ** ** **/
-func (p *Parser) _parseIexpr() (res Value) {
-    // RULE: iexpr -> ival _iexpr_60r
+func (p *Parser) _parseIexpr() (ret Value) {
+    res := &ret; _ = res
+    // RULE: iexpr -> ival _iexpr_63r
     switch p.PeekToken().Kind {
-    case tkINTEGER, tkSTRING, tkRESERVED, tkIDENTIFIER, tkIDENTIFIERP, tkLP, tkAOP:
-            // @ ival _iexpr_60r
-            _1 := p._parseIval(); _ = _1
-            v := []Value{_1}
-    
-            // ival @ _iexpr_60r
-            var _2 Value; _ = _2
-            for {
-                res := &_2; _ = res
-                // RULE: _iexpr_60r -> _iexpr_59g*
-                // RULE: _iexpr_59g -> BOP ival
-                switch p.PeekToken().Kind {
-                case tkBOP:
-                        // @ BOP ival
-                        _1 := p.ConsumeToken(); _ = _1
-                
-                        // BOP @ ival
-                        _2 := p._parseIval(); _ = _2
-                        v = p.cc.orderByPrec(v, _1.Value.(*Identifier), _2)
-                
-                        continue
-                case tkRP, tkIDENTIFIER, tkLABEL, tkSC, tkEOF, tkLS, tkLC, tkDLAT, tkDLDLAT, tkINTEGER, tkSTRING, tkRESERVED, tkIDENTIFIERP, tkLP, tkAOP, tkATMI, tkREG, tkRS, tkREST, tkRC:
-                    // NOP
-                default:
-                    p.ErrorUnexpected(p.PeekToken(), "BOP, ')', IDENTIFIER, LABEL, ';', EOF, '[', '{', '$@', '$$@', INTEGER, STRING, RESERVED, IDENTIFIERP, '(', AOP, '@-', REG, ']', REST, '}'")
-                }
-                break
+    case tkINTEGER, tkSTRING, tkRESERVED, tkIDENTIFIER, tkIDENTIFIERP, tkLP, tkPREFIX_OPERATOR:
+        // @ ival _iexpr_63r
+        _1 := p._parseIval(); _ = _1
+        v := []Value{_1}
+
+        // ival @ _iexpr_63r
+        var _2 Value; _ = _2
+        for {
+            res := &_2; _ = res
+            // RULE: _iexpr_63r -> _iexpr_62g*
+            // RULE: _iexpr_62g -> BINARY_OPERATOR ival
+            switch p.PeekToken().Kind {
+            case tkBINARY_OPERATOR:
+                // @ BINARY_OPERATOR ival
+                _1 := p.ConsumeToken(); _ = _1
+
+                // BINARY_OPERATOR @ ival
+                _2 := p._parseIval(); _ = _2
+                v = p.cc.orderByPrec(v, _1.Value.(*Identifier), _2)
+
+                continue
+            case tkRP, tkIDENTIFIER, tkLABEL_NAME, tkSC, tkEOF, tkLS, tkLC, tkDLAT, tkDLDLAT, tkINTEGER, tkSTRING, tkRESERVED, tkIDENTIFIERP, tkLP, tkPREFIX_OPERATOR, tkATMI, tkREGISTER, tkRS, tkREST, tkRC:
+                // NOP
+            default:
+                p.ErrorUnexpected("BINARY-OPERATOR, etc.")
             }
-            res = p.cc.orderByPrec(v, idOpLast, nil)[0]
+            break
+        }
+        *res = p.cc.orderByPrec(v, idOpLast, nil)[0]
     default:
-        p.ErrorUnexpected(p.PeekToken(), "INTEGER, STRING, RESERVED, IDENTIFIER, IDENTIFIERP, '(', AOP")
+        p.ErrorUnexpected("constexpr")
     }
     return
 }
@@ -1817,147 +1901,158 @@ func (p *Parser) _parseIexpr() (res Value) {
         iexpr
       )* ')'
     | '(' iexpr ')'
-    | AOP ival
+    | PREFIX_OPERATOR ival
  ** ** **/
-func (p *Parser) _parseIval() (res Value) {
+func (p *Parser) _parseIval() (ret Value) {
+    res := &ret; _ = res
     // RULE: ival -> INTEGER
     // RULE: ival -> STRING
     // RULE: ival -> RESERVED
-    // RULE: ival -> IDENTIFIER _ival_64o
-    // RULE: ival -> IDENTIFIERP '(' _ival_66r ')'
+    // RULE: ival -> IDENTIFIER _ival_67o
+    // RULE: ival -> IDENTIFIERP '(' _ival_69r ')'
     // RULE: ival -> '(' iexpr ')'
-    // RULE: ival -> AOP ival
+    // RULE: ival -> PREFIX_OPERATOR ival
     switch p.PeekToken().Kind {
     case tkINTEGER:
-            // @ INTEGER
-            _1 := p.ConsumeToken(); _ = _1
-            res = _1.Value
+        // @ INTEGER
+        _1 := p.ConsumeToken(); _ = _1
+        *res = _1.Value
     case tkSTRING:
-            // @ STRING
-            _1 := p.ConsumeToken(); _ = _1
-            res = _1.Value
+        // @ STRING
+        _1 := p.ConsumeToken(); _ = _1
+        *res = _1.Value
     case tkRESERVED:
-            // @ RESERVED
-            _1 := p.ConsumeToken(); _ = _1
-            res = _1.Value
+        // @ RESERVED
+        _1 := p.ConsumeToken(); _ = _1
+        *res = _1.Value
     case tkIDENTIFIER:
-            // @ IDENTIFIER _ival_64o
-            _1 := p.ConsumeToken(); _ = _1
-            v := _1.Value
-    
-            // IDENTIFIER @ _ival_64o
-            var _2 Value; _ = _2
-            for {
-                res := &_2; _ = res
-                // RULE: _ival_64o -> _ival_63g?
-                // RULE: _ival_63g -> '.-' IDENTIFIER _ival_62r
-                switch p.PeekToken().Kind {
-                case tkDTMI:
-                        // @ '.-' IDENTIFIER _ival_62r
+        // @ IDENTIFIER _ival_67o
+        _1 := p.ConsumeToken(); _ = _1
+        v := _1.Value
+
+        // IDENTIFIER @ _ival_67o
+        var _2 Value; _ = _2
+        for {
+            res := &_2; _ = res
+            // RULE: _ival_67o -> _ival_66g?
+            // RULE: _ival_66g -> '.-' IDENTIFIER _ival_65r
+            switch p.PeekToken().Kind {
+            case tkDTMI:
+                // @ '.-' IDENTIFIER _ival_65r
+                _1 := p.ConsumeToken(); _ = _1
+
+                // '.-' @ IDENTIFIER _ival_65r
+                _2 := p.PeekToken(); _ = _2
+                if _2.Kind == tkIDENTIFIER {
+                    p.ConsumeToken()
+                } else {
+                    p.ErrorUnexpected("identifier")
+                }
+                w := &Vec{KwField.ToId(_1), v, _2.Value}
+
+                // '.-' IDENTIFIER @ _ival_65r
+                var _3 Value; _ = _3
+                for {
+                    res := &_3; _ = res
+                    // RULE: _ival_65r -> _ival_64g*
+                    // RULE: _ival_64g -> '.-' IDENTIFIER
+                    switch p.PeekToken().Kind {
+                    case tkDTMI:
+                        // @ '.-' IDENTIFIER
                         _1 := p.ConsumeToken(); _ = _1
-                
-                        // '.-' @ IDENTIFIER _ival_62r
-                        if p.PeekToken().Kind != tkIDENTIFIER {
-                            p.ErrorUnexpected(p.PeekToken(), "IDENTIFIER")
+
+                        // '.-' @ IDENTIFIER
+                        _2 := p.PeekToken(); _ = _2
+                        if _2.Kind == tkIDENTIFIER {
+                            p.ConsumeToken()
+                        } else {
+                            p.ErrorUnexpected("identifier")
                         }
-                        _2 := p.ConsumeToken(); _ = _2
-                        w := &Vec{KwField.ToId(_1), v, _2.Value}
-                
-                        // '.-' IDENTIFIER @ _ival_62r
-                        var _3 Value; _ = _3
-                        for {
-                            res := &_3; _ = res
-                            // RULE: _ival_62r -> _ival_61g*
-                            // RULE: _ival_61g -> '.-' IDENTIFIER
-                            switch p.PeekToken().Kind {
-                            case tkDTMI:
-                                    // @ '.-' IDENTIFIER
-                                    _1 := p.ConsumeToken(); _ = _1
-                            
-                                    // '.-' @ IDENTIFIER
-                                    if p.PeekToken().Kind != tkIDENTIFIER {
-                                        p.ErrorUnexpected(p.PeekToken(), "IDENTIFIER")
-                                    }
-                                    _2 := p.ConsumeToken(); _ = _2
-                                    w.Push(_2.Value)
-                            
-                                    continue
-                            case tkBOP, tkCL, tkIDENTIFIER, tkLABEL, tkSC, tkEOF, tkLS, tkLC, tkDLAT, tkDLDLAT, tkINTEGER, tkSTRING, tkRESERVED, tkIDENTIFIERP, tkLP, tkAOP, tkUOP, tkDOP, tkRP, tkATMI, tkREG, tkAT, tkCOND, tkEQLC, tkREST, tkRC, tkRS:
-                                // NOP
-                            default:
-                                p.ErrorUnexpected(p.PeekToken(), "'.-', BOP, ':', IDENTIFIER, LABEL, ';', EOF, '[', '{', '$@', '$$@', INTEGER, STRING, RESERVED, IDENTIFIERP, '(', AOP, UOP, DOP, ')', '@-', REG, '@', COND, '={', REST, '}', ']'")
-                            }
-                            break
-                        }
-                        v = w
-                case tkBOP, tkCL, tkIDENTIFIER, tkLABEL, tkSC, tkEOF, tkLS, tkLC, tkDLAT, tkDLDLAT, tkINTEGER, tkSTRING, tkRESERVED, tkIDENTIFIERP, tkLP, tkAOP, tkUOP, tkDOP, tkRP, tkATMI, tkREG, tkAT, tkCOND, tkEQLC, tkREST, tkRC, tkRS:
-                    // NOP
-                default:
-                    p.ErrorUnexpected(p.PeekToken(), "'.-', BOP, ':', IDENTIFIER, LABEL, ';', EOF, '[', '{', '$@', '$$@', INTEGER, STRING, RESERVED, IDENTIFIERP, '(', AOP, UOP, DOP, ')', '@-', REG, '@', COND, '={', REST, '}', ']'")
-                }
-                break
-            }
-            res = v
-    case tkIDENTIFIERP:
-            // @ IDENTIFIERP '(' _ival_66r ')'
-            _1 := p.ConsumeToken(); _ = _1
-            v := &Vec{ _1.Value }
-    
-            // IDENTIFIERP @ '(' _ival_66r ')'
-            if p.PeekToken().Kind != tkLP {
-                p.ErrorUnexpected(p.PeekToken(), "'('")
-            }
-            _2 := p.ConsumeToken(); _ = _2
-    
-            // IDENTIFIERP '(' @ _ival_66r ')'
-            var _3 Value; _ = _3
-            for {
-                res := &_3; _ = res
-                // RULE: _ival_66r -> _ival_65g*
-                // RULE: _ival_65g -> iexpr
-                switch p.PeekToken().Kind {
-                case tkINTEGER, tkSTRING, tkRESERVED, tkIDENTIFIER, tkIDENTIFIERP, tkLP, tkAOP:
-                        // @ iexpr
-                        _1 := p._parseIexpr(); _ = _1
-                        v.Push(_1)
-                
+                        w.Push(_2.Value)
+
                         continue
-                case tkRP:
-                    // NOP
-                default:
-                    p.ErrorUnexpected(p.PeekToken(), "INTEGER, STRING, RESERVED, IDENTIFIER, IDENTIFIERP, '(', AOP, ')'")
+                    case tkBINARY_OPERATOR, tkCL, tkIDENTIFIER, tkLABEL_NAME, tkSC, tkEOF, tkLS, tkLC, tkDLAT, tkDLDLAT, tkINTEGER, tkSTRING, tkRESERVED, tkIDENTIFIERP, tkLP, tkPREFIX_OPERATOR, tkPOSTFIX_OPERATOR, tkDOT_OPERATOR, tkRP, tkATMI, tkREGISTER, tkAT, tkCONDITION, tkEQLC, tkREST, tkRC, tkRS:
+                        // NOP
+                    default:
+                        p.ErrorUnexpected("'.-', etc.")
+                    }
+                    break
                 }
-                break
+                v = w
+            case tkBINARY_OPERATOR, tkCL, tkIDENTIFIER, tkLABEL_NAME, tkSC, tkEOF, tkLS, tkLC, tkDLAT, tkDLDLAT, tkINTEGER, tkSTRING, tkRESERVED, tkIDENTIFIERP, tkLP, tkPREFIX_OPERATOR, tkPOSTFIX_OPERATOR, tkDOT_OPERATOR, tkRP, tkATMI, tkREGISTER, tkAT, tkCONDITION, tkEQLC, tkREST, tkRC, tkRS:
+                // NOP
+            default:
+                p.ErrorUnexpected("'.-', etc.")
             }
-    
-            // IDENTIFIERP '(' _ival_66r @ ')'
-            if p.PeekToken().Kind != tkRP {
-                p.ErrorUnexpected(p.PeekToken(), "')'")
+            break
+        }
+        *res = v
+    case tkIDENTIFIERP:
+        // @ IDENTIFIERP '(' _ival_69r ')'
+        _1 := p.ConsumeToken(); _ = _1
+        v := &Vec{ _1.Value }
+
+        // IDENTIFIERP @ '(' _ival_69r ')'
+        _2 := p.PeekToken(); _ = _2
+        if _2.Kind == tkLP {
+            p.ConsumeToken()
+        } else {
+            p.ErrorUnexpected("'('")
+        }
+
+        // IDENTIFIERP '(' @ _ival_69r ')'
+        var _3 Value; _ = _3
+        for {
+            res := &_3; _ = res
+            // RULE: _ival_69r -> _ival_68g*
+            // RULE: _ival_68g -> iexpr
+            switch p.PeekToken().Kind {
+            case tkINTEGER, tkSTRING, tkRESERVED, tkIDENTIFIER, tkIDENTIFIERP, tkLP, tkPREFIX_OPERATOR:
+                // @ iexpr
+                _1 := p._parseIexpr(); _ = _1
+                v.Push(_1)
+
+                continue
+            case tkRP:
+                // NOP
+            default:
+                p.ErrorUnexpected("constexpr, ')'")
             }
-            _4 := p.ConsumeToken(); _ = _4
-            res = v
+            break
+        }
+
+        // IDENTIFIERP '(' _ival_69r @ ')'
+        _4 := p.PeekToken(); _ = _4
+        if _4.Kind == tkRP {
+            p.ConsumeToken()
+        } else {
+            p.ErrorUnexpected("')'")
+        }
+        *res = v
     case tkLP:
-            // @ '(' iexpr ')'
-            _1 := p.ConsumeToken(); _ = _1
-    
-            // '(' @ iexpr ')'
-            _2 := p._parseIexpr(); _ = _2
-    
-            // '(' iexpr @ ')'
-            if p.PeekToken().Kind != tkRP {
-                p.ErrorUnexpected(p.PeekToken(), "')'")
-            }
-            _3 := p.ConsumeToken(); _ = _3
-            res = _2
-    case tkAOP:
-            // @ AOP ival
-            _1 := p.ConsumeToken(); _ = _1
-    
-            // AOP @ ival
-            _2 := p._parseIval(); _ = _2
-            res = &Vec{ _1.Value, _2 }
+        // @ '(' iexpr ')'
+        _1 := p.ConsumeToken(); _ = _1
+
+        // '(' @ iexpr ')'
+        _2 := p._parseIexpr(); _ = _2
+
+        // '(' iexpr @ ')'
+        _3 := p.PeekToken(); _ = _3
+        if _3.Kind == tkRP {
+            p.ConsumeToken()
+        } else {
+            p.ErrorUnexpected("')'")
+        }
+        *res = _2
+    case tkPREFIX_OPERATOR:
+        // @ PREFIX_OPERATOR ival
+        _1 := p.ConsumeToken(); _ = _1
+
+        // PREFIX_OPERATOR @ ival
+        _2 := p._parseIval(); _ = _2
+        *res = &Vec{ _1.Value, _2 }
     default:
-        p.ErrorUnexpected(p.PeekToken(), "INTEGER, STRING, RESERVED, IDENTIFIER, IDENTIFIERP, '(', AOP")
+        p.ErrorUnexpected("constval")
     }
     return
 }
@@ -1966,15 +2061,16 @@ func (p *Parser) _parseIval() (res Value) {
   identifier ->
       IDENTIFIER
  ** ** **/
-func (p *Parser) _parseIdentifier() (res Value) {
+func (p *Parser) _parseIdentifier() (ret Value) {
+    res := &ret; _ = res
     // RULE: identifier -> IDENTIFIER
     switch p.PeekToken().Kind {
     case tkIDENTIFIER:
-            // @ IDENTIFIER
-            _1 := p.ConsumeToken(); _ = _1
-            res = _constexpr(_1.Value, _1)
+        // @ IDENTIFIER
+        _1 := p.ConsumeToken(); _ = _1
+        *res = _constexpr(_1.Value, _1)
     default:
-        p.ErrorUnexpected(p.PeekToken(), "IDENTIFIER")
+        p.ErrorUnexpected("identifier")
     }
     return
 }
@@ -1983,32 +2079,34 @@ func (p *Parser) _parseIdentifier() (res Value) {
   identifierp ->
       IDENTIFIERP
  ** ** **/
-func (p *Parser) _parseIdentifierp() (res Value) {
+func (p *Parser) _parseIdentifierp() (ret Value) {
+    res := &ret; _ = res
     // RULE: identifierp -> IDENTIFIERP
     switch p.PeekToken().Kind {
     case tkIDENTIFIERP:
-            // @ IDENTIFIERP
-            _1 := p.ConsumeToken(); _ = _1
-            res = _constexpr(_1.Value, _1)
+        // @ IDENTIFIERP
+        _1 := p.ConsumeToken(); _ = _1
+        *res = _constexpr(_1.Value, _1)
     default:
-        p.ErrorUnexpected(p.PeekToken(), "IDENTIFIERP")
+        p.ErrorUnexpected("identifier")
     }
     return
 }
 
 /** ** **
-  label ->
-      LABEL
+  label_name ->
+      LABEL_NAME
  ** ** **/
-func (p *Parser) _parseLabel() (res Value) {
-    // RULE: label -> LABEL
+func (p *Parser) _parseLabelName() (ret Value) {
+    res := &ret; _ = res
+    // RULE: label_name -> LABEL_NAME
     switch p.PeekToken().Kind {
-    case tkLABEL:
-            // @ LABEL
-            _1 := p.ConsumeToken(); _ = _1
-            res = _constexpr(_1.Value, _1)
+    case tkLABEL_NAME:
+        // @ LABEL_NAME
+        _1 := p.ConsumeToken(); _ = _1
+        *res = _constexpr(_1.Value, _1)
     default:
-        p.ErrorUnexpected(p.PeekToken(), "LABEL")
+        p.ErrorUnexpected("label-name")
     }
     return
 }

@@ -23,14 +23,14 @@ func (g *Generator) validateProcTail(inst *Inst) {
 		With("the last instruction must be a return/fallthrough within the proc")
 }
 
-func (g *Generator) validateFallthrough(insts []*Inst) *Named {
+func (g *Generator) validateFallthrough(inst *Inst, insts []*Inst) *Named {
 	for x, i := range insts {
 		if i.IsMisc(KwEndProc) {
 			continue
 		} else if i.IsMisc(KwBeginProc) {
 			return insts[x+1].Args[0].(*Named)
 		}
-		g.cc.ErrorAt(i).With("the fallthrough must be followed by a proc")
+		g.cc.ErrorAt(inst).With("the fallthrough must be followed by a proc")
 	}
 	panic("[BUG] cannot happen")
 }
@@ -102,7 +102,7 @@ func (g *Generator) validateInsts(insts []*Inst) {
 				insts[s.from].Args[1] = tail // update begin-proc
 				s, states = states[len(states)-1], states[:len(states)-1]
 			case KwFallthrough:
-				i.Args[1] = g.validateFallthrough(insts[x+1:])
+				i.Args[1] = g.validateFallthrough(i, insts[x+1:])
 				s.to = x
 			}
 		}
@@ -645,7 +645,7 @@ func (g *Generator) prepareToGenerateBin(insts []*Inst) {
 		oldCodeSize = codeSize
 	}
 
-	if g.DebugMode && g.cc.OptimizeBCode != nil {
+	if Debug.Enabled && g.cc.OptimizeBCode != nil {
 		v := []string{}
 		for _, i := range codeSizes {
 			v = append(v, strconv.Itoa(i))

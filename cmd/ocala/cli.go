@@ -131,11 +131,12 @@ func (*CLI) ParseCommandLineOptions(g *core.Generator, args []string) (string, e
 }
 
 func (cli *CLI) Run(args []string) int {
+	core.Debug.Enabled = os.Getenv("OCALADEBUG") == "1"
+
 	g := &core.Generator{
 		InReader:  cli.inReader,
 		OutWriter: cli.outWriter,
 		ErrWriter: cli.errWriter,
-		DebugMode: os.Getenv("OCALADEBUG") == "1",
 		ListText:  &[]byte{},
 	}
 	if appRoot == "" {

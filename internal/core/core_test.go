@@ -1,6 +1,7 @@
 package core_test
 
 import (
+	"ocala/internal/core"
 	"ocala/internal/tt"
 	"ocala/internal/tt/ttarch"
 	"os"
@@ -125,7 +126,7 @@ func TestCompileAndGenerate(t *testing.T) {
 		g.CompileAndGenerate("-")
 		g.FlushMessages()
 		tt.EqText(t, tt.Unindent(`
-			compile error: undefined name this-error
+			-:2:11: compile error: undefined name this-error
 			[error #0]
 			  at -:2:11
 			   |data byte [this-error]
@@ -141,7 +142,7 @@ func TestCompileAndGenerate(t *testing.T) {
 		g.CompileAndGenerate("-")
 		g.FlushMessages()
 		tt.EqText(t, tt.Unindent(`
-			compile error: operand must be integer
+			-:2:9: compile error: operand must be integer
 			[error #0]
 			  at -:2:9
 			   |flat!; m ""
@@ -166,17 +167,17 @@ func TestCompileAndGenerate(t *testing.T) {
 		g.CompileAndGenerate("-")
 		g.FlushMessages()
 		tt.EqText(t, tt.Unindent(`
-			warning: <warn01>
+			-:1:0: warning: <warn01>
 			[warning #0]
 			  at -:1:0
 			   |warn "<warn01>"
 			   |^-- ??
-			warning: <warn02>
+			-:2:0: warning: <warn02>
 			[warning #0]
 			  at -:2:0
 			   |warn "<warn02>"
 			   |^-- ??
-			compile error: <error>
+			-:3:0: compile error: <error>
 			[error #0]
 			  at -:3:0
 			   |compile-error "<error>"
@@ -194,7 +195,7 @@ func TestCompileAndGenerate(t *testing.T) {
 		s = strings.ReplaceAll(s, "\\", "/")
 		s = strings.ReplaceAll(s, "\r\n", "\n")
 		tt.EqText(t, tt.Unindent(`
-			compile error: !
+			testdata/include3/inc03.oc:1:0: compile error: !
 			[error #0]
 			  at testdata/include3/inc03.oc:1:0
 			   |compile-error "!"
@@ -218,7 +219,9 @@ func TestCompileAndGenerate(t *testing.T) {
 		g := ttarch.BuildGenerator("ttarch", tt.Unindent(`
 			compile-error "!"
 		`))
-		g.DebugMode = true
+		core.Debug.Enabled = true
+		defer func() { core.Debug.Enabled = false }()
+
 		g.CompileAndGenerate("-")
 		tt.Prefix(t, "compile error: !\n-- ", g.ErrorMessage())
 	})
@@ -2873,9 +2876,19 @@ func TestExprCheck(t *testing.T) {
 
 func TestScanError(t *testing.T) {
 	es := []string{
-		"blank character literal is invalid", `
+		"invalid character '\x01'", "\x01",
+		"invalid character literal", `
 			db ''
 		`,
+		"character literal not terminated", `db 'a`,
+		"character literal not terminated", `db '\'`,
+		"character literal not terminated", `db '\x00`,
+		"new line in character literal", `
+			db 'a
+		`,
+		"invalid character escape", `db '\`,
+		"invalid character escape", `db '\x`,
+		"invalid character escape", `db '\x0`,
 		"invalid character escape", `
 			db '\z'
 		`,
@@ -2891,6 +2904,9 @@ func TestScanError(t *testing.T) {
 		"placeholders cannot contain namespaces", `
 			db %=ns:id
 		`,
+		"the name cannot belong to any namespace", `
+			db ns:_END
+		`,
 		"the name cannot be use as placeholders", `
 			db %=_END
 		`,
@@ -2902,6 +2918,20 @@ func TestScanError(t *testing.T) {
 		`,
 		"no whitespace is allowed after the prefix operator", `
 			~ 1
+		`,
+		"whitespaces required after '!='/'!=?'", `!=a`,
+		"whitespaces required after '!='/'!=?'", `!=?a`,
+		"no whitespace is allowed after the prefix operator", `
+			~ 1
+		`,
+		"leading whitespaces are required before the operator `:`", `
+			A <- B: X
+		`,
+		"string literal not terminated", `db "ab`,
+		"string literal not terminated", `db "ab\"`,
+		"string literal not terminated", `db "ab\x00`,
+		"new line in string literal", `
+			db "a
 		`,
 	}
 	for x := 0; x < len(es); x += 2 {
