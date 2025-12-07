@@ -1,6 +1,6 @@
 package z80
 
-import . "ocala/internal/core" //lint:ignore ST1001 core
+import . "ocala/core" //lint:ignore ST1001 core
 
 var bmaps = [][]byte{
 	{3, 0, 2, 70, 86, 94, 0}, // 0: IM
@@ -124,47 +124,47 @@ var kwSUB = Intern("SUB")
 var kwXOR = Intern("XOR")
 
 var asmOperands = map[*Keyword]AsmOperand{
-	kwRegA:   {"A", false},
-	kwRegB:   {"B", false},
-	kwRegC:   {"C", false},
-	kwRegD:   {"D", false},
-	kwRegE:   {"E", false},
-	kwRegH:   {"H", false},
-	kwRegL:   {"L", false},
-	kwRegHL:  {"HL", false},
-	kwMemHL:  {"(HL)", false},
-	kwRegBC:  {"BC", false},
-	kwMemBC:  {"(BC)", false},
-	kwRegDE:  {"DE", false},
-	kwMemDE:  {"(DE)", false},
-	kwRegAF:  {"AF", false},
-	kwAltAF:  {"AF'", false},
-	kwRegSP:  {"SP", false},
-	kwMemSP:  {"(SP)", false},
-	kwRegPC:  {"PC", false},
-	kwRegPQ:  {"PQ", false},
-	kwRegIX:  {"IX", false},
-	kwMemIX:  {"(IX+%)", true},
-	kwMemWX:  {"(IX+%)", true},
-	kwRegIY:  {"IY", false},
-	kwMemIY:  {"(IY+%)", true},
-	kwMemWY:  {"(IY+%)", true},
-	kwImmN:   {"0+ %", true},
-	kwMemN:   {"(%)", true},
-	kwImmNN:  {"0+ %", true},
-	kwMemNN:  {"(%)", true},
-	kwMemC:   {"(C)", false},
-	kwRegI:   {"I", false},
-	kwRegR:   {"R", false},
-	kwRegF:   {"F", false},
-	kwCondNZ: {"NZ", false},
-	kwCondZ:  {"Z", false},
-	kwCondNC: {"NC", false},
-	kwCondC:  {"C", false},
-	kwCondPO: {"PO", false},
-	kwCondPE: {"PE", false},
-	kwCondP:  {"P", false},
-	kwCondM:  {"M", false},
+	kwRegA:   {Base: "A", Expand: false},
+	kwRegB:   {Base: "B", Expand: false},
+	kwRegC:   {Base: "C", Expand: false},
+	kwRegD:   {Base: "D", Expand: false},
+	kwRegE:   {Base: "E", Expand: false},
+	kwRegH:   {Base: "H", Expand: false},
+	kwRegL:   {Base: "L", Expand: false},
+	kwRegHL:  {Base: "HL", Expand: false},
+	kwMemHL:  {Base: "(HL)", Expand: false},
+	kwRegBC:  {Base: "BC", Expand: false},
+	kwMemBC:  {Base: "(BC)", Expand: false},
+	kwRegDE:  {Base: "DE", Expand: false},
+	kwMemDE:  {Base: "(DE)", Expand: false},
+	kwRegAF:  {Base: "AF", Expand: false},
+	kwAltAF:  {Base: "AF'", Expand: false},
+	kwRegSP:  {Base: "SP", Expand: false},
+	kwMemSP:  {Base: "(SP)", Expand: false},
+	kwRegPC:  {Base: "PC", Expand: false},
+	kwRegPQ:  {Base: "PQ", Expand: false},
+	kwRegIX:  {Base: "IX", Expand: false},
+	kwMemIX:  {Base: "(IX+%)", Expand: true},
+	kwMemWX:  {Base: "(IX+%)", Expand: true},
+	kwRegIY:  {Base: "IY", Expand: false},
+	kwMemIY:  {Base: "(IY+%)", Expand: true},
+	kwMemWY:  {Base: "(IY+%)", Expand: true},
+	kwImmN:   {Base: "0+ %", Expand: true},
+	kwMemN:   {Base: "(%)", Expand: true},
+	kwImmNN:  {Base: "0+ %", Expand: true},
+	kwMemNN:  {Base: "(%)", Expand: true},
+	kwMemC:   {Base: "(C)", Expand: false},
+	kwRegI:   {Base: "I", Expand: false},
+	kwRegR:   {Base: "R", Expand: false},
+	kwRegF:   {Base: "F", Expand: false},
+	kwCondNZ: {Base: "NZ", Expand: false},
+	kwCondZ:  {Base: "Z", Expand: false},
+	kwCondNC: {Base: "NC", Expand: false},
+	kwCondC:  {Base: "C", Expand: false},
+	kwCondPO: {Base: "PO", Expand: false},
+	kwCondPE: {Base: "PE", Expand: false},
+	kwCondP:  {Base: "P", Expand: false},
+	kwCondM:  {Base: "M", Expand: false},
 }
 
 var tokenWords = [][]string{
@@ -5438,10 +5438,10 @@ var ctxOpMap = CtxOpMap{
 }
 
 var asmOperandsUndocumented = map[*Keyword]AsmOperand{
-	kwRegIXH: {"IXH", false},
-	kwRegIXL: {"IXL", false},
-	kwRegIYH: {"IYH", false},
-	kwRegIYL: {"IYL", false},
+	kwRegIXH: {Base: "IXH", Expand: false},
+	kwRegIXL: {Base: "IXL", Expand: false},
+	kwRegIYH: {Base: "IYH", Expand: false},
+	kwRegIYL: {Base: "IYL", Expand: false},
 }
 
 var tokenWordsUndocumented = [][]string{
@@ -13073,10 +13073,10 @@ var instMapCompat8080 = InstPat{
 }
 
 var asmOperandsR800 = map[*Keyword]AsmOperand{
-	kwRegIXH: {"IXH", false},
-	kwRegIXL: {"IXL", false},
-	kwRegIYH: {"IYH", false},
-	kwRegIYL: {"IYL", false},
+	kwRegIXH: {Base: "IXH", Expand: false},
+	kwRegIXL: {Base: "IXL", Expand: false},
+	kwRegIYH: {Base: "IYH", Expand: false},
+	kwRegIYL: {Base: "IYL", Expand: false},
 }
 
 var tokenWordsR800 = [][]string{

@@ -2,6 +2,7 @@ package core
 
 import (
 	"ocala/internal/tt"
+	"slices"
 	"testing"
 )
 
@@ -105,6 +106,11 @@ func TestVec(t *testing.T) {
 	nsid := &Identifier{Name: Intern("test"), Namespace: Intern("ns")}
 	tt.True(t, (&Vec{nsid}).ExprTagName() == nil)
 	tt.True(t, (&Vec{InternalId(Intern("test"))}).ExprTagName() == Intern("test"))
+
+	d := &Vec{&Operand{Kind: Intern("a")}, &Operand{Kind: Intern("b")}}
+	tt.Eq(t, "a", d.OperandAt(0).Kind.String())
+	tt.Eq(t, "b", d.OperandAt(1).Kind.String())
+	tt.Eq(t, NoOperand, d.OperandAt(2))
 }
 
 func TestIdentifier(t *testing.T) {
@@ -243,6 +249,7 @@ func TestLabel(t *testing.T) {
 	tt.True(t, Value(a) != a.Dup())
 	tt.True(t, !a.LinkedToData())
 	tt.True(t, !a.IsComputed())
+	tt.True(t, !a.LinkedToProc())
 
 	a.Link = NewInst(nil, InstData)
 	tt.True(t, a.LinkedToData())
@@ -258,6 +265,9 @@ func TestLabel(t *testing.T) {
 
 	a.At = InternalConstexpr(InternalId(KwReserved))
 	tt.True(t, a.IsReserved())
+
+	a.Sig = &Sig{}
+	tt.True(t, a.LinkedToProc())
 }
 
 func TestInline(t *testing.T) {
@@ -298,6 +308,15 @@ func TestEnv(t *testing.T) {
 
 	b := a.Enter()
 	tt.Eq(t, a, b.Outer())
+
+	b.Install(&Named{Name: Intern("a")})
+	b.Install(&Named{Name: Intern("b")})
+	tt.Eq(t, 2, len(slices.Collect(b.Names())))
+
+	c := NewEnv(nil)
+	c.Install(&Named{Name: Intern("c")})
+	c.MergeEnv(b)
+	tt.Eq(t, 3, len(slices.Collect(c.Names())))
 }
 
 func TestTypeLabelOf(t *testing.T) {

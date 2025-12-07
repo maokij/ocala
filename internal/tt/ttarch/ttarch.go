@@ -3,9 +3,8 @@ package ttarch
 import (
 	"bytes"
 	"maps"
-	. "ocala/internal/core" //lint:ignore ST1001 core
-	_ "ocala/internal/mos6502"
-	_ "ocala/internal/z80"
+	_ "ocala"
+	. "ocala/core" //lint:ignore ST1001 core
 	"os"
 	"regexp"
 	"strings"
@@ -185,7 +184,7 @@ func exprToOperand(cc *Compiler, e Value) *Operand {
 			}
 		}
 	}
-	return InvalidOperand
+	return &Operand{From: e, Kind: KwInvalidOperand}
 }
 
 func adjustOperand(cc *Compiler, e *Operand, n int, etag *Identifier) {

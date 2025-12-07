@@ -4,9 +4,8 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"ocala/internal/core"
-	_ "ocala/internal/mos6502"
-	_ "ocala/internal/z80"
+	_ "ocala"
+	"ocala/core"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -17,7 +16,6 @@ var appRoot = ""
 
 var errNoInputFile = fmt.Errorf("input file required(-h for help)")
 var errInvalidTarget = fmt.Errorf("invalid target arch(-h for help)")
-var errInvalidInstallation = fmt.Errorf("invalid installation")
 
 type CLI struct {
 	inReader   io.Reader
@@ -37,36 +35,18 @@ func (v *StringListValue) Set(s string) error {
 	return nil
 }
 
-func (cli *CLI) findAppRoot() error {
-	path, err := cli.executable, error(nil)
-	if path == "" {
-		path, err = os.Executable()
-		if err != nil {
-			return err
-		}
-
-		path, err = filepath.EvalSymlinks(path)
-		if err != nil {
-			return err
-		}
-	}
-
-	path = filepath.Join(path, "../..")
-	stat, err := os.Stat(filepath.Join(path, "share/ocala/include"))
-	if err != nil || !stat.IsDir() {
-		return errInvalidInstallation
-	}
-
-	appRoot = path
-	return nil
-}
-
 var reDefName = regexp.MustCompile(`^[_A-Za-z][-_A-Za-z0-9]*$`)
+
+func printError(g *core.Generator, err error) error {
+	fmt.Fprintln(g.ErrWriter, err.Error())
+	return err
+}
 
 func (*CLI) ParseCommandLineOptions(g *core.Generator, args []string) (string, error) {
 	arch := ""
 	incPaths := []string{}
 	printVersion := false
+	printHelp := false
 
 	flags := flag.NewFlagSet("", flag.ContinueOnError)
 	flags.SetOutput(g.ErrWriter)
@@ -84,25 +64,26 @@ func (*CLI) ParseCommandLineOptions(g *core.Generator, args []string) (string, e
 		return nil
 	})
 	flags.BoolVar(&printVersion, "V", false, "Display the version information")
+	flags.BoolVar(&printHelp, "h", false, "Display this message")
 
 	if err := flags.Parse(args[1:]); err != nil {
 		return "", err
+	} else if printHelp {
+		flags.SetOutput(g.OutWriter)
+		flags.Usage()
+		return "", flag.ErrHelp
 	} else if printVersion {
 		fmt.Fprintf(g.OutWriter, "ocala %s\n", version)
 		return "", flag.ErrHelp
 	}
 	if len(flags.Args()) == 0 {
-		err := errNoInputFile
-		fmt.Fprintln(g.ErrWriter, err.Error())
-		return "", err
+		return "", printError(g, errNoInputFile)
 	}
 
 	if arch != "" {
 		cc := core.NewCompiler(arch)
 		if cc == nil {
-			err := errInvalidTarget
-			fmt.Fprintln(g.ErrWriter, err.Error())
-			return "", err
+			return "", printError(g, errInvalidTarget)
 		}
 		g.SetCompiler(cc)
 	}
@@ -114,16 +95,14 @@ func (*CLI) ParseCommandLineOptions(g *core.Generator, args []string) (string, e
 	g.AppendIncPath(filepath.Join(appRoot, "share/ocala/include"))
 	for _, i := range incPaths {
 		if err := g.AppendIncPath(i); err != nil {
-			fmt.Fprintln(g.ErrWriter, err.Error())
-			return "", err
+			return "", printError(g, err)
 		}
 	}
 
 	for _, i := range g.Defs {
 		if !reDefName.MatchString(i) {
 			err := fmt.Errorf("invalid constant name `%s` from -D option", i)
-			fmt.Fprintln(g.ErrWriter, err.Error())
-			return "", err
+			return "", printError(g, err)
 		}
 	}
 
@@ -140,10 +119,12 @@ func (cli *CLI) Run(args []string) int {
 		ListText:  &[]byte{},
 	}
 	if appRoot == "" {
-		if err := cli.findAppRoot(); err != nil {
+		path, err := core.FindAppRoot(cli.executable)
+		if err != nil {
 			fmt.Fprintln(g.ErrWriter, err.Error())
 			return 1
 		}
+		appRoot = path
 	}
 
 	path, err := cli.ParseCommandLineOptions(g, args)

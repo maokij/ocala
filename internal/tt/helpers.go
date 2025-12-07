@@ -67,16 +67,6 @@ func Prefix(t *testing.T, a, b string, rest ...any) {
 	}
 }
 
-func FilterByPrefix(s string, prefix string) []string {
-	r := []string{}
-	for _, i := range strings.Split(s, "\n") {
-		if strings.HasPrefix(i, prefix) {
-			r = append(r, i)
-		}
-	}
-	return r
-}
-
 func Unindent(s string) string {
 	n := 0
 	for n < len(s) && s[n] != '\n' {

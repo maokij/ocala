@@ -16,13 +16,38 @@ func raiseError(err error) {
 	panic(err)
 }
 
+var errInvalidInstallation = fmt.Errorf("invalid installation")
+
+func FindAppRoot(path string) (string, error) {
+	var err error
+	if path == "" {
+		path, err = os.Executable()
+		if err != nil {
+			return "", err
+		}
+
+		path, err = filepath.EvalSymlinks(path)
+		if err != nil {
+			return "", err
+		}
+	}
+
+	path = filepath.Join(path, "../..")
+	stat, err := os.Stat(filepath.Join(path, "share/ocala/include"))
+	if err != nil || !stat.IsDir() {
+		return "", errInvalidInstallation
+	}
+
+	return path, nil
+}
+
 func replacePathExt(path, ext string) string {
 	return path[:len(path)-len(filepath.Ext(path))] + ext
 }
 
 var reInvalidPath = regexp.MustCompile(`^/|^\.\.+/|/\.+/|/\.*$|^\.+$`)
 
-func regularizePath(s, dir string, paths []string) (string, error) {
+func RegularizePath(s, dir string, paths []string) (string, error) {
 	b := filepath.ToSlash(s)
 
 	if filepath.IsAbs(s) || reInvalidPath.MatchString(b) {
@@ -120,7 +145,7 @@ func (cc *Compiler) sInclude(env *Env, e *Vec) Value {
 	path := CheckConst(e.At(1), StrT, "include path", etag, cc)
 
 	CheckToplevelEnvIfCtProc(env, etag, cc)
-	rpath, err := regularizePath(string(*path), filepath.Dir(cc.InPath), cc.g.IncPaths)
+	rpath, err := RegularizePath(string(*path), filepath.Dir(cc.InPath), cc.g.IncPaths)
 	if err != nil {
 		cc.ErrorAt(etag).With(err.Error())
 	}
@@ -144,7 +169,7 @@ func (cc *Compiler) sLoadFile(env *Env, e *Vec) Value {
 	path := EvalConstAs(e.At(1), env, StrT, "path", etag, cc)
 	CheckPhase(PhCompile, etag, cc)
 
-	rpath, err := regularizePath(string(*path), filepath.Dir(cc.InPath), cc.g.IncPaths)
+	rpath, err := RegularizePath(string(*path), filepath.Dir(cc.InPath), cc.g.IncPaths)
 	if err != nil {
 		cc.ErrorAt(etag).With(err.Error())
 	}

@@ -1,6 +1,6 @@
 package ttarch
 
-import . "ocala/internal/core" //lint:ignore ST1001 core
+import . "ocala/core" //lint:ignore ST1001 core
 
 var bmaps = [][]byte{
 	{3, 1, 3, 0, 97, 103, 111}, // 0: BMM
@@ -40,24 +40,24 @@ var kwRegX = Intern("X")
 var kwRegY = Intern("Y")
 
 var asmOperands = map[*Keyword]AsmOperand{
-	kwRegA:   {"A", false},
-	kwRegB:   {"B", false},
-	kwRegP:   {"P", false},
-	kwRegAB:  {"AB", false},
-	kwRegSP:  {"SP", false},
-	kwRegPC:  {"PC", false},
-	kwRegPQ:  {"PQ", false},
-	kwRegX:   {"X", false},
-	kwMemX:   {"(X)", false},
-	kwRegY:   {"Y", false},
-	kwMemY:   {"(Y)", false},
-	kwImmN:   {"0+ %", true},
-	kwImmNN:  {"0+ %", true},
-	kwMemNN:  {"(%)", true},
-	kwCondNE: {"NE", false},
-	kwCondEQ: {"EQ", false},
-	kwCondCC: {"CC", false},
-	kwCondCS: {"CS", false},
+	kwRegA:   {Base: "A", Expand: false},
+	kwRegB:   {Base: "B", Expand: false},
+	kwRegP:   {Base: "P", Expand: false},
+	kwRegAB:  {Base: "AB", Expand: false},
+	kwRegSP:  {Base: "SP", Expand: false},
+	kwRegPC:  {Base: "PC", Expand: false},
+	kwRegPQ:  {Base: "PQ", Expand: false},
+	kwRegX:   {Base: "X", Expand: false},
+	kwMemX:   {Base: "(X)", Expand: false},
+	kwRegY:   {Base: "Y", Expand: false},
+	kwMemY:   {Base: "(Y)", Expand: false},
+	kwImmN:   {Base: "0+ %", Expand: true},
+	kwImmNN:  {Base: "0+ %", Expand: true},
+	kwMemNN:  {Base: "(%)", Expand: true},
+	kwCondNE: {Base: "NE", Expand: false},
+	kwCondEQ: {Base: "EQ", Expand: false},
+	kwCondCC: {Base: "CC", Expand: false},
+	kwCondCS: {Base: "CS", Expand: false},
 }
 
 var tokenWords = [][]string{

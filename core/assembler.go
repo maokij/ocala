@@ -40,7 +40,7 @@ func (g *Generator) validateCallproc(inst *Inst) {
 	id := c.Body.(*Identifier)
 	nm := g.cc.LookupNamed(c.Env, id)
 	if nm == nil {
-		g.cc.ErrorAt(inst).With("undefined proc %s", id)
+		g.cc.ErrorAt(id, inst).With("undefined proc %s", id)
 	}
 
 	var a *Sig
@@ -51,12 +51,12 @@ func (g *Generator) validateCallproc(inst *Inst) {
 		a = nm.Value.(*Inline).Sig
 	}
 	if a == nil {
-		g.cc.ErrorAt(inst).With("%s is not a proc", id)
+		g.cc.ErrorAt(id, inst).With("%s is not a proc", id)
 	}
 
 	b := inst.Args[2].(*Sig)
 	if !a.Equals(b) {
-		g.cc.ErrorAt(inst).With("proc signature mismatch: %s.\n"+
+		g.cc.ErrorAt(id, inst).With("proc signature mismatch: %s.\n"+
 			"  expected %v,\n"+
 			"  given    %v", id, a, b)
 	}
@@ -122,10 +122,10 @@ func (g *Generator) findInstBody(inst *Inst, pass int) []BCode {
 	p := m.(InstPat)
 	for x, i := range inst.Args[1:] {
 		i := i.(*Operand)
-		if adjust {
-			if c, ok := i.A0.(*Constexpr); ok {
-				n := EvalConstAs(c, c.Env, IntT, "operand", etag, g.cc)
-				g.cc.Constvals[c] = n
+		if c, ok := i.A0.(*Constexpr); ok {
+			n := EvalConstAs(c, c.Env, IntT, "operand", etag, g.cc)
+			g.cc.Constvals[c] = n
+			if adjust {
 				g.cc.AdjustOperand(g.cc, i, int(n), etag)
 			}
 		}

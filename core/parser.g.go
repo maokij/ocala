@@ -132,13 +132,12 @@ var reservedWords = map[string]int32{
   "_COND": tkRESERVED,
 }
 
-func (p *Parser) _parse() (res Value, ok bool) {
-    res = p._parseProgram()
+func (p *Parser) _parse() Value {
+    res := p._parseProgram()
     if (p.PeekToken().Kind != tkEOF) {
          p.ErrorUnexpected("EOF")
     }
-    ok = true
-    return
+    return res
 }
 
 /** ** **
@@ -152,7 +151,7 @@ func (p *Parser) _parseProgram() (ret Value) {
     // RULE: program -> _program_1o _program_4r
     v := &Vec{KwBlock.ToId(p.PeekToken())}
     switch p.PeekToken().Kind {
-    case tkMACRO, tkPROC, tkCONST, tkDATA, tkMODULE, tkLABEL, tkSTRUCT, tkIDENTIFIER, tkCONDDOT, tkATMI, tkIDENTIFIERP, tkREGISTER, tkLS, tkDLAT, tkDLDLAT, tkSC, tkEOF, tkRC:
+    case tkMACRO, tkPROC, tkCONST, tkDATA, tkMODULE, tkLABEL, tkSTRUCT, tkIDENTIFIER, tkCONDDOT, tkATMI, tkIDENTIFIERP, tkREGISTER, tkLS, tkDLAT, tkDLDLAT, tkSC, tkEOF:
         // @ _program_1o _program_4r
         var _1 Value; _ = _1
         for {
@@ -164,7 +163,7 @@ func (p *Parser) _parseProgram() (ret Value) {
                 // @ statement
                 _1 := p._parseStatement(); _ = _1
                 *res = _1 // DEFAULT OPT ACTION
-            case tkSC, tkEOF, tkRC:
+            case tkSC, tkEOF:
                 // NOP
             default:
                 p.ErrorUnexpected("statement, ';', etc.")
@@ -195,7 +194,7 @@ func (p *Parser) _parseProgram() (ret Value) {
                         // @ statement
                         _1 := p._parseStatement(); _ = _1
                         *res = _1 // DEFAULT OPT ACTION
-                    case tkSC, tkEOF, tkRC:
+                    case tkSC, tkEOF:
                         // NOP
                     default:
                         p.ErrorUnexpected("statement, etc.")
@@ -205,7 +204,7 @@ func (p *Parser) _parseProgram() (ret Value) {
                 if _2 != nil { v.Push(_2) }
 
                 continue
-            case tkEOF, tkRC:
+            case tkEOF:
                 // NOP
             default:
                 p.ErrorUnexpected("';', etc.")
@@ -1358,44 +1357,108 @@ func (p *Parser) _parseRegisters() (ret Value) {
 
 /** ** **
   block ->
-      '{' program '}'
-    | '={' program '}'
+      (
+        '{'
+      | '={'
+      ) statement? (
+        ';' statement?
+      )* '}'
  ** ** **/
 func (p *Parser) _parseBlock() (ret Value) {
     res := &ret; _ = res
-    // RULE: block -> '{' program '}'
-    // RULE: block -> '={' program '}'
+    // RULE: block -> _block_52g _block_53o _block_56r '}'
+    v := &Vec{NIL}
     switch p.PeekToken().Kind {
-    case tkLC:
-        // @ '{' program '}'
-        _1 := p.ConsumeToken(); _ = _1
+    case tkLC, tkEQLC:
+        // @ _block_52g _block_53o _block_56r '}'
+        var _1 Value; _ = _1
+        for {
+            res := &_1; _ = res
+            // RULE: _block_52g -> '{'
+            // RULE: _block_52g -> '={'
+            switch p.PeekToken().Kind {
+            case tkLC:
+                // @ '{'
+                _1 := p.ConsumeToken(); _ = _1
+                v.SetAt(0, KwProg.ToId(_1))
+            case tkEQLC:
+                // @ '={'
+                _1 := p.ConsumeToken(); _ = _1
+                v.SetAt(0, KwBlock.ToId(_1))
+            default:
+                p.ErrorUnexpected("'{', '={'")
+            }
+            break
+        }
 
-        // '{' @ program '}'
-        _2 := p._parseProgram(); _ = _2
+        // _block_52g @ _block_53o _block_56r '}'
+        var _2 Value; _ = _2
+        for {
+            res := &_2; _ = res
+            // RULE: _block_53o -> statement
+            // RULE: _block_53o -> 
+            switch p.PeekToken().Kind {
+            case tkMACRO, tkPROC, tkCONST, tkDATA, tkMODULE, tkLABEL, tkSTRUCT, tkIDENTIFIER, tkCONDDOT, tkATMI, tkIDENTIFIERP, tkREGISTER, tkLS, tkDLAT, tkDLDLAT:
+                // @ statement
+                _1 := p._parseStatement(); _ = _1
+                *res = _1 // DEFAULT OPT ACTION
+            case tkSC, tkRC:
+                // NOP
+            default:
+                p.ErrorUnexpected("statement, ';', '}'")
+            }
+            break
+        }
+        if _2 != nil { v.Push(_2) }
 
-        // '{' program @ '}'
-        _3 := p.PeekToken(); _ = _3
-        if _3.Kind == tkRC {
+        // _block_52g _block_53o @ _block_56r '}'
+        var _3 Value; _ = _3
+        for {
+            res := &_3; _ = res
+            // RULE: _block_56r -> _block_55g*
+            // RULE: _block_55g -> ';' _block_54o
+            switch p.PeekToken().Kind {
+            case tkSC:
+                // @ ';' _block_54o
+                _1 := p.ConsumeToken(); _ = _1
+
+                // ';' @ _block_54o
+                var _2 Value; _ = _2
+                for {
+                    res := &_2; _ = res
+                    // RULE: _block_54o -> statement
+                    // RULE: _block_54o -> 
+                    switch p.PeekToken().Kind {
+                    case tkMACRO, tkPROC, tkCONST, tkDATA, tkMODULE, tkLABEL, tkSTRUCT, tkIDENTIFIER, tkCONDDOT, tkATMI, tkIDENTIFIERP, tkREGISTER, tkLS, tkDLAT, tkDLDLAT:
+                        // @ statement
+                        _1 := p._parseStatement(); _ = _1
+                        *res = _1 // DEFAULT OPT ACTION
+                    case tkSC, tkRC:
+                        // NOP
+                    default:
+                        p.ErrorUnexpected("statement, etc.")
+                    }
+                    break
+                }
+                if _2 != nil { v.Push(_2) }
+
+                continue
+            case tkRC:
+                // NOP
+            default:
+                p.ErrorUnexpected("';', '}'")
+            }
+            break
+        }
+
+        // _block_52g _block_53o _block_56r @ '}'
+        _4 := p.PeekToken(); _ = _4
+        if _4.Kind == tkRC {
             p.ConsumeToken()
         } else {
             p.ErrorUnexpected("'}'")
         }
-        v := _2.(*Vec); v.SetAt(0, KwProg.ToId(_1)); *res = v
-    case tkEQLC:
-        // @ '={' program '}'
-        _1 := p.ConsumeToken(); _ = _1
-
-        // '={' @ program '}'
-        _2 := p._parseProgram(); _ = _2
-
-        // '={' program @ '}'
-        _3 := p.PeekToken(); _ = _3
-        if _3.Kind == tkRC {
-            p.ConsumeToken()
-        } else {
-            p.ErrorUnexpected("'}'")
-        }
-        *res = _2
+        *res = v
     default:
         p.ErrorUnexpected("block")
     }
@@ -1408,15 +1471,15 @@ func (p *Parser) _parseBlock() (ret Value) {
  ** ** **/
 func (p *Parser) _parseProcCall() (ret Value) {
     res := &ret; _ = res
-    // RULE: proc_call -> _proc_call_52o identifierp '(' signature ')'
+    // RULE: proc_call -> _proc_call_57o identifierp '(' signature ')'
     switch p.PeekToken().Kind {
     case tkCONDDOT, tkIDENTIFIERP:
-        // @ _proc_call_52o identifierp '(' signature ')'
+        // @ _proc_call_57o identifierp '(' signature ')'
         var _1 *Token; _ = _1
         for {
             res := &_1; _ = res
-            // RULE: _proc_call_52o -> CONDDOT
-            // RULE: _proc_call_52o -> 
+            // RULE: _proc_call_57o -> CONDDOT
+            // RULE: _proc_call_57o -> 
             switch p.PeekToken().Kind {
             case tkCONDDOT:
                 // @ CONDDOT
@@ -1430,10 +1493,10 @@ func (p *Parser) _parseProcCall() (ret Value) {
             break
         }
 
-        // _proc_call_52o @ identifierp '(' signature ')'
+        // _proc_call_57o @ identifierp '(' signature ')'
         _2 := p._parseIdentifierp(); _ = _2
 
-        // _proc_call_52o identifierp @ '(' signature ')'
+        // _proc_call_57o identifierp @ '(' signature ')'
         _3 := p.PeekToken(); _ = _3
         if _3.Kind == tkLP {
             p.ConsumeToken()
@@ -1441,10 +1504,10 @@ func (p *Parser) _parseProcCall() (ret Value) {
             p.ErrorUnexpected("'('")
         }
 
-        // _proc_call_52o identifierp '(' @ signature ')'
+        // _proc_call_57o identifierp '(' @ signature ')'
         _4 := p._parseSignature(); _ = _4
 
-        // _proc_call_52o identifierp '(' signature @ ')'
+        // _proc_call_57o identifierp '(' signature @ ')'
         _5 := p.PeekToken(); _ = _5
         if _5.Kind == tkRP {
             p.ConsumeToken()
@@ -1473,18 +1536,18 @@ func (p *Parser) _parseProcCall() (ret Value) {
  ** ** **/
 func (p *Parser) _parseContextExpression() (ret Value) {
     res := &ret; _ = res
-    // RULE: context_expression -> _context_expression_53g _context_expression_55r
+    // RULE: context_expression -> _context_expression_58g _context_expression_60r
     v := &Vec{KwWith.ToId(p.PeekToken())}
     switch p.PeekToken().Kind {
     case tkATMI, tkREGISTER, tkLS, tkDLAT, tkDLDLAT:
-        // @ _context_expression_53g _context_expression_55r
+        // @ _context_expression_58g _context_expression_60r
         var _1 Value; _ = _1
         for {
             res := &_1; _ = res
-            // RULE: _context_expression_53g -> decorated_register
-            // RULE: _context_expression_53g -> memory_access
-            // RULE: _context_expression_53g -> explicit_value
-            // RULE: _context_expression_53g -> '@-' primitive
+            // RULE: _context_expression_58g -> decorated_register
+            // RULE: _context_expression_58g -> memory_access
+            // RULE: _context_expression_58g -> explicit_value
+            // RULE: _context_expression_58g -> '@-' primitive
             switch p.PeekToken().Kind {
             case tkREGISTER:
                 // @ decorated_register
@@ -1511,14 +1574,14 @@ func (p *Parser) _parseContextExpression() (ret Value) {
             break
         }
 
-        // _context_expression_53g @ _context_expression_55r
+        // _context_expression_58g @ _context_expression_60r
         var _2 Value; _ = _2
         for {
             res := &_2; _ = res
-            // RULE: _context_expression_55r -> _context_expression_54g*
-            // RULE: _context_expression_54g -> POSTFIX_OPERATOR
-            // RULE: _context_expression_54g -> BINARY_OPERATOR operand
-            // RULE: _context_expression_54g -> DOT_OPERATOR dot_operand
+            // RULE: _context_expression_60r -> _context_expression_59g*
+            // RULE: _context_expression_59g -> POSTFIX_OPERATOR
+            // RULE: _context_expression_59g -> BINARY_OPERATOR operand
+            // RULE: _context_expression_59g -> DOT_OPERATOR dot_operand
             switch p.PeekToken().Kind {
             case tkPOSTFIX_OPERATOR:
                 // @ POSTFIX_OPERATOR
@@ -1566,19 +1629,19 @@ func (p *Parser) _parseContextExpression() (ret Value) {
  ** ** **/
 func (p *Parser) _parseOperand() (ret Value) {
     res := &ret; _ = res
-    // RULE: operand -> primitive _operand_57o
+    // RULE: operand -> primitive _operand_62o
     switch p.PeekToken().Kind {
     case tkCONDITION, tkLC, tkEQLC, tkREGISTER, tkLS, tkDLAT, tkDLDLAT, tkINTEGER, tkSTRING, tkRESERVED, tkIDENTIFIER, tkIDENTIFIERP, tkLP, tkPREFIX_OPERATOR:
-        // @ primitive _operand_57o
+        // @ primitive _operand_62o
         _1 := p._parsePrimitive(); _ = _1
         v := _1
 
-        // primitive @ _operand_57o
+        // primitive @ _operand_62o
         var _2 Value; _ = _2
         for {
             res := &_2; _ = res
-            // RULE: _operand_57o -> _operand_56g?
-            // RULE: _operand_56g -> ':' primitive
+            // RULE: _operand_62o -> _operand_61g?
+            // RULE: _operand_61g -> ':' primitive
             switch p.PeekToken().Kind {
             case tkCL:
                 // @ ':' primitive
@@ -1651,19 +1714,19 @@ func (p *Parser) _parsePrimitive() (ret Value) {
  ** ** **/
 func (p *Parser) _parseDecoratedRegister() (ret Value) {
     res := &ret; _ = res
-    // RULE: decorated_register -> REGISTER _decorated_register_59o
+    // RULE: decorated_register -> REGISTER _decorated_register_64o
     switch p.PeekToken().Kind {
     case tkREGISTER:
-        // @ REGISTER _decorated_register_59o
+        // @ REGISTER _decorated_register_64o
         _1 := p.ConsumeToken(); _ = _1
         v := &Vec{KwWith.ToId(_1), _1.Value}
 
-        // REGISTER @ _decorated_register_59o
+        // REGISTER @ _decorated_register_64o
         var _2 Value; _ = _2
         for {
             res := &_2; _ = res
-            // RULE: _decorated_register_59o -> _decorated_register_58g?
-            // RULE: _decorated_register_58g -> '-@' primitive
+            // RULE: _decorated_register_64o -> _decorated_register_63g?
+            // RULE: _decorated_register_63g -> '-@' primitive
             switch p.PeekToken().Kind {
             case tkMIAT:
                 // @ '-@' primitive
@@ -1695,20 +1758,20 @@ func (p *Parser) _parseDecoratedRegister() (ret Value) {
  ** ** **/
 func (p *Parser) _parseMemoryAccess() (ret Value) {
     res := &ret; _ = res
-    // RULE: memory_access -> '[' _memory_access_61r ']'
+    // RULE: memory_access -> '[' _memory_access_66r ']'
     switch p.PeekToken().Kind {
     case tkLS:
-        // @ '[' _memory_access_61r ']'
+        // @ '[' _memory_access_66r ']'
         _1 := p.ConsumeToken(); _ = _1
         v := &Vec{KwMem.ToId(_1)}
 
-        // '[' @ _memory_access_61r ']'
+        // '[' @ _memory_access_66r ']'
         var _2 Value; _ = _2
         for {
             res := &_2; _ = res
-            // RULE: _memory_access_61r -> _memory_access_60g*
-            // RULE: _memory_access_60g -> context_expression
-            // RULE: _memory_access_60g -> constexpr
+            // RULE: _memory_access_66r -> _memory_access_65g*
+            // RULE: _memory_access_65g -> context_expression
+            // RULE: _memory_access_65g -> constexpr
             switch p.PeekToken().Kind {
             case tkATMI, tkREGISTER, tkLS, tkDLAT, tkDLDLAT:
                 // @ context_expression
@@ -1730,7 +1793,7 @@ func (p *Parser) _parseMemoryAccess() (ret Value) {
             break
         }
 
-        // '[' _memory_access_61r @ ']'
+        // '[' _memory_access_66r @ ']'
         _3 := p.PeekToken(); _ = _3
         if _3.Kind == tkRS {
             p.ConsumeToken()
@@ -1850,19 +1913,19 @@ func (p *Parser) _parseConstval() (ret Value) {
  ** ** **/
 func (p *Parser) _parseIexpr() (ret Value) {
     res := &ret; _ = res
-    // RULE: iexpr -> ival _iexpr_63r
+    // RULE: iexpr -> ival _iexpr_68r
     switch p.PeekToken().Kind {
     case tkINTEGER, tkSTRING, tkRESERVED, tkIDENTIFIER, tkIDENTIFIERP, tkLP, tkPREFIX_OPERATOR:
-        // @ ival _iexpr_63r
+        // @ ival _iexpr_68r
         _1 := p._parseIval(); _ = _1
         v := []Value{_1}
 
-        // ival @ _iexpr_63r
+        // ival @ _iexpr_68r
         var _2 Value; _ = _2
         for {
             res := &_2; _ = res
-            // RULE: _iexpr_63r -> _iexpr_62g*
-            // RULE: _iexpr_62g -> BINARY_OPERATOR ival
+            // RULE: _iexpr_68r -> _iexpr_67g*
+            // RULE: _iexpr_67g -> BINARY_OPERATOR ival
             switch p.PeekToken().Kind {
             case tkBINARY_OPERATOR:
                 // @ BINARY_OPERATOR ival
@@ -1908,8 +1971,8 @@ func (p *Parser) _parseIval() (ret Value) {
     // RULE: ival -> INTEGER
     // RULE: ival -> STRING
     // RULE: ival -> RESERVED
-    // RULE: ival -> IDENTIFIER _ival_67o
-    // RULE: ival -> IDENTIFIERP '(' _ival_69r ')'
+    // RULE: ival -> IDENTIFIER _ival_72o
+    // RULE: ival -> IDENTIFIERP '(' _ival_74r ')'
     // RULE: ival -> '(' iexpr ')'
     // RULE: ival -> PREFIX_OPERATOR ival
     switch p.PeekToken().Kind {
@@ -1926,22 +1989,22 @@ func (p *Parser) _parseIval() (ret Value) {
         _1 := p.ConsumeToken(); _ = _1
         *res = _1.Value
     case tkIDENTIFIER:
-        // @ IDENTIFIER _ival_67o
+        // @ IDENTIFIER _ival_72o
         _1 := p.ConsumeToken(); _ = _1
         v := _1.Value
 
-        // IDENTIFIER @ _ival_67o
+        // IDENTIFIER @ _ival_72o
         var _2 Value; _ = _2
         for {
             res := &_2; _ = res
-            // RULE: _ival_67o -> _ival_66g?
-            // RULE: _ival_66g -> '.-' IDENTIFIER _ival_65r
+            // RULE: _ival_72o -> _ival_71g?
+            // RULE: _ival_71g -> '.-' IDENTIFIER _ival_70r
             switch p.PeekToken().Kind {
             case tkDTMI:
-                // @ '.-' IDENTIFIER _ival_65r
+                // @ '.-' IDENTIFIER _ival_70r
                 _1 := p.ConsumeToken(); _ = _1
 
-                // '.-' @ IDENTIFIER _ival_65r
+                // '.-' @ IDENTIFIER _ival_70r
                 _2 := p.PeekToken(); _ = _2
                 if _2.Kind == tkIDENTIFIER {
                     p.ConsumeToken()
@@ -1950,12 +2013,12 @@ func (p *Parser) _parseIval() (ret Value) {
                 }
                 w := &Vec{KwField.ToId(_1), v, _2.Value}
 
-                // '.-' IDENTIFIER @ _ival_65r
+                // '.-' IDENTIFIER @ _ival_70r
                 var _3 Value; _ = _3
                 for {
                     res := &_3; _ = res
-                    // RULE: _ival_65r -> _ival_64g*
-                    // RULE: _ival_64g -> '.-' IDENTIFIER
+                    // RULE: _ival_70r -> _ival_69g*
+                    // RULE: _ival_69g -> '.-' IDENTIFIER
                     switch p.PeekToken().Kind {
                     case tkDTMI:
                         // @ '.-' IDENTIFIER
@@ -1988,11 +2051,11 @@ func (p *Parser) _parseIval() (ret Value) {
         }
         *res = v
     case tkIDENTIFIERP:
-        // @ IDENTIFIERP '(' _ival_69r ')'
+        // @ IDENTIFIERP '(' _ival_74r ')'
         _1 := p.ConsumeToken(); _ = _1
         v := &Vec{ _1.Value }
 
-        // IDENTIFIERP @ '(' _ival_69r ')'
+        // IDENTIFIERP @ '(' _ival_74r ')'
         _2 := p.PeekToken(); _ = _2
         if _2.Kind == tkLP {
             p.ConsumeToken()
@@ -2000,12 +2063,12 @@ func (p *Parser) _parseIval() (ret Value) {
             p.ErrorUnexpected("'('")
         }
 
-        // IDENTIFIERP '(' @ _ival_69r ')'
+        // IDENTIFIERP '(' @ _ival_74r ')'
         var _3 Value; _ = _3
         for {
             res := &_3; _ = res
-            // RULE: _ival_69r -> _ival_68g*
-            // RULE: _ival_68g -> iexpr
+            // RULE: _ival_74r -> _ival_73g*
+            // RULE: _ival_73g -> iexpr
             switch p.PeekToken().Kind {
             case tkINTEGER, tkSTRING, tkRESERVED, tkIDENTIFIER, tkIDENTIFIERP, tkLP, tkPREFIX_OPERATOR:
                 // @ iexpr
@@ -2021,7 +2084,7 @@ func (p *Parser) _parseIval() (ret Value) {
             break
         }
 
-        // IDENTIFIERP '(' _ival_69r @ ')'
+        // IDENTIFIERP '(' _ival_74r @ ')'
         _4 := p.PeekToken(); _ = _4
         if _4.Kind == tkRP {
             p.ConsumeToken()

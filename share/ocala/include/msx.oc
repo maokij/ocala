@@ -1,4 +1,5 @@
 // -*- mode: ocala; -*-
+arch z80
 include "z80.oc"
 
 module msx {

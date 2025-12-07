@@ -62,7 +62,7 @@ func TestRegularizePath(t *testing.T) {
 			{"/testdata/include2/inc21.oc", "inc21.oc", 3},
 		}
 		for x, i := range data {
-			s, _ := regularizePath(i.path, wd, paths)
+			s, _ := RegularizePath(i.path, wd, paths)
 			actual := lastPathComponents(s, i.n)
 			tt.Eq(t, i.expected, actual, x, i)
 		}
@@ -107,7 +107,7 @@ func TestRegularizePath(t *testing.T) {
 			{"the file `./testdata/nothing` not found", "./testdata/nothing"},
 		}
 		for x, i := range data {
-			_, err := regularizePath(i.path, wd, paths)
+			_, err := RegularizePath(i.path, wd, paths)
 			tt.Eq(t, i.expected, err.Error(), x, i)
 		}
 	})
@@ -131,11 +131,24 @@ func TestRegularizePath(t *testing.T) {
 		}
 		for x, i := range data {
 			if runtime.GOOS == "windows" {
-				_, err := regularizePath(i.path, wd, paths)
+				_, err := RegularizePath(i.path, wd, paths)
 				tt.Eq(t, i.expected, err.Error(), x, i)
 			} else {
 				tt.Eq(t, 1, 1, x, i)
 			}
 		}
 	})
+}
+
+func TestFindAppRoot(t *testing.T) {
+	path, _ := filepath.Abs("../test.bin/test")
+	path, err := FindAppRoot(path)
+	tt.Eq(t, nil, err)
+
+	path, _ = filepath.Abs("../../test.bin/test/test")
+	path, err = FindAppRoot(path)
+	tt.Eq(t, "invalid installation", err.Error())
+
+	path, err = FindAppRoot("")
+	tt.Eq(t, "invalid installation", err.Error())
 }

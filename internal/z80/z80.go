@@ -2,7 +2,7 @@ package z80
 
 import (
 	"maps"
-	. "ocala/internal/core" //lint:ignore ST1001 core
+	. "ocala/core" //lint:ignore ST1001 core
 )
 
 func init() {
@@ -140,7 +140,7 @@ func exprToOperand(cc *Compiler, e Value) *Operand {
 			}
 		}
 	}
-	return InvalidOperand
+	return &Operand{From: e, Kind: KwInvalidOperand}
 }
 
 func adjustOperand(cc *Compiler, e *Operand, n int, etag *Identifier) {

@@ -15,6 +15,14 @@ func raiseError(err error) {
 	panic("error")
 }
 
+func FindAppRoot(path string) (string, error) {
+	panic("unsupported")
+}
+
+func RegularizePath(path string) (string, error) {
+	panic("unsupported")
+}
+
 func (g *Generator) AppendIncPath(path string) error {
 	return nil
 }

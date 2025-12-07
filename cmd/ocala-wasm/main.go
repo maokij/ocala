@@ -4,9 +4,8 @@ package main
 
 import (
 	"bytes"
-	"ocala/internal/core"
-	_ "ocala/internal/mos6502"
-	_ "ocala/internal/z80"
+	_ "ocala"
+	"ocala/core"
 	"syscall/js"
 )
 

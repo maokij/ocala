@@ -2,6 +2,8 @@ package core
 
 import (
 	"fmt"
+	"iter"
+	"maps"
 	"reflect"
 	"slices"
 	"sort"
@@ -517,7 +519,7 @@ type Operand struct {
 }
 
 var NoOperand = &Operand{}
-var InvalidOperand = &Operand{Kind: NewKeyword("invalid-operand")}
+var KwInvalidOperand = NewKeyword("invalid-operand")
 
 func (v *Operand) Inspect() string {
 	if a, ok := v.A0.(*Constexpr); ok {
@@ -864,6 +866,10 @@ func (env *Env) Dup() Value {
 	return env
 }
 
+func (env *Env) Names() iter.Seq[*Named] {
+	return maps.Values(env.names)
+}
+
 func (env *Env) Outer() *Env {
 	return env.outer
 }
@@ -927,4 +933,8 @@ func (env *Env) Filter(kind int32) []*Named {
 func (env *Env) InsertEnv(e *Env) {
 	env.outer = NewEnv(env.outer)
 	env.outer.names = e.names
+}
+
+func (env *Env) MergeEnv(e *Env) {
+	maps.Copy(env.names, e.names)
 }

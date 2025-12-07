@@ -1,7 +1,7 @@
 package core_test
 
 import (
-	"ocala/internal/core"
+	"ocala/core"
 	"ocala/internal/tt"
 	"ocala/internal/tt/ttarch"
 	"os"
@@ -659,6 +659,9 @@ func TestCompileNamed(t *testing.T) {
 				const test = 1
 				module ModA { }
 				db ModA:test
+			`,
+			"invalid placeholder", `flat!
+				db (1 + %=a)
 			`,
 			"LD is not a namespace", `flat!
 				db LD:test
@@ -2453,7 +2456,7 @@ func TestCompileOptimizeFlow(t *testing.T) {
 			L4: NOP; RET
 		`)
 		g := ttarch.BuildGenerator("ttarch", tt.Unindent(`flat!
-			optimize flow
+			optimize flow 1
 			proc f001() {
 			  NOP
 			  L0: $(L1) -jump ; NOP ; N0: NOP
@@ -2796,6 +2799,31 @@ func TestGenerator(t *testing.T) {
 		g.Changed()
 		tt.Eq(t, true, g.IsChanged())
 	})
+
+	t.Run("ok", func(t *testing.T) {
+		cc := ttarch.BuildCompiler()
+		g := ttarch.NewGenerator("")
+		g.SetCompiler(cc)
+		insts := g.Compile("-", []byte("flat!; db 1"))
+		g.CheckLink(insts)
+		tt.Eq(t, true, g.IsChanged())
+	})
+}
+
+func TestOperandA0ToNamed(t *testing.T) {
+	t.Run("ok", func(t *testing.T) {
+		cc := ttarch.BuildCompiler()
+		r := core.OperandA0ToNamed(cc, core.NIL, core.KwUNDER)
+		tt.Eq(t, nil, r)
+
+		a := &core.Operand{Kind: core.KwInvalidOperand}
+		r = core.OperandA0ToNamed(cc, a, core.KwUNDER)
+		tt.Eq(t, nil, r)
+
+		a = &core.Operand{Kind: core.KwUNDER}
+		r = core.OperandA0ToNamed(cc, a, core.KwUNDER)
+		tt.Eq(t, nil, r)
+	})
 }
 
 func TestSemanticCheck(t *testing.T) {
@@ -2806,6 +2834,9 @@ func TestSemanticCheck(t *testing.T) {
 			`,
 			"cannot use X as operand#2 for LD", `flat!
 				LD A, X
+			`,
+			"cannot use A as operand#3 for LD", `flat!
+				LD A 1 A
 			`,
 			"too few operands for LD", `flat!
 				LD A

@@ -496,7 +496,7 @@ class GenerateArch
 
         s = v.asm.gsub(/%[BW]/, "%")
         t = s == v.asm ? "false" : "true"
-        code << %(  #{v.go}: { "#{s}", #{t} },)
+        code << %(  #{v.go}: { Base: "#{s}", Expand: #{t} },)
       end
       code << "}" << ""
     end
@@ -574,7 +574,7 @@ class GenerateArch
     end
 
     code = ["package #{package}", ""]
-    code << %(import . "ocala/internal/core" //lint:ignore ST1001 core) << ""
+    code << %(import . "ocala/core" //lint:ignore ST1001 core) << ""
 
     code << "var bmaps = [][]byte{"
     @archs[0].bmaps.sort_by { |_, v| v.x }.each do |k, v|

@@ -16,7 +16,7 @@ func setupTestCLI() *CLI {
 
 func TestRun(t *testing.T) {
 	b := "../../internal/"
-	d := "../../internal/core/testdata/"
+	d := "../../core/testdata/"
 
 	t.Run("ok", func(t *testing.T) {
 		cli := setupTestCLI()
@@ -92,20 +92,4 @@ func TestCompileExamples(t *testing.T) {
 		actual := crc32.ChecksumIEEE(dat)
 		tt.Eq(t, i.expect, actual, i.name)
 	}
-}
-
-func TestFindAppRoot(t *testing.T) {
-	cli := &CLI{outWriter: &bytes.Buffer{}, errWriter: &bytes.Buffer{}}
-
-	cli.executable, _ = filepath.Abs("../../test.bin/test")
-	err := cli.findAppRoot()
-	tt.Eq(t, nil, err)
-
-	cli.executable, _ = filepath.Abs("../../test.bin/test/test")
-	err = cli.findAppRoot()
-	tt.Eq(t, "invalid installation", err.Error())
-
-	cli.executable = ""
-	err = cli.findAppRoot()
-	tt.Eq(t, "invalid installation", err.Error())
 }

@@ -15,9 +15,11 @@ type Pt struct {
 
 type Token struct {
 	Pt
-	From  *Scanner
-	Kind  int32
-	Value Value
+	End    Pt
+	From   *Scanner
+	Parent *Token
+	Kind   int32
+	Value  Value
 }
 
 func (v *Token) String() string {
@@ -33,26 +35,30 @@ func (v *Token) Dup() Value {
 	return CopyPtr(v)
 }
 
+func (v *Token) IsInternal() bool {
+	return v.From == InternalParser
+}
+
 func (v *Token) Column() int32 {
 	return v.Pos - v.From.Lines[v.Line]
 }
 
 func (v *Token) PtPrefix() string {
-	for v.From == InternalParser {
+	for v.IsInternal() {
 		if id, ok := v.Value.(*Identifier); ok && id.ExpandedBy != nil {
 			v = id.ExpandedBy.Token
-		} else {
-			break
+			continue
 		}
+		break
 	}
-	if v.From == InternalParser {
+	if v.IsInternal() {
 		return ""
 	}
 	return fmt.Sprintf("%s:%d:%d: ", v.From.Path, v.Line+1, v.Column())
 }
 
 func (v *Token) FormatAsErrorLine(s string) string {
-	if v.From == InternalParser {
+	if v.IsInternal() {
 		s = fmt.Sprintf("  %s internal %s %s\n", s, TypeLabelOf(v.Value), v.Value)
 	} else {
 		col := v.Column()
@@ -71,10 +77,15 @@ type Scanner struct {
 	Matched []string
 	Tokens  []*Token
 	OnError func(*InternalError)
-	cc      *Compiler
+}
+
+func (s *Scanner) Reset() {
+	s.Pt = Pt{}
+	s.Tokens = s.Tokens[:0]
 }
 
 func (s *Scanner) Init() {
+	s.Reset()
 	s.Lines = []int32{0}
 	for x, c := range s.Text {
 		if c == '\n' {
@@ -111,12 +122,10 @@ func (s *Scanner) scanErrorAt(pt Pt, message string, args ...any) {
 	err := &InternalError{
 		tag:     "scan error: ",
 		message: fmt.Sprintf(message, args...),
-		at:      append([]Value{s.NewToken(0, NIL, pt)}, s.cc.nested...),
+		at:      []Value{s.NewToken(0, NIL, pt)},
 	}
 	if s.OnError != nil {
 		s.OnError(err)
-	} else {
-		raiseError(err)
 	}
 }
 
@@ -198,6 +207,7 @@ func (s *Scanner) NewToken(kind int32, value Value, pt Pt) *Token {
 		Kind:  kind,
 		Value: value,
 		Pt:    pt,
+		End:   s.Pt,
 	}
 }
 

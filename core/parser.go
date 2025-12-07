@@ -10,6 +10,7 @@ type Parser struct {
 	Recovering bool
 	state      byte
 	contexts   []byte
+	cc         *Compiler
 }
 
 const (
@@ -40,9 +41,20 @@ func (p *Parser) ErrorUnexpected(expected string) {
 
 func (p *Parser) PeekToken() *Token {
 	if len(p.Tokens) == 0 {
-		p.scanToken()
+		p.ScanToken()
 	}
 	return p.Tokens[0]
+}
+
+func (p *Parser) Parse() Value {
+	return p._parse()
+}
+
+func (p *Parser) SetCompiler(cc *Compiler) {
+	p.state = 0
+	p.contexts = []byte{'{'}
+	p.cc = cc
+	p.Scanner.Reset()
 }
 
 func (p *Parser) SetContext(a byte) {
@@ -162,12 +174,14 @@ func (p *Parser) newIdLikeToken(s, t string, ws, nl bool, context byte, pt Pt, p
 
 	if p.MatchChar("(") {
 		return p.NewIdToken(tkIDENTIFIERP, v, pt)
-	} else if s == "" && p.ScanChar(":") {
+	} else if s == "" && p.MatchChar(":") {
 		if context == '{' {
 			p.state = pstNl
 			p.PushToken(p.NewToken(tkLABEL, NIL, pt))
 		}
-		return p.NewIdToken(tkLABEL_NAME, v, pt)
+		token := p.NewIdToken(tkLABEL_NAME, v, pt)
+		p.ForwardChar()
+		return token
 	}
 	return p.NewIdToken(tkIDENTIFIER, v, pt)
 }
@@ -256,7 +270,7 @@ func (p *Parser) scanQuotedLiteral(close byte, kind string) []byte {
 	return nil
 }
 
-func (p *Parser) scanToken() {
+func (p *Parser) ScanToken() {
 	context := p.contexts[len(p.contexts)-1]
 	pt, ws, nl := p.seekToNextToken(p.Recovering || context == '{')
 	state := p.state

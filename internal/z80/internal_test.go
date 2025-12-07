@@ -1,7 +1,7 @@
 package z80
 
 import (
-	"ocala/internal/core"
+	"ocala/core"
 	"ocala/internal/tt"
 	"testing"
 )

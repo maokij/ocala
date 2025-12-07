@@ -114,9 +114,13 @@ package core
     ( REGISTER  { v.Push(_1.Value) }!
     )*          { RET v }!
   ;
-  block:
-    '{' program '}'  { v := _2.(*Vec); v.SetAt(0, KwProg.ToId(_1)); RET v }!
-  | '={' program '}' { RET _2 }!
+  block:             ^{ v := &Vec{NIL} }!
+    ( '{'             { v.SetAt(0, KwProg.ToId(_1)) }!
+    | '={'            { v.SetAt(0, KwBlock.ToId(_1)) }!
+    )
+    statement?        { if _2 != nil { v.Push(_2) } }!
+    ( ';' statement?  { if _2 != nil { v.Push(_2) } }!
+    )* '}'            { RET v }!
   ;
   proc_call:
     CONDDOT?:NILTK
@@ -136,9 +140,9 @@ package core
     )*                          { RET v }!
   ;
   operand:
-    primitive         { v := _1 }!
-      ( ':' primitive { v = &Vec{KwTpl.ToId(_1), v, _2} }!
-      )?              { RET v }!
+    primitive       { v := _1 }!
+    ( ':' primitive { v = &Vec{KwTpl.ToId(_1), v, _2} }!
+    )?              { RET v }!
   ;
   primitive:
     CONDITION          { RET _1.Value }!

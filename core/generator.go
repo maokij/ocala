@@ -44,6 +44,16 @@ func (err *InternalError) With(message string, args ...any) {
 	raiseError(err)
 }
 
+func (err *InternalError) Tokens() []*Token {
+	tokens := []*Token{}
+	for _, i := range err.at {
+		if token := FindToken(i); token != nil {
+			tokens = append(tokens, token)
+		}
+	}
+	return tokens
+}
+
 type Warning struct {
 	message string
 	at      []Value
@@ -167,29 +177,37 @@ func (g *Generator) HandlePanic() {
 	}
 }
 
-func (g *Generator) Compiler() *Compiler {
-	return g.cc
-}
-
 func (g *Generator) SetCompiler(cc *Compiler) {
 	cc.g = g
 	g.cc = cc
 }
 
 func (g *Generator) SetCompilerFromSource(text []byte) {
-	arch := g.findArchDirective(text)
-	if arch == "" {
-		g.ErrorWith("the first statement must be an `arch` directive unless the `-t` option is specified")
-	}
-
-	cc := NewCompiler(arch)
-	if cc == nil {
-		g.ErrorWith("unknown arch: %s", arch)
+	cc, err := g.NewCompilerFromSource(text)
+	if err != nil {
+		raiseError(err)
 	}
 	g.SetCompiler(cc)
 }
 
-func (g *Generator) findArchDirective(text []byte) string {
+func (g *Generator) NewCompilerFromSource(text []byte) (*Compiler, error) {
+	arch := FindArchDirective(text)
+	if arch == "" {
+		err := g.ErrorAt()
+		err.SetMessage("the first statement must be an `arch` directive unless the `-t` option is specified")
+		return nil, err
+	}
+
+	cc := NewCompiler(arch)
+	if cc == nil {
+		err := g.ErrorAt()
+		err.SetMessage("unknown arch: %s", arch)
+		return nil, err
+	}
+	return cc, nil
+}
+
+func FindArchDirective(text []byte) string {
 	p := &Parser{Scanner: Scanner{Text: text}}
 
 	p.seekToNextToken(false)
@@ -217,4 +235,9 @@ func (g *Generator) prependList(list []byte) {
 
 func (g *Generator) Compile(path string, text []byte) []*Inst {
 	return g.cc.Compile(path, text)
+}
+
+func (g *Generator) CheckLink(insts []*Inst) {
+	g.validateInsts(insts)
+	g.resolveInsts(insts, asmPassEstimate)
 }

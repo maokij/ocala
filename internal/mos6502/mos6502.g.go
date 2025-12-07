@@ -1,6 +1,6 @@
 package mos6502
 
-import . "ocala/internal/core" //lint:ignore ST1001 core
+import . "ocala/core" //lint:ignore ST1001 core
 
 var bmaps = [][]byte{}
 
@@ -88,31 +88,31 @@ var kwTXS = Intern("TXS")
 var kwTYA = Intern("TYA")
 
 var asmOperands = map[*Keyword]AsmOperand{
-	kwRegA:   {"A", false},
-	kwRegX:   {"X", false},
-	kwRegY:   {"Y", false},
-	kwRegS:   {"S", false},
-	kwRegP:   {"P", false},
-	kwRegPC:  {"PC", false},
-	kwImmN:   {"#%", true},
-	kwImmNN:  {"#%", true},
-	kwMemZN:  {"%", true},
-	kwMemZX:  {"%, X", true},
-	kwMemZY:  {"%, Y", true},
-	kwMemAN:  {"%", true},
-	kwMemAX:  {"%, X", true},
-	kwMemAY:  {"%, Y", true},
-	kwMemIN:  {"(%)", true},
-	kwMemIX:  {"(%, X)", true},
-	kwMemIY:  {"(%), Y", true},
-	kwCondNE: {"NE", false},
-	kwCondEQ: {"EQ", false},
-	kwCondCC: {"CC", false},
-	kwCondCS: {"CS", false},
-	kwCondVC: {"VC", false},
-	kwCondVS: {"VS", false},
-	kwCondPL: {"PL", false},
-	kwCondMI: {"MI", false},
+	kwRegA:   {Base: "A", Expand: false},
+	kwRegX:   {Base: "X", Expand: false},
+	kwRegY:   {Base: "Y", Expand: false},
+	kwRegS:   {Base: "S", Expand: false},
+	kwRegP:   {Base: "P", Expand: false},
+	kwRegPC:  {Base: "PC", Expand: false},
+	kwImmN:   {Base: "#%", Expand: true},
+	kwImmNN:  {Base: "#%", Expand: true},
+	kwMemZN:  {Base: "%", Expand: true},
+	kwMemZX:  {Base: "%, X", Expand: true},
+	kwMemZY:  {Base: "%, Y", Expand: true},
+	kwMemAN:  {Base: "%", Expand: true},
+	kwMemAX:  {Base: "%, X", Expand: true},
+	kwMemAY:  {Base: "%, Y", Expand: true},
+	kwMemIN:  {Base: "(%)", Expand: true},
+	kwMemIX:  {Base: "(%, X)", Expand: true},
+	kwMemIY:  {Base: "(%), Y", Expand: true},
+	kwCondNE: {Base: "NE", Expand: false},
+	kwCondEQ: {Base: "EQ", Expand: false},
+	kwCondCC: {Base: "CC", Expand: false},
+	kwCondCS: {Base: "CS", Expand: false},
+	kwCondVC: {Base: "VC", Expand: false},
+	kwCondVS: {Base: "VS", Expand: false},
+	kwCondPL: {Base: "PL", Expand: false},
+	kwCondMI: {Base: "MI", Expand: false},
 }
 
 var tokenWords = [][]string{

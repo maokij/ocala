@@ -134,9 +134,11 @@ module LLPg
 
     def scan
       loop do
-        if @s.bol? && @s.scan(/[ \t]*%options +([^\n]+)/)
+        if @s.bol? && @s.scan(/[ \t]*%options +([^\n]*)/)
+          yaml = @s[1].strip
+          @s.scan(/\n([^\n]*)/) and yaml << @s[1].strip while yaml.chomp!("\\")
           begin
-            @options.update(YAML.safe_load("{ #{@s[1].strip} }"))
+            @options.update(YAML.safe_load("{ #{yaml} }"))
           rescue Psych::SyntaxError
             raise ParseError.new("Invalid %options", make_token(:OPTIONS, "", nil, @s.pos))
           end
@@ -619,13 +621,12 @@ module LLPg
     module Strict
       def setup_code
         code = []
-        code << "func (p #{parser_type}) _parse() (res #{value_type}, ok bool) {"
-        code << "    res = p.#{method_name(@table.start)}()"
+        code << "func (p #{parser_type}) _parse() #{value_type} {"
+        code << "    res := p.#{method_name(@table.start)}()"
         code << "    if (p.PeekToken().Kind != tkEOF) {"
         code << "         p.ErrorUnexpected(\"EOF\")"
         code << "    }"
-        code << "    ok = true"
-        code << "    return"
+        code << "    return res"
         code << "}"
       end
 

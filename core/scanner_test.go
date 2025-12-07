@@ -37,7 +37,7 @@ func TestScanner(t *testing.T) {
 	})
 	t.Run("OnError", func(t *testing.T) {
 		var handled *InternalError
-		s := &Scanner{cc: &Compiler{}}
+		s := &Scanner{}
 		s.OnError = func(err *InternalError) { handled = err }
 		s.scanError("handled-error")
 		tt.Eq(t, "handled-error", handled.message)
@@ -93,4 +93,27 @@ func TestFindToken(t *testing.T) {
 	tt.Eq(t, nil, FindToken(&Constexpr{}))
 	tt.Eq(t, nil, FindToken(Int(0)))
 	tt.Eq(t, nil, FindToken(NewStr("")))
+}
+
+func TestInternalError(t *testing.T) {
+	cc := &Compiler{}
+	s := &Scanner{Path: "-", Text: []byte("a\nb\nc\n")}
+	s.Init()
+	a := &Token{From: s, Pt: Pt{Pos: 4, Line: 2}}
+	b := &Token{From: s, Pt: Pt{Pos: 1, Line: 0}}
+	err := cc.ErrorAt(a, nil, b)
+	err.SetMessage("error")
+	tt.EqSlice(t, []*Token{a, b}, err.Tokens())
+
+	tt.EqText(t, tt.Unindent(`
+		-:3:0: compile error: error
+		[error #0]
+		  at -:3:0
+		   |c
+		   |^-- ??
+		[error #1]
+		  at -:1:1
+		   |a
+		   | ^-- ??
+    `), string(err.FullMessage()))
 }

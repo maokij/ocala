@@ -419,9 +419,10 @@ func (cc *Compiler) initReservedWords(env *Env) {
 }
 
 func (cc *Compiler) buildSetupCode() *Vec {
-	parser := &Scanner{Path: "<-D>", Text: []byte("(constants defined by -D options)")}
+	scanner := &Scanner{Path: "<-D>", Text: []byte("(constants defined by -D options)")}
+	scanner.Init()
 	tag := &Identifier{Name: KwConst}
-	tag.Token = &Token{From: parser, Value: tag}
+	tag.Token = &Token{From: scanner, Value: tag}
 
 	r := &Vec{tag.Expand(KwBlock)}
 	e := &Vec{tag.Expand(KwConst), InternalId(KwARCH).ToConstexpr(nil), &Vec{},
@@ -430,7 +431,7 @@ func (cc *Compiler) buildSetupCode() *Vec {
 
 	for _, i := range cc.g.Defs {
 		id := &Identifier{Name: Intern(i)}
-		id.Token = &Token{From: parser, Value: id}
+		id.Token = &Token{From: scanner, Value: id}
 		e := &Vec{tag.Expand(KwConst), id.ToConstexpr(nil), &Vec{}, InternalConstexpr(Int(1))}
 		r.Push(e)
 	}
@@ -473,14 +474,18 @@ func (cc *Compiler) CompileIncluded(from *Identifier, path string, text []byte) 
 }
 
 func (cc *Compiler) NewParser(path string, text []byte) *Parser {
-	p := &Parser{Scanner: Scanner{Path: path, Text: text, cc: cc}, contexts: []byte{'{'}}
+	p := &Parser{Scanner: Scanner{Path: path, Text: text}, contexts: []byte{'{'}, cc: cc}
+	p.OnError = func(err *InternalError) {
+		err.at = append(err.at, cc.nested...)
+		raiseError(err)
+	}
 	p.Scanner.Init()
 	return p
 }
 
 func (cc *Compiler) Parse(path string, text []byte) *Vec {
 	cc.InPath = path
-	res, _ := cc.NewParser(path, text)._parse()
+	res := cc.NewParser(path, text).Parse()
 	return res.(*Vec)
 }
 
@@ -489,7 +494,7 @@ func (cc *Compiler) Parse(path string, text []byte) *Vec {
 func CheckExpr(e *Vec, min, max int, contexts byte, cc *Compiler) (*Identifier, int) {
 	etag := e.ExprTag()
 	if etag == nil {
-		cc.ErrorAt(e).With("invalid form")
+		cc.ErrorAt(e).With("[BUG] invalid form")
 	} else if contexts != 0 && (cc.Context()&contexts) == 0 {
 		cc.ErrorAt(etag).With("%s is not allowed in this context", etag)
 	}
@@ -1077,9 +1082,9 @@ func (cc *Compiler) expandAllInlines() {
 			id := i.Args[2].(*Identifier)
 			nm := cc.LookupNamed(env, id)
 			if nm == nil {
-				cc.ErrorAt(i).With("undefined proc %s", id)
+				cc.ErrorAt(id, i).With("undefined proc %s", id)
 			} else if nm.Kind != NmInline {
-				cc.ErrorAt(i).With("%s is not a inline proc", id)
+				cc.ErrorAt(id, i).With("%s is not a inline proc", id)
 			}
 			cc.EnterCodeBlock()
 			cc.expandInline(nm.Env, i.From, id, nm.Value.(*Inline))

@@ -29,10 +29,10 @@ internal/mos6502/mos6502.g.go: internal/mos6502/mos6502.lisp
 internal/tt/ttarch/ttarch.g.go: internal/tt/ttarch/ttarch.lisp
 	./tools/generate_arch.rb arch $^
 
-internal/core/parser.g.go: internal/core/parser.llpg.go
+core/parser.g.go: core/parser.llpg.go
 	./tools/llpg.rb $^
 
-internal/core/tabs.g.go: internal/core/functions.go
+core/tabs.g.go: core/functions.go
 	./tools/mktabs.rb tabs $^
 
 share/ocala/wasm/ocala.json: share/ocala/include/*.oc \
@@ -43,10 +43,10 @@ share/ocala/wasm/ocala.json: share/ocala/include/*.oc \
 
 .PHONY: lint
 lint: internal/z80/z80.g.go \
-		internal/mos6502/mos6502.g.go \
-		internal/tt/ttarch/ttarch.g.go \
-		internal/core/tabs.g.go \
-		internal/core/parser.g.go
+	internal/mos6502/mos6502.g.go \
+	internal/tt/ttarch/ttarch.g.go \
+	core/tabs.g.go \
+	core/parser.g.go
 	$(STATICCHECK) ./cmd/ocala ./internal/... && \
 	GOOS=js GOARCH=wasm $(STATICCHECK) ./cmd/ocala-wasm
 
@@ -68,7 +68,7 @@ wasm-tinygo: lint share/ocala/wasm/ocala.json
 
 .PHONY: test
 test: lint
-	$(GO) test -count=1 -cover -coverprofile=coverage.out ./cmd/ocala ./internal/...
+	$(GO) test -count=1 -cover -coverprofile=coverage.out ./cmd/ocala ./core ./internal/...
 
 .PHONY: testdata
 testdata:
@@ -90,7 +90,7 @@ testdata:
 .PHONY: clean
 clean:
 	rm -f internal/z80/z80.g.go internal/mos6502/mos6502.g.go internal/tt/ttarch/ttarch.g.go \
-		internal/core/parser.g.go internal/core/tabs.g.go \
+		core/parser.g.go core/tabs.g.go \
 		bin/ocala share/ocala/wasm/ocala.wasm share/ocala/wasm/ocala.json
 
 .PHONY: install
