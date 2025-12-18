@@ -1,5 +1,13 @@
-;; ocala-mode.el -- Major mode for editing Ocala code.
+;;; ocala-mode.el -- Major mode for editing Ocala code.
 
+;;; Commentary:
+
+;; init.el:
+;; (use-package ocala-mode
+;;   :mode "\\.oc\\'"
+;;   :config (add-hook 'ocala-mode-hook #'eglot-ensure))
+
+;;; Code:
 (require 'smie)
 (require 'rx)
 
@@ -319,4 +327,12 @@
               :backward-token #'ocala-smie--backward-token)
   (use-local-map ocala-mode-map))
 
+;;;###autoload
+(add-to-list 'auto-mode-alist '("\\.oc\\'" . ocala-mode))
+
+(with-eval-after-load 'eglot
+  (add-to-list 'eglot-server-programs '((ocala-mode) "ocala-language-server")))
+
 (provide 'ocala-mode)
+
+;;; ocala-mode.el ends here

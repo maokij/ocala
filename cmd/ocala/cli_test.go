@@ -3,7 +3,7 @@ package main
 import (
 	"bytes"
 	"hash/crc32"
-	"ocala/internal/tt"
+	tt "ocala/testutil"
 	"os"
 	"path/filepath"
 	"testing"

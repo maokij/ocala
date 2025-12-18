@@ -3,6 +3,7 @@ package tt
 import (
 	"bytes"
 	"io"
+	"reflect"
 	"regexp"
 	"slices"
 	"strings"
@@ -60,6 +61,13 @@ func EqText(t *testing.T, a, b string, rest ...any) {
 	}
 }
 
+func EqStruct[T any](t *testing.T, a, b T, rest ...any) {
+	if !reflect.DeepEqual(a, b) {
+		t.Helper()
+		t.Errorf("expected %v, but %v; %v", a, b, rest)
+	}
+}
+
 func Prefix(t *testing.T, a, b string, rest ...any) {
 	if !strings.HasPrefix(b, a) {
 		t.Helper()
@@ -84,6 +92,10 @@ func Unindent(s string) string {
 	return strings.TrimRight(s[n+1:], " \t\n")
 }
 
+func UnindentBytes(s string) []byte {
+	return []byte(Unindent(s))
+}
+
 func Flush(w io.Writer) []byte {
 	b := w.(*bytes.Buffer)
 	s := b.Bytes()
@@ -96,4 +108,28 @@ func FlushString(w io.Writer) string {
 	s := b.String()
 	b.Reset()
 	return s
+}
+
+func Must[T any](v T, err error) T {
+	if err == nil {
+		return v
+	}
+	panic(err)
+}
+
+func MustOk(err error) {
+	if err == nil {
+		return
+	}
+	panic(err)
+}
+
+func NewBytesReadWriteCloser(p []byte) io.ReadWriteCloser {
+	return &struct {
+		io.ReadCloser
+		io.Writer
+	}{
+		io.NopCloser(bytes.NewBuffer(p)),
+		bytes.NewBuffer(nil),
+	}
 }

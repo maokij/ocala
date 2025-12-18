@@ -2,6 +2,12 @@
 
 Ocala is an assembler for Z80 / 6502.
 
+MSX1 sprite32:  
+![msx-sprite32.gif](https://maokij.github.io/assets/images/msx-sprite32.gif)
+
+MSX2 scroll:  
+![msx2-scroll.gif](https://maokij.github.io/assets/images/msx2-scroll.gif)
+
 ## Features
 
 - Modules and namespaces

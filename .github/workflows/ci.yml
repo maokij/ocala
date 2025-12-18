@@ -24,3 +24,9 @@ jobs:
         run: go test -v ./cmd/... ./core ./internal/...
       - name: Build
         run: go build -v ./cmd/ocala
+      - name: Run tests(language-server)
+        working-directory: ./language-server
+        run: go test -v ./...
+      - name: Build(language-server)
+        working-directory: ./language-server
+        run: go build -v ./cmd/ocala

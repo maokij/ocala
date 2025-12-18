@@ -1,0 +1,92 @@
+arch z80
+
+macro m001() { %=a }
+macro m001(a) { %=a }
+macro m001(a b) { %=a }
+macro m001(a: 0) { %=a }
+macro m001(a: 0 b: 0) { %=a }
+macro m001(a b: 0) { %=a }
+macro m001(...) { %=a }
+macro m001(a ...) { %=a }
+macro m001(a b: 0 ...) { %=a }
+macro m001(a) [] { %=a }
+macro m001(a) [a] { %=a }
+macro m001(a) [a b] { %=a }
+macro m001(a) [a = %{ "ok" }] { %=a }
+macro m001(a) [a = %{ id "ok" }] { %=a }
+
+proc p001() { return }
+proc p001(-*) { return }
+proc p001(A) { return }
+proc p001(A B) { return }
+proc p001(=>) { return }
+proc p001(=> A) { return }
+proc p001(=> A B) { return }
+proc p001(A => A) { return }
+proc p001(!) { return }
+proc p001(! A) { return }
+proc p001(! A B) { return }
+proc p001(A => A ! A) { return }
+proc p001(A => A ! A) @ 0
+
+const c001 = 0
+const c001() = 0
+const c001(a) = 0
+const c001(a b) = 0
+const c001(a: 0) = 0
+const c001(a: 0 b: 0) = 0
+const c001(a b: 0) = 0
+
+data byte []
+data byte [0]
+data byte [0 1]
+data byte [[]]
+data byte [[0]]
+data byte [[] []]
+data byte [[0] [0]]
+data byte {}
+data byte {0}
+data byte {0 1}
+data byte [{}]
+data byte [{0}]
+data byte {[]}
+data byte {[0]}
+data byte load-file("test.dat")
+data byte * 1
+data byte : bss
+data byte @ 0
+data []byte
+data [1]byte
+data struct{}
+data byte [$(0) $$(0)]
+data d001 = byte
+
+module m001 {}
+
+l001:
+
+struct {}
+struct s001 {}
+struct { a001 byte }
+struct { a001 byte; a002 byte }
+
+LD
+LD A
+LD A B
+p001()
+p001(-*)
+p001(-* A)
+Z?.p001()
+
+HL <- A : B
+A@0 + 1
+[HL]
+[IX 123]
+$(0) + 1
+$$(0) + 1
+@0 + 1
+A -push . { A -pop }
+m001 Z? HL@0 [HL] 0 {} ={}
+A . p001() . HL@0 . {}
+m001 0 "" _ id id.id id.id.id
+m001 id() id(0) (0) !0 $(0) $$(0)

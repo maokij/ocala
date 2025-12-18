@@ -1,8 +1,8 @@
 package core_test
 
 import (
-	"ocala/internal/tt"
-	"ocala/internal/tt/ttarch"
+	"ocala/internal/ttarch"
+	tt "ocala/testutil"
 	"testing"
 )
 

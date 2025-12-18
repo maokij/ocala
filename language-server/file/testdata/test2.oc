@@ -1,0 +1,163 @@
+arch z80
+
+macro
+macro @ { %=a }
+macro m001() @
+macro m001() {} @
+macro m001(@
+macro m001({
+macro m001(a {
+macro m001(a @
+macro m001(a: @
+macro m001(a) @
+macro m001(a) [@
+macro m001(a) [ {
+macro m001(a) [a @
+macro m001(a) [a = @
+macro m001(a) [a = %{@
+macro m001(a) [a = %{a @
+macro m001(@) { %=a }
+macro m001({ %=a }
+macro m001(a @) { %=a }
+macro m001(a: @) { %=a }
+macro m001(a) @ [] { %=a }
+macro m001(a) [@] { %=a }
+macro m001(a) [a @] { %=a }
+macro m001(a) [a = @] { %=a }
+macro m001(a) [a = %{@}] { %=a }
+macro m001(a) [a = %{a @}] { %=a }
+
+proc
+proc .
+proc p001 .
+proc p001(.
+proc p001(A .
+proc p001(-* .
+proc p001(=> .
+proc p001(! .
+proc p001() @ .
+proc p001() {} .
+proc p001() .
+proc . { return }
+proc p001 . { return }
+proc p001(.) { return }
+proc p001(A .) { return }
+proc p001(-* .) { return }
+proc p001(=> .) { return }
+proc p001(! .) { return }
+
+const
+const @
+const c001 @
+const c001 = @
+const c001(@
+const c001(a @
+const c001(a: @
+const c001 @() = 0
+const c001(@) = 0
+const c001( = 0
+const c001(a @) = 0
+const c001(a: @) = 0
+
+data
+data .
+data byte .
+data byte [] .
+data byte [.
+data byte [[.
+data byte [0 .
+data byte {} .
+data byte {.
+data byte {{.
+data byte {0 .
+data byte * .
+data byte : .
+data byte @ .
+data [.
+data [] .
+data struct{.
+data byte [$(.
+data byte [$$(.
+data d001 .
+data d001 = .
+data byte [.]
+data byte [[.]]
+data byte [0 .]
+data byte {.}
+data byte {{.}}
+data byte {0 .}
+data [.]byte
+data struct{.}
+data byte [$(.)]
+data byte [$$(.)]
+
+module
+module @
+module m001 @
+module m001 {} @
+
+struct
+struct @
+struct .
+struct {} @
+struct s001 @
+struct { @
+struct { a001 @
+struct { a001 .
+struct { @ }
+struct { a001 @ }
+struct { a001 . }
+
+"invalid"
+200
+_
+.
+LD .
+LD @
+LD A @
+p001(@
+p001(@)
+Z?.@
+
+HL @
+HL <- @
+HL <- @ : B
+HL <- A : @
+HL <- A @
+HL@@
+A@0 + @
+[@
+[@]
+[IX @]
+[0 + @]
+$(@
+$(@) + 1
+$$(@
+$$(@) + 1
+@.
+@0 @ 1
+@0 + @
+A -push . @
+A . p001(.
+A . p001(.)
+A . HL@.
+m001 [.
+m001 $(.
+m001 $$(.
+m001 @.
+m001 (.
+m001 (1 + .
+m001 HL@.
+m001 .
+m001 id.
+m001 id.@
+m001 id.id.@
+m001 id(@
+m001 id(@)
+m001 !@
+m001 { .
+m001 { . }
+m001 ={ .
+m001 ={ . }
+
+const a = 1

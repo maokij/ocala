@@ -2,7 +2,7 @@ package mos6502
 
 import (
 	"ocala/core"
-	"ocala/internal/tt"
+	tt "ocala/testutil"
 	"testing"
 )
 

@@ -9,8 +9,24 @@
 version: 2
 
 builds:
-  - main: ./cmd/ocala
+  - id: ocala
+    main: ./cmd/ocala
     binary: bin/ocala
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - windows
+    goarch:
+      - amd64
+    flags:
+      - -trimpath
+    ldflags:
+      - -w -s -X main.version={{.Version}}
+  - id: ocala-language-server
+    dir: language-server
+    main: .
+    binary: bin/ocala-language-server
     env:
       - CGO_ENABLED=0
     goos:

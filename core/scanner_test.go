@@ -1,7 +1,7 @@
 package core
 
 import (
-	"ocala/internal/tt"
+	tt "ocala/testutil"
 	"testing"
 )
 

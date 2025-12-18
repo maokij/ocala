@@ -1,0 +1,4 @@
+arch z80
+include "./test4.oc"
+const a = 1
+const c003 = 1

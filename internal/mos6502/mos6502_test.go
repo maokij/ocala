@@ -1,8 +1,8 @@
 package mos6502_test
 
 import (
-	"ocala/internal/tt"
-	"ocala/internal/tt/ttarch"
+	"ocala/internal/ttarch"
+	tt "ocala/testutil"
 	"slices"
 	"testing"
 )

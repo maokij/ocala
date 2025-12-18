@@ -2,7 +2,7 @@ package z80
 
 import (
 	"ocala/core"
-	"ocala/internal/tt"
+	tt "ocala/testutil"
 	"testing"
 )
 

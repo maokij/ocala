@@ -3,7 +3,7 @@
 package core
 
 import (
-	"ocala/internal/tt"
+	tt "ocala/testutil"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -44,7 +44,7 @@ func lastPathComponents(s string, n int) string {
 
 func TestRegularizePath(t *testing.T) {
 	t.Run("ok", func(t *testing.T) {
-		wd, _ := os.Getwd()
+		wd := tt.Must(os.Getwd())
 		paths := []string{
 			filepath.Join(wd, "testdata/include"),
 			filepath.Join(wd, "testdata/include2"),
@@ -69,7 +69,7 @@ func TestRegularizePath(t *testing.T) {
 	})
 
 	t.Run("error", func(t *testing.T) {
-		wd, _ := os.Getwd()
+		wd := tt.Must(os.Getwd())
 		paths := []string{}
 		data := []struct {
 			expected string
@@ -113,7 +113,7 @@ func TestRegularizePath(t *testing.T) {
 	})
 
 	t.Run("error: windows", func(t *testing.T) {
-		wd, _ := os.Getwd()
+		wd := tt.Must(os.Getwd())
 		paths := []string{}
 		data := []struct {
 			expected string
@@ -141,11 +141,11 @@ func TestRegularizePath(t *testing.T) {
 }
 
 func TestFindAppRoot(t *testing.T) {
-	path, _ := filepath.Abs("../test.bin/test")
+	path := tt.Must(filepath.Abs("../test.bin/test"))
 	path, err := FindAppRoot(path)
 	tt.Eq(t, nil, err)
 
-	path, _ = filepath.Abs("../../test.bin/test/test")
+	path = tt.Must(filepath.Abs("../../test.bin/test/test"))
 	path, err = FindAppRoot(path)
 	tt.Eq(t, "invalid installation", err.Error())
 

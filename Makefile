@@ -26,7 +26,7 @@ internal/z80/z80.g.go: internal/z80/z80.lisp
 internal/mos6502/mos6502.g.go: internal/mos6502/mos6502.lisp
 	./tools/generate_arch.rb arch $^
 
-internal/tt/ttarch/ttarch.g.go: internal/tt/ttarch/ttarch.lisp
+internal/ttarch/ttarch.g.go: internal/ttarch/ttarch.lisp
 	./tools/generate_arch.rb arch $^
 
 core/parser.g.go: core/parser.llpg.go
@@ -44,7 +44,7 @@ share/ocala/wasm/ocala.json: share/ocala/include/*.oc \
 .PHONY: lint
 lint: internal/z80/z80.g.go \
 	internal/mos6502/mos6502.g.go \
-	internal/tt/ttarch/ttarch.g.go \
+	internal/ttarch/ttarch.g.go \
 	core/tabs.g.go \
 	core/parser.g.go
 	$(STATICCHECK) ./cmd/ocala ./internal/... && \
@@ -65,6 +65,10 @@ wasm: lint share/ocala/wasm/ocala.json
 wasm-tinygo: lint share/ocala/wasm/ocala.json
 	GOOS=js GOARCH=wasm $(TINYGO) build -o share/ocala/wasm/ocala.wasm \
 		-no-debug -scheduler=none -panic=trap ./cmd/ocala-wasm
+
+.PHONY: language-server
+language-server:
+	$(MAKE) -C ./language-server
 
 .PHONY: test
 test: lint
@@ -89,13 +93,14 @@ testdata:
 
 .PHONY: clean
 clean:
-	rm -f internal/z80/z80.g.go internal/mos6502/mos6502.g.go internal/tt/ttarch/ttarch.g.go \
+	rm -f internal/z80/z80.g.go internal/mos6502/mos6502.g.go internal/ttarch/ttarch.g.go \
 		core/parser.g.go core/tabs.g.go \
 		bin/ocala share/ocala/wasm/ocala.wasm share/ocala/wasm/ocala.json
 
 .PHONY: install
-install: build
+install: build language-server
 	$(INSTALL_PROGRAM) -d $(DESTDIR)$(bindir)
 	$(INSTALL_PROGRAM) -m 755 -s -t $(DESTDIR)$(bindir) bin/ocala$(EXE)
+	$(INSTALL_PROGRAM) -m 755 -s -t $(DESTDIR)$(bindir) bin/ocala-language-server$(EXE)
 	$(INSTALL_PROGRAM) -d $(DESTDIR)$(datadir)/ocala
 	$(GIT) archive HEAD:share/ocala | tar xf - -C $(DESTDIR)$(datadir)/ocala
