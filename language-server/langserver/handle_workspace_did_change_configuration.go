@@ -17,5 +17,5 @@ func (h *langHandler) handleWorkspaceDidChangeConfiguration(_ context.Context, _
 		return nil, err
 	}
 
-	return h.didChangeConfiguration(&params.Settings)
+	return h.didChangeConfiguration(&params.Settings.Config)
 }

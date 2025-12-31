@@ -75,13 +75,14 @@ func TestCompileExamples(t *testing.T) {
 		expect uint32
 		name   string
 	}{
+		{0xc8fbddf8, "../../examples/z80/msx-colortext/main"},
 		{0x7638c5b1, "../../examples/z80/msx-hello-world-bsave/main"},
 		{0x5d0d5139, "../../examples/z80/msx-hello-world-com/main"},
 		{0x09541103, "../../examples/z80/msx-hello-world-vdp/main"},
 		{0x6a96ebe2, "../../examples/z80/msx-hello-world/main"},
 		{0x297dd6d6, "../../examples/z80/msx-keytest/main"},
 		{0xd1e86ef0, "../../examples/z80/msx-simple-game/main"},
-		{0x2627af7c, "../../examples/z80/msx-sprite32/main"},
+		{0x8ca3a036, "../../examples/z80/msx-sprite32/main"},
 		{0x42ac396e, "../../examples/z80/msx2-scroll/main"},
 	}
 	for _, i := range es {

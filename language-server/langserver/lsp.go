@@ -395,7 +395,7 @@ type CodeActionParams struct {
 
 // DidChangeConfigurationParams is
 type DidChangeConfigurationParams struct {
-	Settings Config `json:"settings"`
+	Settings Settings `json:"settings"`
 }
 
 // NotificationMessage is

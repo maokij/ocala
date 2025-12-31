@@ -1,0 +1,206 @@
+arch z80
+include "msx.oc"
+include "msx/romram.oc"
+optimize flow
+
+msx:link-as-rom main _
+
+module device {
+    data fonts = word @ <reserved>
+    data cursor = word @ <reserved>
+    data color = byte @ <reserved>
+    data bold = byte @ <reserved>
+
+    const t32cgp(x: 0 y: 0) = msx:T32CGP/INI + (x * 8) + (y * 32 * 8)
+
+    macro locate(x y) {
+        HL@(0x4000 | device:t32cgp(%=x %=y)) -> [device:cursor]
+    }
+
+    macro locate-x(x) {
+        A@%=x . device:cursor/set-x(A)
+    }
+
+    macro set-color(fg bg) {
+        @(%=fg << 4 | %=bg) -> [device:color]
+    }
+
+    macro set-bold() {
+        @opcode("RRA") -> [device:bold]
+    }
+
+    macro set-unbold() {
+        @opcode("NOP") -> [device:bold]
+    }
+
+    macro print(s) {
+        DE@message . device:put-stringz(DE !)
+        data message = byte [%=s 0] : rodata
+    }
+
+    proc cursor/set-x(A) {
+        A <* 3 -> [cursor]
+        return
+    }
+
+    proc cursor/lf() {
+        [HL@(cursor + 1)] ++
+        return
+    }
+
+    proc init() {
+        HL@[msx:CGTABL] -> [fonts]
+        msx:inigrp(!)
+        clear-screen()
+        return
+    }
+
+    proc clear-screen() {
+        msx:set-vdp-write-addr msx:T32NAM/INI
+        A - A
+        BC <- asword(0 3)
+        loop {
+            A -out msx:VDP_DATA ++
+        } while/B-C-
+
+        msx:set-vdp-write-addr msx:T32CGP/INI
+        msx:fill-vdp-data/wide 0 (8 * 256 * 3)
+
+        msx:set-vdp-write-addr msx:T32COL/INI
+        msx:fill-vdp-data/wide 0x11 (8 * 256 * 3)
+        return
+    }
+
+    proc put-stringz(DE !) {
+        DE -push
+        HL <- 0; *patch* cursor word
+        di/ei { out/HL msx:VDP_ADDR }
+
+        loop {
+            A <- [DE] | A; break-if Z?
+            DE ++
+
+            BC <- 0 : A
+            expand-loop 3 { C << 1; B <*$ 1 } // BC << 3
+
+            HL <- 0; *patch* fonts word
+            HL + BC
+            B <- 8
+            loop {
+                A <- [HL] -> C; HL ++
+                *patch* bold; NOP // or RRA
+                A | C -out msx:VDP_DATA
+            } while/B-
+        }
+
+        HL -pop <-> DE - DE               // HL = length
+        expand-loop 3 { L << 1; H <*$ 1 } // HL << 3
+        HL -> BC + DE@[cursor] -> [cursor]
+
+        D -set 5 // DE | 0x2000(GRPCGP/INI)
+        di/ei { out/DE msx:VDP_ADDR }
+
+        optimize-loop-count(-* BC => BC)
+        A <- 0; *patch* color byte
+        msx:fill-vdp-data/wide _ _
+        return
+
+        proc optimize-loop-count(-* BC => BC) {
+            BC --
+            B ++ -> A
+            C ++ -> B <- A
+            return
+        }
+    }
+
+    proc copy-line(D E !) {
+        data buf = [256]byte : bss
+
+        HL <- D : 0
+        di/ei { out/HL msx:VDP_ADDR }
+        HL@buf . BC@asword(0 msx:VDP_DATA)
+        loop { INI } while not-zero?
+
+        HL <- E : 0 . {H -set 6} // HL | 0x4000
+        di/ei { out/HL msx:VDP_ADDR }
+        HL@buf . BC@asword(0 msx:VDP_DATA)
+        msx:otir-vdp-data
+
+        HL <- D : 0 . {H -set 5}
+        di/ei { out/HL msx:VDP_ADDR }
+        HL@buf . BC@asword(0 msx:VDP_DATA)
+        loop { INI } while not-zero?
+
+        @E | (0x40 | 0x20) -> H . L@0
+        di/ei { out/HL msx:VDP_ADDR }
+        HL@buf . BC@asword(0 msx:VDP_DATA)
+        msx:otir-vdp-data
+        return
+    }
+
+    proc fill-line(D !) {
+        E <- 0 . {D -set 6} // DE | 0x4000
+        di/ei { out/DE msx:VDP_ADDR }
+        A - A . B@0
+        msx:out-vdp-data/while/B-
+
+        E <- 0 . {D -set 6 -set 5} // DE | 0x4000 | 0x2000
+        di/ei { out/DE msx:VDP_ADDR }
+        @0x11 . B@0
+        msx:out-vdp-data/while/B-
+        return
+    }
+
+    proc scroll(B C !) {
+        loop {
+            C -> E ++ -> D
+            push/pop BC {
+                copy-line(D E !)
+            }
+        } while/B-
+        return
+    }
+}
+
+module main {
+    proc main() {
+        romram:boot
+        device:init()
+        fallthrough
+    }
+
+    proc main/loop() {
+        device:locate 0 4
+
+        B <- 8
+        loop {
+            push/pop BC {
+                B -bit? 0; if zero? {
+                    device:set-unbold
+                } else {
+                    device:set-bold
+                }
+                msx:sleep 6
+
+                device:locate-x 3
+                device:set-color 15 8; device:print "THE QUICK "
+                device:set-color 1 11; device:print "BROWN FOX "
+                device:cursor/lf()
+
+                device:locate-x 6
+                device:set-color 3 1;  device:print "JUMPS OVER "
+                device:set-color 6 14; device:print "THE LAZY DOG"
+                device:cursor/lf()
+            }
+        } while/B-
+
+        B <- 16
+        loop {
+            push/pop BC {
+                BC@asword(15 4) . device:scroll(B C !)
+                D@19 . device:fill-line(D !)
+            }
+        } while/B-
+        recur
+    }
+}

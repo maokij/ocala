@@ -117,21 +117,16 @@ module main {
     proc call/HL() { goto/HL }
 
     proc update-sprite-attributes(!) {
-        data switch = byte @ <reserved>
+        const a = (sizeof(unit) * 7  - 4)
+        const b = (sizeof(unit) * 11 - 4)
+        data d = word @ <reserved>
         data next = word @ <reserved>
 
         DE <- device:sprite-attributes
         HL <- units; *patch* next word
+        BC <- asword(32 a); *patch* d word
+        @C ^ (a ^ b) -> [d] // toggle a, b
 
-        A <- opcode("CP 0")
-        BC <- asword(32 (sizeof(unit) * 7  - 4))
-        *patch* switch; once {
-            JR _END
-            A <- opcode("JR 0")
-            C <- (sizeof(unit) * 11 - 4)
-        }
-
-        A -> [switch]
         loop {
             push/pop BC { memcpy _ _ 4 }
             @L + C -> L

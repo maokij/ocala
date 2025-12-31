@@ -30,10 +30,6 @@ func (cli *CLI) Run() int {
 }
 
 func main() {
-	cli := &CLI{
-		inReader:  os.Stdin,
-		outWriter: os.Stdout,
-		errWriter: os.Stderr,
-	}
+	cli := &CLI{inReader: os.Stdin, outWriter: os.Stdout, errWriter: os.Stderr}
 	os.Exit(cli.Run())
 }

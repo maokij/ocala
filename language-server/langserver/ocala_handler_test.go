@@ -155,6 +155,29 @@ func TestCompletion(t *testing.T) {
 		tt.Eq(t, 3, len(result))
 	})
 
+	t.Run("ok: open 2 files", func(t *testing.T) {
+		h := newTestHandler()
+		path := tt.Must(filepath.Abs("../file/testdata"))
+		uri := toURI(path)
+		setFileText(h, uri+"/test3.oc", tt.UnindentBytes(`
+			arch z80
+			const c012 = 1
+		`))
+		setFileText(h, uri+"/test1.oc", tt.UnindentBytes(`
+			arch z80
+			include "./test3.oc"
+			const c011 = 1
+			c01
+		`))
+		result, err := h.completion(uri+"/test1.oc", &CompletionParams{
+			TextDocumentPositionParams: TextDocumentPositionParams{
+				Position: Position{Line: 3, Character: 120},
+			},
+		})
+		tt.Eq(t, nil, err)
+		tt.Eq(t, 2, len(result))
+	})
+
 	t.Run("error", func(t *testing.T) {
 		h := newTestHandler()
 		setFileText(h, "file:///test.oc", []byte("arch z80"))

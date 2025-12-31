@@ -18,6 +18,10 @@ import (
 
 type Duration time.Duration
 
+type Settings struct {
+	Config Config `json:"ocala"`
+}
+
 // Config is
 type Config struct {
 	IncPaths []string `json:"incPaths"`
@@ -100,18 +104,18 @@ func positionToPt(s *file.File, r Position) core.Pt {
 		return core.Pt{}
 	}
 	if r.Line >= len(s.Lines)-1 {
-		return core.Pt{Pos: int32(len(s.Text)), Line: int32(len(s.Lines))}
+		return core.Pt{Pos: int32(len(s.Text)), Line: int32(len(s.Lines) - 2)}
 	}
 
 	line := int32(r.Line)
-	pos := s.Lines[line] + int32(r.Character)
-	if end := s.Lines[line+1]; pos >= end {
-		if s.Text[end-1] == '\n' {
-			end--
-		}
-		return core.Pt{Pos: end, Line: int32(line)}
+	a, b := s.Lines[line], s.Lines[line+1]
+	if pos := a + int32(r.Character); pos < b {
+		return core.Pt{Pos: pos, Line: int32(line)}
 	}
-	return core.Pt{Pos: pos, Line: int32(line)}
+	if b > a && s.Text[b-1] == '\n' {
+		b--
+	}
+	return core.Pt{Pos: b, Line: int32(line)}
 }
 
 func (h *langHandler) snapshot(f *file.File) ([]byte, *file.CompileOptions) {
@@ -237,20 +241,19 @@ func (h *langHandler) addFile(uri DocumentURI, text []byte) (*file.File, error) 
 
 func (h *langHandler) addIncludedFile(path string) *file.File {
 	uri := toURI(path)
-	if f, ok := h.files[uri]; ok {
-		return f
-	}
+	f, ok := h.files[uri]
+	if !ok {
+		text, err := os.ReadFile(path)
+		if err != nil {
+			h.logMessage(LogError, err.Error())
+			return nil
+		}
 
-	text, err := os.ReadFile(path)
-	if err != nil {
-		h.logMessage(LogError, err.Error())
-		return nil
-	}
-
-	f, err := h.addFile(uri, text)
-	if err != nil {
-		h.logMessage(LogError, err.Error())
-		return nil
+		f, err = h.addFile(uri, text)
+		if err != nil {
+			h.logMessage(LogError, err.Error())
+			return nil
+		}
 	}
 	f.Analyze(h.addIncludedFile)
 	return f

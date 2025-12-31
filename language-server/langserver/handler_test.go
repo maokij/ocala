@@ -61,8 +61,20 @@ func TestMain(m *testing.M) {
 
 func TestConnect(t *testing.T) {
 	t.Run("ok", func(t *testing.T) {
-		rwc := tt.NewBytesReadWriteCloser(nil)
-		Connect(rwc, &Config{}, nil)
+		r, w := net.Pipe()
+		rwc := &ReadWriteCloser{In: r, Out: r}
+		go Connect(rwc, &Config{}, nil)
+
+		ctx := context.Background()
+		c := jsonrpc2.NewConn(ctx, jsonrpc2.NewBufferedStream(w, jsonrpc2.VSCodeObjectCodec{}), nil)
+
+		result := InitializeResult{}
+		err := c.Call(ctx, "initialize", InitializeParams{}, &result)
+		tt.Eq(t, nil, err)
+		tt.Eq(t, TDSKIncremental, result.Capabilities.TextDocumentSync)
+
+		err = c.Call(ctx, "shutdown", InitializeParams{}, &result)
+		tt.Eq(t, jsonrpc2.ErrClosed, err)
 	})
 
 	t.Run("ok: initialize", func(t *testing.T) {
@@ -279,7 +291,7 @@ func TestWorkspace(t *testing.T) {
 	t.Run("ok", func(t *testing.T) {
 		cs := newConn()
 		err := cs.c.Call(cs.ctx, "workspace/didChangeConfiguration", DidChangeConfigurationParams{
-			Settings: Config{},
+			Settings: Settings{},
 		}, nil)
 		tt.Eq(t, nil, err)
 
@@ -500,7 +512,6 @@ func TestLint(t *testing.T) {
 	<-c
 	tt.Eq(t, nil, clientErr)
 	tt.True(t, len(params.Diagnostics) > 0)
-	t.Log("?", len(params.Diagnostics))
 }
 
 func TestLogMessage(t *testing.T) {
@@ -522,4 +533,53 @@ func TestLogMessage(t *testing.T) {
 	<-cs.c.DisconnectNotify()
 	tt.Eq(t, nil, clientErr)
 	tt.Eq(t, "test", params.Message)
+}
+
+func TestUpdateFileIncremental(t *testing.T) {
+	h := newTestHandler()
+	setFileText(h, "file:///test", nil)
+
+	h.updateFileIncremental("file:///test", []TextDocumentContentChangeEvent{
+		{
+			Text: "abc\n",
+			Range: &Range{
+				Start: Position{Line: 0, Character: 0},
+				End:   Position{Line: 0, Character: 0},
+			},
+		},
+	}, nil, 0)
+	tt.Eq(t, "abc\n", string(h.files["file:///test"].Text))
+
+	h.updateFileIncremental("file:///test", []TextDocumentContentChangeEvent{
+		{
+			Text: "def\n",
+			Range: &Range{
+				Start: Position{Line: 1, Character: 0},
+				End:   Position{Line: 1, Character: 0},
+			},
+		},
+	}, nil, 0)
+	tt.Eq(t, "abc\ndef\n", string(h.files["file:///test"].Text))
+
+	h.updateFileIncremental("file:///test", []TextDocumentContentChangeEvent{
+		{
+			Text: "",
+			Range: &Range{
+				Start: Position{Line: 0, Character: 0},
+				End:   Position{Line: 10, Character: 0},
+			},
+		},
+	}, nil, 0)
+	tt.Eq(t, "", string(h.files["file:///test"].Text))
+
+	h.updateFileIncremental("file:///test", []TextDocumentContentChangeEvent{
+		{
+			Text: "hij\n",
+			Range: &Range{
+				Start: Position{Line: 0, Character: 0},
+				End:   Position{Line: 0, Character: 0},
+			},
+		},
+	}, nil, 0)
+	tt.Eq(t, "hij\n", string(h.files["file:///test"].Text))
 }

@@ -329,6 +329,7 @@ func (f *File) Parse() {
 	f.scope = rootNode.Token
 	f.scope.Value = rootNode
 	f.Node = rootNode
+	f.Includes = f.Includes[:0]
 	f._parse()
 	f.ensureEOF()
 	f.buildEnv(core.NewEnv(cc.Toplevel), rootNode)
@@ -337,10 +338,12 @@ func (f *File) Parse() {
 }
 
 func (f *File) Analyze(open func(string) *File) {
-	if f.Analyzed != f.Sequence {
-		f.Parse()
+	if f.Analyzed == f.Sequence {
+		return
 	}
 
+	f.Analyzed = f.Sequence
+	f.Parse()
 	for _, i := range f.Includes {
 		dir := filepath.Dir(f.Path)
 		path, err := core.RegularizePath(i, dir, f.IncPaths)
@@ -352,7 +355,6 @@ func (f *File) Analyze(open func(string) *File) {
 		}
 	}
 	f.MergeEnv()
-	f.Analyzed = f.Sequence
 }
 
 func (f *File) MergeEnv() {

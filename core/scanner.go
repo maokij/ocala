@@ -71,8 +71,20 @@ func (v *Token) FormatAsErrorLine(s string) string {
 
 type Scanner struct {
 	Pt
-	Path    string
-	Text    []byte
+	Path string
+	Text []byte
+	// Lines is a list of starting offsets for each line in Text.
+	// if Text has no newlines:
+	//
+	//	Lines[0(n-2)] : 0(beginning of the last line)
+	//	Lines[1(n-1)] : len(Text)
+	//
+	// otherwise:
+	//
+	//	Lines[0]   : 0
+	//	...
+	//	Lines[n-2] : beginning of the last line
+	//	Lines[n-1] : len(Text)
 	Lines   []int32
 	Matched []string
 	Tokens  []*Token
