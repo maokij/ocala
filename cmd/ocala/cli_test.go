@@ -75,7 +75,7 @@ func TestCompileExamples(t *testing.T) {
 		expect uint32
 		name   string
 	}{
-		{0xc8fbddf8, "../../examples/z80/msx-colortext/main"},
+		{0x2f378a54, "../../examples/z80/msx-colortext/main"},
 		{0x7638c5b1, "../../examples/z80/msx-hello-world-bsave/main"},
 		{0x5d0d5139, "../../examples/z80/msx-hello-world-com/main"},
 		{0x09541103, "../../examples/z80/msx-hello-world-vdp/main"},

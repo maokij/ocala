@@ -5189,28 +5189,225 @@ var ctxOpMap = CtxOpMap{
 		},
 	},
 	Intern("<<"): {
-		KwAny: {
+		kwRegA: {
 			kwImmNN: {
 				{KwREP, &Vec{Int(1), nil}, &Vec{
 					&Vec{kwSLA, &Vec{Int(0), nil}},
 				}},
 			},
 		},
+		kwRegB: {
+			kwImmNN: {
+				{KwREP, &Vec{Int(1), nil}, &Vec{
+					&Vec{kwSLA, &Vec{Int(0), nil}},
+				}},
+			},
+		},
+		kwRegC: {
+			kwImmNN: {
+				{KwREP, &Vec{Int(1), nil}, &Vec{
+					&Vec{kwSLA, &Vec{Int(0), nil}},
+				}},
+			},
+		},
+		kwRegD: {
+			kwImmNN: {
+				{KwREP, &Vec{Int(1), nil}, &Vec{
+					&Vec{kwSLA, &Vec{Int(0), nil}},
+				}},
+			},
+		},
+		kwRegE: {
+			kwImmNN: {
+				{KwREP, &Vec{Int(1), nil}, &Vec{
+					&Vec{kwSLA, &Vec{Int(0), nil}},
+				}},
+			},
+		},
+		kwRegH: {
+			kwImmNN: {
+				{KwREP, &Vec{Int(1), nil}, &Vec{
+					&Vec{kwSLA, &Vec{Int(0), nil}},
+				}},
+			},
+		},
+		kwRegL: {
+			kwImmNN: {
+				{KwREP, &Vec{Int(1), nil}, &Vec{
+					&Vec{kwSLA, &Vec{Int(0), nil}},
+				}},
+			},
+		},
+		kwRegBC: {
+			kwImmNN: {
+				{KwREP, &Vec{Int(1), nil}, &Vec{
+					&Vec{kwSLA, &Operand{Kind: kwRegC}},
+					&Vec{kwRL, &Operand{Kind: kwRegB}},
+				}},
+			},
+		},
+		kwRegDE: {
+			kwImmNN: {
+				{KwREP, &Vec{Int(1), nil}, &Vec{
+					&Vec{kwSLA, &Operand{Kind: kwRegE}},
+					&Vec{kwRL, &Operand{Kind: kwRegD}},
+				}},
+			},
+		},
+		kwRegHL: {
+			kwImmNN: {
+				{KwREP, &Vec{Int(1), nil}, &Vec{
+					&Vec{kwADD, &Operand{Kind: kwRegHL}, &Operand{Kind: kwRegHL}},
+				}},
+			},
+		},
 	},
 	Intern(">>"): {
-		KwAny: {
+		kwRegA: {
 			kwImmNN: {
 				{KwREP, &Vec{Int(1), nil}, &Vec{
 					&Vec{kwSRA, &Vec{Int(0), nil}},
 				}},
 			},
 		},
+		kwRegB: {
+			kwImmNN: {
+				{KwREP, &Vec{Int(1), nil}, &Vec{
+					&Vec{kwSRA, &Vec{Int(0), nil}},
+				}},
+			},
+		},
+		kwRegC: {
+			kwImmNN: {
+				{KwREP, &Vec{Int(1), nil}, &Vec{
+					&Vec{kwSRA, &Vec{Int(0), nil}},
+				}},
+			},
+		},
+		kwRegD: {
+			kwImmNN: {
+				{KwREP, &Vec{Int(1), nil}, &Vec{
+					&Vec{kwSRA, &Vec{Int(0), nil}},
+				}},
+			},
+		},
+		kwRegE: {
+			kwImmNN: {
+				{KwREP, &Vec{Int(1), nil}, &Vec{
+					&Vec{kwSRA, &Vec{Int(0), nil}},
+				}},
+			},
+		},
+		kwRegH: {
+			kwImmNN: {
+				{KwREP, &Vec{Int(1), nil}, &Vec{
+					&Vec{kwSRA, &Vec{Int(0), nil}},
+				}},
+			},
+		},
+		kwRegL: {
+			kwImmNN: {
+				{KwREP, &Vec{Int(1), nil}, &Vec{
+					&Vec{kwSRA, &Vec{Int(0), nil}},
+				}},
+			},
+		},
+		kwRegBC: {
+			kwImmNN: {
+				{KwREP, &Vec{Int(1), nil}, &Vec{
+					&Vec{kwSRA, &Operand{Kind: kwRegB}},
+					&Vec{kwRR, &Operand{Kind: kwRegC}},
+				}},
+			},
+		},
+		kwRegDE: {
+			kwImmNN: {
+				{KwREP, &Vec{Int(1), nil}, &Vec{
+					&Vec{kwSRA, &Operand{Kind: kwRegD}},
+					&Vec{kwRR, &Operand{Kind: kwRegE}},
+				}},
+			},
+		},
+		kwRegHL: {
+			kwImmNN: {
+				{KwREP, &Vec{Int(1), nil}, &Vec{
+					&Vec{kwSRA, &Operand{Kind: kwRegH}},
+					&Vec{kwRR, &Operand{Kind: kwRegL}},
+				}},
+			},
+		},
 	},
 	Intern(">>>"): {
-		KwAny: {
+		kwRegA: {
 			kwImmNN: {
 				{KwREP, &Vec{Int(1), nil}, &Vec{
 					&Vec{kwSRL, &Vec{Int(0), nil}},
+				}},
+			},
+		},
+		kwRegB: {
+			kwImmNN: {
+				{KwREP, &Vec{Int(1), nil}, &Vec{
+					&Vec{kwSRL, &Vec{Int(0), nil}},
+				}},
+			},
+		},
+		kwRegC: {
+			kwImmNN: {
+				{KwREP, &Vec{Int(1), nil}, &Vec{
+					&Vec{kwSRL, &Vec{Int(0), nil}},
+				}},
+			},
+		},
+		kwRegD: {
+			kwImmNN: {
+				{KwREP, &Vec{Int(1), nil}, &Vec{
+					&Vec{kwSRL, &Vec{Int(0), nil}},
+				}},
+			},
+		},
+		kwRegE: {
+			kwImmNN: {
+				{KwREP, &Vec{Int(1), nil}, &Vec{
+					&Vec{kwSRL, &Vec{Int(0), nil}},
+				}},
+			},
+		},
+		kwRegH: {
+			kwImmNN: {
+				{KwREP, &Vec{Int(1), nil}, &Vec{
+					&Vec{kwSRL, &Vec{Int(0), nil}},
+				}},
+			},
+		},
+		kwRegL: {
+			kwImmNN: {
+				{KwREP, &Vec{Int(1), nil}, &Vec{
+					&Vec{kwSRL, &Vec{Int(0), nil}},
+				}},
+			},
+		},
+		kwRegBC: {
+			kwImmNN: {
+				{KwREP, &Vec{Int(1), nil}, &Vec{
+					&Vec{kwSRL, &Operand{Kind: kwRegB}},
+					&Vec{kwRR, &Operand{Kind: kwRegC}},
+				}},
+			},
+		},
+		kwRegDE: {
+			kwImmNN: {
+				{KwREP, &Vec{Int(1), nil}, &Vec{
+					&Vec{kwSRL, &Operand{Kind: kwRegD}},
+					&Vec{kwRR, &Operand{Kind: kwRegE}},
+				}},
+			},
+		},
+		kwRegHL: {
+			kwImmNN: {
+				{KwREP, &Vec{Int(1), nil}, &Vec{
+					&Vec{kwSRL, &Operand{Kind: kwRegH}},
+					&Vec{kwRR, &Operand{Kind: kwRegL}},
 				}},
 			},
 		},

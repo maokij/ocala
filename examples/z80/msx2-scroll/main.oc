@@ -294,7 +294,7 @@ module main {
             DE <- asword(0 6) // loop 256 * 6 times
             loop {
                 loop {
-                    expand-loop 16 { OUTI }
+                    outi 16
                 } while/D-
             } while/E-
         }
@@ -305,7 +305,7 @@ module main {
         C@msx:VDP_REGS
         msx:set-vdp-register 17 32
         wait-vdp-ready(-*)
-        expand-loop 15 { OUTI }
+        outi 15
         return
     }
 

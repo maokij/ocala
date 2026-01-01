@@ -63,6 +63,7 @@ archives:
       - share/ocala/include/noarch.oc
       - share/ocala/include/z80.oc
       - share/ocala/misc/ocala-mode.el
+      - share/ocala/misc/plugin/ocala.vim
     wrap_in_directory: "{{ .ProjectName }}"
 
 changelog:

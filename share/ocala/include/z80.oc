@@ -1,4 +1,4 @@
-// -*- mode: ocala; -*-
+arch z80
 include "noarch.oc"
 
 ////////////////////////////////////////////////////////////
@@ -311,6 +311,18 @@ macro skip-2!DE() {
 
 macro skip-2!HL() {
     data byte [opcode("LD HL 0")]
+}
+
+macro ldi(n: 1) {
+    expand-loop %=n { LDI }
+}
+
+macro ldd(n: 1) {
+    expand-loop %=n { LDD }
+}
+
+macro outi(n: 1) {
+    expand-loop %=n { OUTI }
 }
 
 ////////////////////////////////////////////////////////////

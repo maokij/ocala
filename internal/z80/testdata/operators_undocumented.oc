@@ -629,6 +629,10 @@
     B >> 2
     A >>> 2
     B >>> 2
+    HL << 2
+    BC << 2
+    BC >> 2
+    BC >>> 2
     LBI:
     $(LBI) -jump-if NZ?
     $(LBI) -jump-if Z?

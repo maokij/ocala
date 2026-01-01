@@ -677,6 +677,20 @@
     SRL A
     SRL B
     SRL B
+    ADD HL, HL
+    ADD HL, HL
+    SLA C
+    RL B
+    SLA C
+    RL B
+    SRA B
+    RR C
+    SRA B
+    RR C
+    SRL B
+    RR C
+    SRL B
+    RR C
     LBI:
     JP NZ, LBI
     JP Z, LBI

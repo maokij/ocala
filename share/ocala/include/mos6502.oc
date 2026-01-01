@@ -1,4 +1,3 @@
-// -*- mode: ocala; -*-
 arch mos6502
 include "noarch.oc"
 

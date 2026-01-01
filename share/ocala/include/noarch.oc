@@ -1,4 +1,4 @@
-// -*- mode: ocala; -*-
+// arch noarch
 
 macro never-return(tag body) [beg] ={
     if (nameof(%=tag) != "loop") {
